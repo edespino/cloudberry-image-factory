@@ -1,0 +1,322 @@
+---
+# Cloudberry Database Build AMI - Goss Validation Tests (Ubuntu 22.04)
+
+# This file defines validation tests for the Ubuntu 22.04 AMI to ensure all
+# components are properly installed
+
+# System packages verification
+package:
+  # Version control and development tools
+  git: {installed: true}
+  vim: {installed: true}
+  tmux: {installed: true}
+  wget: {installed: true}
+  curl: {installed: true}
+  unzip: {installed: true}
+
+  # System utilities
+  htop: {installed: true}
+  silversearcher-ag: {installed: true}  # Ubuntu package for ag
+  iproute2: {installed: true}           # Ubuntu equivalent of net-tools
+  lsof: {installed: true}               # Ubuntu equivalent of nmap-ncat
+  rsync: {installed: true}
+  sudo: {installed: true}
+
+  # Development and build tools
+  gcc-11: {installed: true}
+  g++-11: {installed: true}
+  make: {installed: true}
+  maven: {installed: true}
+  cmake: {installed: true}
+  bison: {installed: true}
+  flex: {installed: true}
+
+  # Libraries and development headers
+  libapr1-dev: {installed: true}
+  libbz2-dev: {installed: true}
+  libcurl4-gnutls-dev: {installed: true}
+  libevent-dev: {installed: true}
+  libldap-dev: {installed: true}
+  libssl-dev: {installed: true}
+  libpam0g-dev: {installed: true}
+  libreadline-dev: {installed: true}
+  zlib1g-dev: {installed: true}
+  libuv1-dev: {installed: true}
+  libyaml-dev: {installed: true}
+  libxml2-dev: {installed: true}
+  libzstd-dev: {installed: true}
+  liblz4-dev: {installed: true}
+
+  # Java - using system java installation
+
+  # Python
+  python3.10: {installed: true}
+  python3.10-dev: {installed: true}
+  python3-distutils: {installed: true}
+  python3-setuptools: {installed: true}
+
+  # Perl
+  libperl-dev: {installed: true}
+  libipc-run-perl: {installed: true}
+
+  # Security and authentication
+  libkrb5-dev: {installed: true}
+  openssh-server: {installed: true}
+
+  # Container runtime
+  docker-ce: {installed: true}
+  docker-ce-cli: {installed: true}
+  containerd.io: {installed: true}
+
+  # Additional Ubuntu-specific packages
+  language-pack-en: {installed: true}
+  ca-certificates: {installed: true}
+  apt-transport-https: {installed: true}
+
+# System services verification
+service:
+  sshd:
+    enabled: true
+    running: true
+  docker:
+    enabled: true
+
+# Network ports verification
+port:
+  # SSH should be listening
+  tcp:22:
+    listening: true
+    ip: ["0.0.0.0"]
+
+# User account verification
+user:
+  cbadmin:
+    exists: true
+    home: /home/cbadmin
+    shell: /bin/bash
+  ubuntu:
+    exists: true
+    home: /home/ubuntu
+    shell: /bin/bash
+
+# Critical files and directories
+file:
+  # Go installation
+  /opt/go/bin/go:
+    exists: true
+    mode: "0755"
+    filetype: file
+  /etc/profile.d/go.sh:
+    exists: true
+    mode: "0644"
+    filetype: file
+    contents:
+      - "/opt/go/bin"
+
+  # yq installation
+  /usr/local/bin/yq:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # cbadmin user configuration
+  /home/cbadmin:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.bashrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+    contents:
+      - "GOPATH"
+      - "greenplum_path.sh"
+  /home/cbadmin/.vimrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.tmux.conf:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/bin:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/bin/just:
+    exists: true
+    mode: "0755"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # SSH configuration
+  /home/cbadmin/.ssh:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.ssh/id_ed25519:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/id_ed25519.pub:
+    exists: true
+    mode: "0644"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/authorized_keys:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # System configuration files
+  /etc/security/limits.d/90-db-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin soft core unlimited"
+      - "cbadmin hard core unlimited"
+      - "cbadmin soft nofile 524288"
+      - "cbadmin hard nofile 524288"
+
+  /etc/sysctl.d/90-db-sysctl.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "kernel.msgmax = 65536"
+      - "vm.overcommit_memory = 2"
+      - "net.core.somaxconn = 10000"
+
+  /etc/sudoers.d/90-cbadmin:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
+
+  # Docker configuration
+  /etc/docker/daemon.json:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "default-shm-size"
+
+  # Ubuntu-specific locale configuration
+  /etc/default/locale:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "LANG=en_US.UTF-8"
+
+# Command execution tests (using full paths to avoid PATH issues)
+command:
+  # Go version check
+  "/opt/go/bin/go version":
+    exit-status: 0
+    stdout: ["go1.24"]
+    timeout: 5000
+
+  # Java version check
+  "java -version":
+    exit-status: 0
+    stderr: ["openjdk version"]
+    timeout: 5000
+
+  # yq functionality check
+  "/usr/local/bin/yq --version":
+    exit-status: 0
+    stdout: ["yq"]
+    timeout: 5000
+
+  # Docker functionality check
+  "docker --version":
+    exit-status: 0
+    stdout: ["Docker version"]
+    timeout: 5000
+
+  # AWS CLI check
+  "/usr/local/bin/aws --version":
+    exit-status: 0
+    stdout: ["aws-cli"]
+    timeout: 5000
+
+  # cbadmin user verification
+  "getent passwd cbadmin":
+    exit-status: 0
+    stdout: ["cbadmin"]
+    timeout: 5000
+
+  # SSH key file verification (just check file exists, tested in file section)
+  "test -f /home/cbadmin/.ssh/id_ed25519.pub":
+    exit-status: 0
+    timeout: 5000
+
+  # Verify cbadmin sudo access
+  "id cbadmin":
+    exit-status: 0
+    stdout: ["cbadmin"]
+    timeout: 5000
+
+  # Test Docker group membership
+  "groups cbadmin":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+  # Ubuntu-specific locale check
+  "locale":
+    exit-status: 0
+    stdout: ["en_US.UTF-8"]
+    timeout: 5000
+
+  # GCC version check (Ubuntu uses gcc-11)
+  "gcc --version":
+    exit-status: 0
+    stdout: ["gcc (Ubuntu 11."]
+    timeout: 5000
+
+# Process checks
+process:
+  sshd:
+    running: true
+
+# Kernel parameter verification (sample of critical ones)
+kernel-param:
+  # Memory management
+  vm.overcommit_memory:
+    value: "2"
+  vm.overcommit_ratio:
+    value: "95"
+
+  # Network settings
+  net.core.somaxconn:
+    value: "10000"
+  net.ipv4.tcp_congestion_control:
+    value: "cubic"

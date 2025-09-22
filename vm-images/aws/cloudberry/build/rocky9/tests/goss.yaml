@@ -1,0 +1,330 @@
+---
+# Cloudberry Database Build AMI - Goss Validation Tests
+
+# This file defines validation tests for the AMI to ensure all
+# components are properly installed
+
+# System packages verification
+package:
+  # Version control and development tools
+  git: {installed: true}
+  vim-common: {installed: true}
+  tmux: {installed: true}
+  wget: {installed: true}
+  curl: {installed: true}
+  unzip: {installed: true}
+
+  # System utilities
+  htop: {installed: true}
+  the_silver_searcher: {installed: true}
+  net-tools: {installed: true}
+  nmap-ncat: {installed: true}
+  rsync: {installed: true}
+  sudo: {installed: true}
+
+  # Development and build tools
+  gcc: {installed: true}
+  gcc-c++: {installed: true}
+  make: {installed: true}
+  maven: {installed: true}
+  cmake: {installed: true}
+  autoconf: {installed: true}
+  bison: {installed: true}
+  flex: {installed: true}
+  m4: {installed: true}
+
+  # Libraries and development headers
+  apr-devel: {installed: true}
+  bzip2-devel: {installed: true}
+  libcurl-devel: {installed: true}
+  libevent-devel: {installed: true}
+  libuuid-devel: {installed: true}
+  libxml2-devel: {installed: true}
+  libzstd-devel: {installed: true}
+  lz4-devel: {installed: true}
+  openldap-devel: {installed: true}
+  openssl-devel: {installed: true}
+  pam-devel: {installed: true}
+  readline-devel: {installed: true}
+  zlib-devel: {installed: true}
+  libuv-devel: {installed: true}
+  libyaml-devel: {installed: true}
+
+  # Java
+  java-11-openjdk: {installed: true}
+  java-11-openjdk-devel: {installed: true}
+
+  # Python
+  python3-devel: {installed: true}
+
+  # Perl
+  perl-ExtUtils-Embed: {installed: true}
+  perl-Test-Simple: {installed: true}
+  perl-IPC-Run: {installed: true}
+
+  # Security and authentication
+  krb5-devel: {installed: true}
+  openssh-clients: {installed: true}
+  openssh-server: {installed: true}
+
+  # Container runtime
+  docker-ce: {installed: true}
+  docker-ce-cli: {installed: true}
+  containerd.io: {installed: true}
+
+# System services verification
+service:
+  sshd:
+    enabled: true
+    running: true
+  docker:
+    enabled: true
+
+# Network ports verification
+port:
+  # SSH should be listening
+  tcp:22:
+    listening: true
+    ip: ["0.0.0.0"]
+
+# User account verification
+user:
+  cbadmin:
+    exists: true
+    home: /home/cbadmin
+    shell: /bin/bash
+  rocky:
+    exists: true
+    home: /home/rocky
+    shell: /bin/bash
+
+# Critical files and directories
+file:
+  # Go installation
+  /opt/go/bin/go:
+    exists: true
+    mode: "0755"
+    filetype: file
+  /etc/profile.d/go.sh:
+    exists: true
+    mode: "0644"
+    filetype: file
+    contents:
+      - "/opt/go/bin"
+
+  # Xerces-C installation
+  /opt/xerces-c/lib/libxerces-c.so:
+    exists: true
+    filetype: symlink
+  /opt/xerces-c/include/xercesc:
+    exists: true
+    filetype: directory
+
+  # yq installation
+  /usr/local/bin/yq:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Starship prompt
+  /usr/local/bin/starship:
+    exists: true
+    mode: "0755"
+    filetype: file
+  /etc/profile.d/starship.sh:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # cbadmin user configuration
+  /home/cbadmin:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.bashrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+    contents:
+      - "GOPATH"
+      - "greenplum_path.sh"
+  /home/cbadmin/.vimrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.tmux.conf:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/bin:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/bin/just:
+    exists: true
+    mode: "0755"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # SSH configuration
+  /home/cbadmin/.ssh:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.ssh/id_ed25519:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/id_ed25519.pub:
+    exists: true
+    mode: "0644"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/authorized_keys:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # System configuration files
+  /etc/security/limits.d/90-db-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin soft core unlimited"
+      - "cbadmin hard core unlimited"
+      - "cbadmin soft nofile 524288"
+      - "cbadmin hard nofile 524288"
+
+  /etc/sysctl.d/90-db-sysctl.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "kernel.msgmax = 65536"
+      - "vm.overcommit_memory = 2"
+      - "net.core.somaxconn = 10000"
+
+  /etc/selinux/config:
+    exists: true
+    filetype: file
+    contents:
+      - "SELINUX=disabled"
+
+  /etc/sudoers.d/90-cbadmin:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
+
+  # Docker configuration
+  /etc/docker/daemon.json:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "default-shm-size"
+
+# Command execution tests (using full paths to avoid PATH issues)
+command:
+  # Go version check
+  "/opt/go/bin/go version":
+    exit-status: 0
+    stdout: ["go1.25.1"]
+    timeout: 5000
+
+  # Java version check
+  "java -version":
+    exit-status: 0
+    stderr: ["openjdk version"]
+    timeout: 5000
+
+  # yq functionality check
+  "/usr/local/bin/yq --version":
+    exit-status: 0
+    stdout: ["yq"]
+    timeout: 5000
+
+  # Starship functionality check
+  "/usr/local/bin/starship --version":
+    exit-status: 0
+    stdout: ["starship"]
+    timeout: 5000
+
+  # Docker functionality check (start if not running)
+  "sudo systemctl start docker && docker --version":
+    exit-status: 0
+    stdout: ["Docker version"]
+    timeout: 10000
+
+  # AWS CLI check
+  "/usr/local/bin/aws --version":
+    exit-status: 0
+    stdout: ["aws-cli"]
+    timeout: 5000
+
+  # cbadmin user just command
+  "sudo -u cbadmin /home/cbadmin/bin/just --version":
+    exit-status: 0
+    stdout: ["just"]
+    timeout: 5000
+
+  # SSH key functionality
+  "sudo -u cbadmin ssh-keygen -l -f /home/cbadmin/.ssh/id_ed25519.pub":
+    exit-status: 0
+    stdout: ["ED25519"]
+    timeout: 5000
+
+  # Verify cbadmin sudo access
+  "sudo -l -U cbadmin":
+    exit-status: 0
+    stdout: ["NOPASSWD: ALL"]
+    timeout: 5000
+
+  # Test Docker group membership
+  "groups cbadmin":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+# Process checks
+process:
+  sshd:
+    running: true
+
+# Kernel parameter verification (sample of critical ones)
+kernel-param:
+  # Memory management
+  vm.overcommit_memory:
+    value: "2"
+  vm.overcommit_ratio:
+    value: "95"
+
+  # Network settings
+  net.core.somaxconn:
+    value: "10000"
+  net.ipv4.tcp_congestion_control:
+    value: "cubic"

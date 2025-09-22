@@ -1,0 +1,10 @@
+---
+# Cloudberry Database Build AMI - Goss Validation Tests (Ubuntu 22.04)
+
+# This file defines validation tests for the Ubuntu 22.04 AMI to ensure all
+# components are properly installed
+
+# System packages verification
+package:
+  # Version control and development tools
+  git: {installed: true}

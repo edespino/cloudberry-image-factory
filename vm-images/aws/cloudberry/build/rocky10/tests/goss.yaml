@@ -1,0 +1,320 @@
+---
+# Cloudberry Database Build AMI - Goss Validation Tests for Rocky 10
+
+# This file defines validation tests for the AMI to ensure all
+# components are properly installed and configured
+
+# System packages verification
+package:
+  # Version control and development tools
+  git: {installed: true}
+  vim-enhanced: {installed: true}
+  tmux: {installed: true}
+  wget: {installed: true}
+
+  # System utilities
+  htop: {installed: true}
+  bat: {installed: true}
+  unzip: {installed: true}
+  ripgrep: {installed: true}
+
+  # Node.js (npm is not a separate package in Rocky 10)
+  nodejs: {installed: true}
+
+# System services verification
+service:
+  sshd:
+    enabled: true
+    running: true
+
+# Network ports verification
+port:
+  # SSH should be listening
+  tcp:22:
+    listening: true
+    ip: ["0.0.0.0"]
+
+# User account verification
+user:
+  cbadmin:
+    exists: true
+    home: /home/cbadmin
+    shell: /bin/bash
+  rocky:
+    exists: true
+    home: /home/rocky
+    shell: /bin/bash
+
+# Critical files and directories
+file:
+  # yq installation
+  /usr/local/bin/yq:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Starship prompt
+  /usr/local/bin/starship:
+    exists: true
+    mode: "0755"
+    filetype: file
+  /etc/profile.d/starship.sh:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Goss testing framework
+  /usr/local/bin/goss:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Claude CLI
+  /usr/local/bin/claude:
+    exists: true
+    mode: "0755"
+    filetype: file
+  /home/cbadmin/.npm-global/bin/claude:
+    exists: true
+    mode: "0777"
+    owner: cbadmin
+    group: cbadmin
+    filetype: symlink
+
+  # cbadmin user configuration
+  /home/cbadmin:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.bashrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+    contents:
+      - "GOPATH"
+      - "greenplum_path.sh"
+  /home/cbadmin/.vimrc:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.tmux.conf:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/bin:
+    exists: true
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/bin/just:
+    exists: true
+    mode: "0755"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # SSH configuration
+  /home/cbadmin/.ssh:
+    exists: true
+    mode: "0700"
+    owner: cbadmin
+    group: cbadmin
+    filetype: directory
+  /home/cbadmin/.ssh/id_ed25519:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/id_ed25519.pub:
+    exists: true
+    mode: "0644"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+  /home/cbadmin/.ssh/authorized_keys:
+    exists: true
+    mode: "0600"
+    owner: cbadmin
+    group: cbadmin
+    filetype: file
+
+  # System configuration files
+  /etc/security/limits.d/90-db-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin soft core unlimited"
+      - "cbadmin hard core unlimited"
+      - "cbadmin soft nofile 524288"
+      - "cbadmin hard nofile 524288"
+
+  /etc/sysctl.d/90-db-sysctl.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "kernel.msgmax = 65536"
+      - "vm.overcommit_memory = 2"
+      - "net.core.somaxconn = 10000"
+
+  /etc/selinux/config:
+    exists: true
+    filetype: file
+    contents:
+      - "SELINUX=disabled"
+
+  /etc/sudoers.d/90-cbadmin:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
+
+  # Swap file configuration
+  /swapfile:
+    exists: true
+    mode: "0600"
+    owner: root
+    group: root
+    filetype: file
+
+  # Swap optimization settings
+  /etc/sysctl.d/99-swap.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "vm.swappiness=10"
+      - "vm.vfs_cache_pressure=50"
+
+  # Timezone configuration
+  /etc/localtime:
+    exists: true
+    filetype: symlink
+
+# Command execution tests (using full paths to avoid PATH issues)
+command:
+  # yq functionality check
+  "/usr/local/bin/yq --version":
+    exit-status: 0
+    stdout: ["yq"]
+    timeout: 5000
+
+  # Starship functionality check
+  "/usr/local/bin/starship --version":
+    exit-status: 0
+    stdout: ["starship"]
+    timeout: 5000
+
+  # cbadmin user just command
+  "sudo -u cbadmin /home/cbadmin/bin/just --version":
+    exit-status: 0
+    stdout: ["just"]
+    timeout: 5000
+
+  # Package utilities
+  "bat --version":
+    exit-status: 0
+    stdout: ["bat"]
+    timeout: 5000
+
+  "unzip -v":
+    exit-status: 0
+    stdout: ["UnZip"]
+    timeout: 5000
+
+  "rg --version":
+    exit-status: 0
+    stdout: ["ripgrep"]
+    timeout: 5000
+
+  # Node.js (npm and other tools may not be ready during testing)
+  "node --version":
+    exit-status: 0
+    stdout: ["v"]
+    timeout: 5000
+
+  # Goss testing framework
+  "/usr/local/bin/goss --version":
+    exit-status: 0
+    stdout: ["goss version"]
+    timeout: 5000
+
+  # SSH key functionality
+  "sudo -u cbadmin ssh-keygen -l -f /home/cbadmin/.ssh/id_ed25519.pub":
+    exit-status: 0
+    stdout: ["ED25519"]
+    timeout: 5000
+
+  # Verify cbladmin sudo access
+  "sudo -l -U cbadmin":
+    exit-status: 0
+    stdout: ["NOPASSWD: ALL"]
+    timeout: 5000
+
+  # Swap functionality tests
+  "swapon --show":
+    exit-status: 0
+    stdout: ["/swapfile"]
+    timeout: 5000
+
+  "free -h | grep -i swap":
+    exit-status: 0
+    stdout: ["Swap:"]
+    timeout: 5000
+
+  # Verify swap settings are applied
+  "sysctl vm.swappiness":
+    exit-status: 0
+    stdout: ["vm.swappiness = 10"]
+    timeout: 5000
+
+  "sysctl vm.vfs_cache_pressure":
+    exit-status: 0
+    stdout: ["vm.vfs_cache_pressure = 50"]
+    timeout: 5000
+
+  # Timezone configuration tests
+  "timedatectl show --property=Timezone --value":
+    exit-status: 0
+    stdout: ["America/Los_Angeles"]
+    timeout: 5000
+
+  "ls -la /etc/localtime":
+    exit-status: 0
+    stdout: ["zoneinfo/America/Los_Angeles"]
+    timeout: 5000
+
+# Process checks
+process:
+  sshd:
+    running: true
+
+# Kernel parameter verification (sample of critical ones)
+kernel-param:
+  # Memory management
+  vm.overcommit_memory:
+    value: "2"
+  vm.overcommit_ratio:
+    value: "95"
+
+  # Network settings
+  net.core.somaxconn:
+    value: "10000"
+  net.ipv4.tcp_congestion_control:
+    value: "cubic"

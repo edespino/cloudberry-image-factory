@@ -1,0 +1,288 @@
+name: Manual AMI Build
+
+# TEMPORARILY DISABLED FOR TESTING - Option B
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       build_targets:
+#         description: 'Select builds to run (comma-separated or "all")'
+#         required: true
+#         default: 'all'
+#         type: choice
+#         options:
+#           - 'all'
+#           - 'rocky8'
+#           - 'rocky9'
+#           - 'rocky10'
+#           - 'ubuntu20'
+#           - 'ubuntu22'
+#           - 'rocky8,rocky9,rocky10'
+#           - 'ubuntu20,ubuntu22'
+#       aws_region:
+#         description: 'AWS Region'
+#         required: false
+#         default: 'us-west-2'
+#         type: string
+#       make_public:
+#         description: 'Make AMIs public'
+#         required: false
+#         default: true
+#         type: boolean
+#       force_rebuild:
+#         description: 'Force rebuild even if no changes detected'
+#         required: false
+#         default: false
+#         type: boolean
+#
+#   schedule:
+#     # Run weekly builds on Sundays at 2 AM UTC
+#     - cron: '0 2 * * 0'
+
+env:
+  AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
+
+jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should-run: ${{ steps.set-matrix.outputs.should-run }}
+    steps:
+      - name: Setup build matrix
+        id: set-matrix
+        run: |
+          # Available builds
+          all_builds=("rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
+
+          # Determine which builds to run
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            # For scheduled runs, build all
+            selected_builds=("${all_builds[@]}")
+          else
+            # For manual dispatch
+            input_targets="${{ inputs.build_targets }}"
+            if [ "$input_targets" == "all" ]; then
+              selected_builds=("${all_builds[@]}")
+            else
+              IFS=',' read -ra selected_builds <<< "$input_targets"
+            fi
+          fi
+
+          if [ ${#selected_builds[@]} -eq 0 ]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"build\":[]}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "should-run=true" >> $GITHUB_OUTPUT
+
+          # Create JSON matrix
+          matrix_json="{\"build\":["
+          for i in "${!selected_builds[@]}"; do
+            build_name="${selected_builds[$i]}"
+
+            # Validate build name
+            if [[ ! " ${all_builds[*]} " =~ " $build_name " ]]; then
+              echo "Invalid build name: $build_name"
+              continue
+            fi
+
+            if [ $i -gt 0 ]; then
+              matrix_json+=","
+            fi
+
+            os_family=$(echo "$build_name" | grep -o '^[a-z]*')
+            matrix_json+="{\"name\":\"$build_name\",\"os-family\":\"$os_family\",\"path\":\"vm-images/aws/cloudberry/build/$build_name\"}"
+          done
+          matrix_json+="]}"
+
+          echo "Matrix: $matrix_json"
+          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+
+  validate:
+    needs: setup-matrix
+    if: needs.setup-matrix.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "latest"
+
+      - name: Validate Packer template for ${{ matrix.build.name }}
+        working-directory: ${{ matrix.build.path }}
+        run: |
+          echo "Validating Packer template for ${{ matrix.build.name }}"
+          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" main.pkr.hcl
+
+  build:
+    needs: [setup-matrix, validate]
+    if: needs.setup-matrix.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 2  # Lower concurrency for manual/scheduled builds
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "latest"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq netcat-openbsd
+
+      - name: Build AMI for ${{ matrix.build.name }}
+        working-directory: ${{ matrix.build.path }}
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          MAKE_PUBLIC: ${{ inputs.make_public || 'true' }}
+        run: |
+          echo "Building AMI for ${{ matrix.build.name }}"
+          echo "Build trigger: ${{ github.event_name }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Make public: ${{ env.MAKE_PUBLIC }}"
+
+          chmod +x ../../scripts/packer-build-and-test.sh
+
+          # Modify the build script behavior if needed
+          if [ "${{ env.MAKE_PUBLIC }}" != "true" ]; then
+            echo "Note: AMI will be built but not made public"
+            # Could modify the script here to skip making AMI public
+          fi
+
+          ../../scripts/packer-build-and-test.sh
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.build.name }}-${{ github.run_number }}
+          path: |
+            ${{ matrix.build.path }}/packer-manifest.json
+            ${{ matrix.build.path }}/goss-test-results-*.xml
+          retention-days: 90  # Keep artifacts longer for manual builds
+
+      - name: Extract and tag AMI information
+        if: success()
+        id: ami-info
+        working-directory: ${{ matrix.build.path }}
+        run: |
+          if [ -f packer-manifest.json ]; then
+            AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json | cut -d':' -f2)
+            AMI_NAME=$(aws ec2 describe-images --image-ids $AMI_ID --query "Images[*].Name" --output text --region ${{ env.AWS_REGION }})
+
+            echo "ami-id=$AMI_ID" >> $GITHUB_OUTPUT
+            echo "ami-name=$AMI_NAME" >> $GITHUB_OUTPUT
+
+            # Add additional tags for manual/scheduled builds
+            BUILD_TYPE="manual"
+            if [ "${{ github.event_name }}" == "schedule" ]; then
+              BUILD_TYPE="scheduled"
+            fi
+
+            aws ec2 create-tags --resources $AMI_ID --tags \
+              Key=BuildType,Value=$BUILD_TYPE \
+              Key=GitCommit,Value=${{ github.sha }} \
+              Key=GitRef,Value=${{ github.ref }} \
+              Key=BuildDate,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+              Key=Workflow,Value=${{ github.workflow }} \
+              --region ${{ env.AWS_REGION }}
+
+            echo "Built and tagged AMI: $AMI_NAME ($AMI_ID)"
+          fi
+
+  cleanup:
+    needs: [setup-matrix, build]
+    if: always() && needs.setup-matrix.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Cleanup temporary resources for ${{ matrix.build.name }}
+        run: |
+          echo "Cleaning up any leftover resources for ${{ matrix.build.name }}"
+
+          # Clean up security groups (older than 2 hours for manual builds)
+          cutoff_time=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%S.000Z)
+
+          aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=cloudberry-${{ matrix.build.name }}-*-sg" \
+            --query "SecurityGroups[].GroupId" \
+            --output text | xargs -r -n1 -I {} bash -c '
+              sg_id="{}";
+              creation_time=$(aws ec2 describe-security-groups --group-ids "$sg_id" --query "SecurityGroups[0].Tags[?Key==\`CreatedTime\`].Value" --output text);
+              if [[ -z "$creation_time" ]] || [[ "$creation_time" < "'$cutoff_time'" ]]; then
+                echo "Deleting security group: $sg_id";
+                aws ec2 delete-security-group --group-id "$sg_id" || true;
+              fi
+            '
+
+          # Clean up key pairs (older than 2 hours for manual builds)
+          aws ec2 describe-key-pairs \
+            --filters "Name=key-name,Values=key-cloudberry-${{ matrix.build.name }}-*" \
+            --query "KeyPairs[].KeyName" \
+            --output text | xargs -r -n1 aws ec2 delete-key-pair --key-name || true
+
+  notify:
+    needs: [setup-matrix, build]
+    if: always() && needs.setup-matrix.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build notification summary
+        run: |
+          echo "## Manual/Scheduled AMI Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "**Build Targets:** ${{ inputs.build_targets }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Make Public:** ${{ inputs.make_public }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Force Rebuild:** ${{ inputs.force_rebuild }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Status:** Check individual build jobs for detailed results" >> $GITHUB_STEP_SUMMARY
+
+  # Optional: Add Slack/Teams notification job here
+  # slack-notification:
+  #   needs: [setup-matrix, build]
+  #   if: always() && needs.setup-matrix.outputs.should-run == 'true'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Slack Notification
+  #       uses: 8398a7/action-slack@v3
+  #       with:
+  #         status: ${{ job.status }}
+  #         webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+  #         text: "AMI Build completed - Check GitHub Actions for details"

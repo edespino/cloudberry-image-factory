@@ -1,0 +1,325 @@
+name: AMI Build on Changes
+
+# TEMPORARILY DISABLED FOR TESTING - Option B
+# on:
+#   push:
+#     branches: [main, develop]
+#     paths:
+#       - 'vm-images/aws/cloudberry/build/**'
+#       - 'vm-images/aws/cloudberry/scripts/**'
+#       - '!**/*.md'
+#   pull_request:
+#     branches: [main]
+#     paths:
+#       - 'vm-images/aws/cloudberry/build/**'
+#       - 'vm-images/aws/cloudberry/scripts/**'
+#       - '!**/*.md'
+on:
+  workflow_dispatch:  # Manual trigger only during testing
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should-run: ${{ steps.set-matrix.outputs.should-run }}
+      changed-files: ${{ steps.set-matrix.outputs.changed-files }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed files and generate build matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          # Define dependency mapping for common scripts
+          declare -A COMMON_SCRIPT_DEPS=(
+            ["cbadmin_configure_environment.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
+            ["system_add_awscli.sh"]="rocky8,rocky9,rocky10"
+            ["system_add_cbadmin_ulimits.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
+            ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky8,rocky9"
+            ["system_add_claude.sh"]="rocky9,rocky10"
+            ["system_add_cloudberry_motd.sh"]="rocky9"
+            ["system_add_golang.sh"]="rocky8,rocky9,ubuntu22"
+            ["system_add_goss.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
+            ["system_add_kernel_configs.sh"]="rocky8,rocky9,rocky10,ubuntu22"
+            ["system_add_swap.sh"]="rocky9,rocky10"
+            ["system_add_yq.sh"]="rocky8,rocky9,rocky10,ubuntu22"
+            ["system_adduser_cbadmin.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
+            ["system_config_java_home.sh"]="rocky8,rocky9"
+            ["system_config_starship_prompt.sh"]="rocky8,rocky9,rocky10"
+            ["system_disable_selinux.sh"]="rocky8,rocky9,rocky10"
+            ["system_set_timezone.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
+            ["system_set_locale.sh"]=""
+            ["system_add_cmake.sh"]=""
+            ["system_add_gcc_build_dependency.sh"]=""
+            ["system_add_libuv_build_dependency.sh"]=""
+            ["system_add_zstd_build_dependency.sh"]=""
+          )
+
+          # Get changed files
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            changed_files=$(git diff --name-only HEAD~1 HEAD)
+          fi
+
+          echo "Changed files:"
+          echo "$changed_files"
+
+          builds_to_run=()
+
+          # Process each changed file
+          while IFS= read -r file; do
+            if [[ -z "$file" ]]; then
+              continue
+            fi
+
+            echo "Processing file: $file"
+
+            case "$file" in
+              # Common scripts
+              "vm-images/aws/cloudberry/build/common/scripts/"*.sh)
+                script_name=$(basename "$file")
+                echo "Common script changed: $script_name"
+                if [[ -n "${COMMON_SCRIPT_DEPS[$script_name]}" ]]; then
+                  IFS=',' read -ra DEPS <<< "${COMMON_SCRIPT_DEPS[$script_name]}"
+                  builds_to_run+=("${DEPS[@]}")
+                  echo "Added builds for $script_name: ${DEPS[*]}"
+                else
+                  echo "No builds depend on $script_name"
+                fi
+                ;;
+
+              # Rocky-specific scripts
+              "vm-images/aws/cloudberry/build/rocky"*"/scripts/"*.sh)
+                echo "Rocky-specific script changed"
+                builds_to_run+=("rocky8" "rocky9" "rocky10")
+                ;;
+
+              # Ubuntu-specific scripts
+              "vm-images/aws/cloudberry/build/ubuntu"*"/scripts/"*.sh)
+                echo "Ubuntu-specific script changed"
+                builds_to_run+=("ubuntu20" "ubuntu22")
+                ;;
+
+              # Specific build HCL files
+              "vm-images/aws/cloudberry/build/"*"/main.pkr.hcl")
+                build_name=$(echo "$file" | cut -d'/' -f5)
+                echo "Packer HCL changed for: $build_name"
+                builds_to_run+=("$build_name")
+                ;;
+
+              # Specific build test files
+              "vm-images/aws/cloudberry/build/"*"/tests/goss.yaml")
+                build_name=$(echo "$file" | cut -d'/' -f5)
+                echo "Goss test changed for: $build_name"
+                builds_to_run+=("$build_name")
+                ;;
+
+              # Main build script affects all
+              "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
+                echo "Main build script changed - rebuilding all"
+                builds_to_run+=("rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
+                ;;
+
+              *)
+                echo "Ignoring file: $file"
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          # Remove duplicates and create matrix
+          unique_builds=($(printf '%s\n' "${builds_to_run[@]}" | sort -u))
+
+          echo "Unique builds to run: ${unique_builds[*]}"
+
+          if [ ${#unique_builds[@]} -eq 0 ]; then
+            echo "should-run=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"build\":[]}" >> $GITHUB_OUTPUT
+          else
+            echo "should-run=true" >> $GITHUB_OUTPUT
+
+            # Create JSON matrix
+            matrix_json="{\"build\":["
+            for i in "${!unique_builds[@]}"; do
+              if [ $i -gt 0 ]; then
+                matrix_json+=","
+              fi
+              matrix_json+="{\"name\":\"${unique_builds[$i]}\",\"os-family\":\"$(echo ${unique_builds[$i]} | grep -o '^[a-z]*')\",\"path\":\"vm-images/aws/cloudberry/build/${unique_builds[$i]}\"}"
+            done
+            matrix_json+="]}"
+
+            echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+          fi
+
+          # Also output changed files for debugging
+          echo "changed-files<<EOF" >> $GITHUB_OUTPUT
+          echo "$changed_files" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  validate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "latest"
+
+      - name: Validate Packer template for ${{ matrix.build.name }}
+        working-directory: ${{ matrix.build.path }}
+        run: |
+          echo "Validating Packer template for ${{ matrix.build.name }}"
+          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" main.pkr.hcl
+
+  build:
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 3  # Limit concurrent builds to manage AWS costs
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "latest"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq netcat-openbsd
+
+      - name: Build AMI for ${{ matrix.build.name }}
+        working-directory: ${{ matrix.build.path }}
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          echo "Building AMI for ${{ matrix.build.name }}"
+          chmod +x ../../scripts/packer-build-and-test.sh
+          ../../scripts/packer-build-and-test.sh
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.build.name }}
+          path: |
+            ${{ matrix.build.path }}/packer-manifest.json
+            ${{ matrix.build.path }}/goss-test-results-*.xml
+          retention-days: 30
+
+      - name: Extract AMI information
+        if: success()
+        id: ami-info
+        working-directory: ${{ matrix.build.path }}
+        run: |
+          if [ -f packer-manifest.json ]; then
+            AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json | cut -d':' -f2)
+            AMI_NAME=$(aws ec2 describe-images --image-ids $AMI_ID --query "Images[*].Name" --output text --region ${{ env.AWS_REGION }})
+            echo "ami-id=$AMI_ID" >> $GITHUB_OUTPUT
+            echo "ami-name=$AMI_NAME" >> $GITHUB_OUTPUT
+            echo "Built AMI: $AMI_NAME ($AMI_ID)"
+          fi
+
+      - name: Comment on PR with AMI details
+        if: success() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const amiId = '${{ steps.ami-info.outputs.ami-id }}';
+            const amiName = '${{ steps.ami-info.outputs.ami-name }}';
+            const buildName = '${{ matrix.build.name }}';
+
+            if (amiId && amiName) {
+              const comment = `✅ **AMI Build Successful for ${buildName}**
+
+              - **AMI ID:** \`${amiId}\`
+              - **AMI Name:** \`${amiName}\`
+              - **Region:** \`${{ env.AWS_REGION }}\`
+              - **Status:** Public AMI with Goss tests passed
+
+              The AMI is ready for testing and use.`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+  cleanup:
+    needs: [detect-changes, build]
+    if: always() && needs.detect-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Cleanup temporary resources for ${{ matrix.build.name }}
+        run: |
+          echo "Cleaning up any leftover resources for ${{ matrix.build.name }}"
+
+          # Clean up security groups (older than 1 hour)
+          aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=cloudberry-${{ matrix.build.name }}-*-sg" \
+            --query "SecurityGroups[?CreationTime<'$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S.000Z)'].GroupId" \
+            --output text | xargs -r -n1 aws ec2 delete-security-group --group-id || true
+
+          # Clean up key pairs (older than 1 hour)
+          aws ec2 describe-key-pairs \
+            --filters "Name=key-name,Values=key-cloudberry-${{ matrix.build.name }}-*" \
+            --query "KeyPairs[].KeyName" \
+            --output text | xargs -r -n1 aws ec2 delete-key-pair --key-name || true
+
+  summary:
+    needs: [detect-changes, build]
+    if: always() && needs.detect-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build Summary
+        run: |
+          echo "## AMI Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Changed Files:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.detect-changes.outputs.changed-files }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Builds Triggered:**" >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.build[].name' | while read build; do
+            echo "- $build" >> $GITHUB_STEP_SUMMARY
+          done

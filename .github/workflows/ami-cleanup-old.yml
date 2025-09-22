@@ -1,0 +1,220 @@
+name: AMI Cleanup - Remove Old Images
+
+# TEMPORARILY DISABLED FOR TESTING - Option B
+# on:
+#   schedule:
+#     # Run monthly on the 1st at 3 AM UTC
+#     - cron: '0 3 1 * *'
+#   workflow_dispatch:
+#     inputs:
+#       dry_run:
+#         description: 'Dry run - only list AMIs to delete without actually deleting'
+#         required: false
+#         default: true
+#         type: boolean
+#       retention_days:
+#         description: 'Keep AMIs newer than this many days'
+#         required: false
+#         default: '90'
+#         type: string
+#       aws_region:
+#         description: 'AWS Region'
+#         required: false
+#         default: 'us-west-2'
+#         type: string
+
+env:
+  AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
+  RETENTION_DAYS: ${{ inputs.retention_days || '90' }}
+  DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+jobs:
+  cleanup-amis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Find and cleanup old Cloudberry AMIs
+        run: |
+          echo "Starting AMI cleanup process"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Retention period: ${{ env.RETENTION_DAYS }} days"
+          echo "Dry run: ${{ env.DRY_RUN }}"
+          echo "Trigger: ${{ github.event_name }}"
+
+          # Calculate cutoff date
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS date command
+            cutoff_date=$(date -u -v-${{ env.RETENTION_DAYS }}d +%Y-%m-%dT%H:%M:%S.000Z)
+          else
+            # Linux date command
+            cutoff_date=$(date -u -d "${{ env.RETENTION_DAYS }} days ago" +%Y-%m-%dT%H:%M:%S.000Z)
+          fi
+
+          echo "Cutoff date: $cutoff_date"
+
+          # Find Cloudberry AMIs owned by us
+          echo "Searching for Cloudberry AMIs..."
+
+          # Get account ID
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          echo "Account ID: $account_id"
+
+          # Find AMIs matching our naming pattern and older than retention period
+          old_amis=$(aws ec2 describe-images \
+            --owners $account_id \
+            --filters \
+              "Name=name,Values=cloudberry-packer-*" \
+              "Name=state,Values=available" \
+            --query "Images[?CreationDate<'$cutoff_date'].{ImageId:ImageId,Name:Name,CreationDate:CreationDate}" \
+            --output json)
+
+          ami_count=$(echo "$old_amis" | jq length)
+          echo "Found $ami_count AMIs older than ${{ env.RETENTION_DAYS }} days"
+
+          if [ "$ami_count" -eq 0 ]; then
+            echo "No old AMIs found to clean up"
+            echo "## AMI Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+            echo "**No AMIs found** older than ${{ env.RETENTION_DAYS }} days" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+
+          # Display found AMIs
+          echo "AMIs to be processed:"
+          echo "$old_amis" | jq -r '.[] | "- \(.ImageId): \(.Name) (Created: \(.CreationDate))"'
+
+          # Add to GitHub summary
+          echo "## AMI Cleanup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Retention Period:** ${{ env.RETENTION_DAYS }} days" >> $GITHUB_STEP_SUMMARY
+          echo "**Cutoff Date:** $cutoff_date" >> $GITHUB_STEP_SUMMARY
+          echo "**Dry Run:** ${{ env.DRY_RUN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Found AMIs:** $ami_count" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ env.DRY_RUN }}" == "true" ]; then
+            echo "DRY RUN - Would delete the following AMIs:"
+            echo "$old_amis" | jq -r '.[] | "Would delete: \(.ImageId) - \(.Name)"'
+
+            echo "**DRY RUN - AMIs that would be deleted:**" >> $GITHUB_STEP_SUMMARY
+            echo "$old_amis" | jq -r '.[] | "- `\(.ImageId)`: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Proceeding with AMI deletion..."
+
+            # Keep track of results
+            deleted_count=0
+            failed_count=0
+
+            echo "**AMI Deletion Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Process each AMI
+            echo "$old_amis" | jq -r '.[] | "\(.ImageId) \(.Name)"' | while read ami_id ami_name; do
+              echo "Processing AMI: $ami_id ($ami_name)"
+
+              # Get associated snapshots before deregistering
+              snapshots=$(aws ec2 describe-images \
+                --image-ids $ami_id \
+                --query 'Images[0].BlockDeviceMappings[?Ebs.SnapshotId!=null].Ebs.SnapshotId' \
+                --output text)
+
+              echo "Associated snapshots: $snapshots"
+
+              # Deregister AMI
+              if aws ec2 deregister-image --image-id $ami_id; then
+                echo "✅ Successfully deregistered AMI: $ami_id"
+                echo "- ✅ **$ami_id**: $ami_name" >> $GITHUB_STEP_SUMMARY
+                deleted_count=$((deleted_count + 1))
+
+                # Delete associated snapshots
+                if [ -n "$snapshots" ] && [ "$snapshots" != "None" ]; then
+                  for snapshot_id in $snapshots; do
+                    echo "Deleting snapshot: $snapshot_id"
+                    if aws ec2 delete-snapshot --snapshot-id $snapshot_id; then
+                      echo "✅ Successfully deleted snapshot: $snapshot_id"
+                    else
+                      echo "❌ Failed to delete snapshot: $snapshot_id"
+                    fi
+                  done
+                fi
+              else
+                echo "❌ Failed to deregister AMI: $ami_id"
+                echo "- ❌ **$ami_id**: $ami_name (FAILED)" >> $GITHUB_STEP_SUMMARY
+                failed_count=$((failed_count + 1))
+              fi
+
+              # Add delay between operations to avoid rate limiting
+              sleep 2
+            done
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Summary:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Successfully deleted: $deleted_count AMIs" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed to delete: $failed_count AMIs" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Cleanup orphaned snapshots
+        if: env.DRY_RUN != 'true'
+        run: |
+          echo "Looking for orphaned snapshots from deleted AMIs..."
+
+          # Find snapshots that are no longer associated with any AMI
+          # This is a safety check for snapshots that might have been left behind
+
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+
+          # Calculate cutoff date for snapshots (same as AMIs)
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            cutoff_date=$(date -u -v-${{ env.RETENTION_DAYS }}d +%Y-%m-%dT%H:%M:%S.000Z)
+          else
+            cutoff_date=$(date -u -d "${{ env.RETENTION_DAYS }} days ago" +%Y-%m-%dT%H:%M:%S.000Z)
+          fi
+
+          # Find snapshots with Cloudberry-related descriptions
+          orphaned_snapshots=$(aws ec2 describe-snapshots \
+            --owner-ids $account_id \
+            --filters \
+              "Name=description,Values=*cloudberry-packer-*" \
+              "Name=status,Values=completed" \
+            --query "Snapshots[?StartTime<'$cutoff_date'].{SnapshotId:SnapshotId,Description:Description,StartTime:StartTime}" \
+            --output json)
+
+          snapshot_count=$(echo "$orphaned_snapshots" | jq length)
+          echo "Found $snapshot_count potentially orphaned snapshots"
+
+          if [ "$snapshot_count" -gt 0 ]; then
+            echo "Orphaned snapshots found:"
+            echo "$orphaned_snapshots" | jq -r '.[] | "- \(.SnapshotId): \(.Description) (Created: \(.StartTime))"'
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Orphaned Snapshots Cleanup:**" >> $GITHUB_STEP_SUMMARY
+            echo "Found $snapshot_count orphaned snapshots" >> $GITHUB_STEP_SUMMARY
+
+            # Note: Being conservative here - only delete snapshots if we're certain they're orphaned
+            # In a production environment, you might want additional checks
+            echo "Note: Manual review recommended for orphaned snapshot cleanup"
+            echo "$orphaned_snapshots" | jq -r '.[] | "- `\(.SnapshotId)`: \(.Description)"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No orphaned snapshots found"
+          fi
+
+      - name: Generate cleanup report
+        if: always()
+        run: |
+          echo "AMI cleanup process completed"
+
+          # Add final summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Cleanup Process:** Completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ env.DRY_RUN }}" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **This was a dry run** - No AMIs were actually deleted" >> $GITHUB_STEP_SUMMARY
+            echo "To perform actual cleanup, run this workflow with dry_run=false" >> $GITHUB_STEP_SUMMARY
+          fi
