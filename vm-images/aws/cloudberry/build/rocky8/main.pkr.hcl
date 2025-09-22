@@ -127,7 +127,19 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_swap.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/cbadmin_configure_environment.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_cloudberry_motd.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_claude.sh"
   }
 
   provisioner "shell" {
