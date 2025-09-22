@@ -22,7 +22,17 @@ DISK="$(df -h --output=used,size,pcent,target -x tmpfs -x devtmpfs | \
 awk 'NR>1 && $4=="/" {printf "%s/%s (%s)", $1, $2, $3}')"
 IPV4="$(hostname -I 2>/dev/null | awk '{print $1}')"
 SESTATE="$(getenforce 2>/dev/null || echo N/A)"
-PKGCOUNT="$(rpm -qa | wc -l)"
+# OS-aware package counting
+if command -v rpm >/dev/null 2>&1; then
+    PKGCOUNT="$(rpm -qa | wc -l)"
+    PKGTYPE="RPMs"
+elif command -v dpkg >/dev/null 2>&1; then
+    PKGCOUNT="$(dpkg -l | grep -c '^ii')"
+    PKGTYPE="DEBs"
+else
+    PKGCOUNT="N/A"
+    PKGTYPE="Pkgs"
+fi
 
 hr1
 cat << 'LOGO'
@@ -54,7 +64,7 @@ echo "  Memory:      $MEM"
 echo "  Root FS:     $DISK"
 echo "  IPv4:        ${IPV4:-N/A}"
 echo "  SELinux:     $SESTATE"
-echo "  RPMs:        $PKGCOUNT"
+echo "  $PKGTYPE:        $PKGCOUNT"
 hr
 echo "  Docs: https://cloudberry.apache.org  |  User: ${USER}"
 hr1
