@@ -177,9 +177,11 @@ jobs:
         with:
           version: "latest"
 
-      - name: Validate Packer template for ${{ matrix.build.name }}
+      - name: Initialize and validate Packer template for ${{ matrix.build.name }}
         working-directory: ${{ matrix.build.path }}
         run: |
+          echo "Initializing Packer plugins for ${{ matrix.build.name }}"
+          packer init main.pkr.hcl
           echo "Validating Packer template for ${{ matrix.build.name }}"
           packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" main.pkr.hcl
 
