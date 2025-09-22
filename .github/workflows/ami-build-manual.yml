@@ -1,42 +1,43 @@
 name: Manual AMI Build
 
 # TEMPORARILY DISABLED FOR TESTING - Option B
-# on:
-#   workflow_dispatch:
-#     inputs:
-#       build_targets:
-#         description: 'Select builds to run (comma-separated or "all")'
-#         required: true
-#         default: 'all'
-#         type: choice
-#         options:
-#           - 'all'
-#           - 'rocky8'
-#           - 'rocky9'
-#           - 'rocky10'
-#           - 'ubuntu20'
-#           - 'ubuntu22'
-#           - 'rocky8,rocky9,rocky10'
-#           - 'ubuntu20,ubuntu22'
-#       aws_region:
-#         description: 'AWS Region'
-#         required: false
-#         default: 'us-west-2'
-#         type: string
-#       make_public:
-#         description: 'Make AMIs public'
-#         required: false
-#         default: true
-#         type: boolean
-#       force_rebuild:
-#         description: 'Force rebuild even if no changes detected'
-#         required: false
-#         default: false
-#         type: boolean
-#
-#   schedule:
-#     # Run weekly builds on Sundays at 2 AM UTC
-#     - cron: '0 2 * * 0'
+on:
+  # All triggers commented out - workflow exists but won't run
+  # workflow_dispatch:
+  #   inputs:
+  #     build_targets:
+  #       description: 'Select builds to run (comma-separated or "all")'
+  #       required: true
+  #       default: 'all'
+  #       type: choice
+  #       options:
+  #         - 'all'
+  #         - 'rocky8'
+  #         - 'rocky9'
+  #         - 'rocky10'
+  #         - 'ubuntu20'
+  #         - 'ubuntu22'
+  #         - 'rocky8,rocky9,rocky10'
+  #         - 'ubuntu20,ubuntu22'
+  #     aws_region:
+  #       description: 'AWS Region'
+  #       required: false
+  #       default: 'us-west-2'
+  #       type: string
+  #     make_public:
+  #       description: 'Make AMIs public'
+  #       required: false
+  #       default: true
+  #       type: boolean
+  #     force_rebuild:
+  #       description: 'Force rebuild even if no changes detected'
+  #       required: false
+  #       default: false
+  #       type: boolean
+  #
+  # schedule:
+  #   # Run weekly builds on Sundays at 2 AM UTC
+  #   - cron: '0 2 * * 0'
 
 env:
   AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}

@@ -1,27 +1,28 @@
 name: AMI Cleanup - Remove Old Images
 
 # TEMPORARILY DISABLED FOR TESTING - Option B
-# on:
-#   schedule:
-#     # Run monthly on the 1st at 3 AM UTC
-#     - cron: '0 3 1 * *'
-#   workflow_dispatch:
-#     inputs:
-#       dry_run:
-#         description: 'Dry run - only list AMIs to delete without actually deleting'
-#         required: false
-#         default: true
-#         type: boolean
-#       retention_days:
-#         description: 'Keep AMIs newer than this many days'
-#         required: false
-#         default: '90'
-#         type: string
-#       aws_region:
-#         description: 'AWS Region'
-#         required: false
-#         default: 'us-west-2'
-#         type: string
+on:
+  # All triggers commented out - workflow exists but won't run
+  # schedule:
+  #   # Run monthly on the 1st at 3 AM UTC
+  #   - cron: '0 3 1 * *'
+  # workflow_dispatch:
+  #   inputs:
+  #     dry_run:
+  #       description: 'Dry run - only list AMIs to delete without actually deleting'
+  #       required: false
+  #       default: true
+  #       type: boolean
+  #     retention_days:
+  #       description: 'Keep AMIs newer than this many days'
+  #       required: false
+  #       default: '90'
+  #       type: string
+  #     aws_region:
+  #       description: 'AWS Region'
+  #       required: false
+  #       default: 'us-west-2'
+  #       type: string
 
 env:
   AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
