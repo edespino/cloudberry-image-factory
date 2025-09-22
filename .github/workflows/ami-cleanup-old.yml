@@ -2,7 +2,7 @@ name: AMI Cleanup - Remove Old Images
 
 # TEMPORARILY DISABLED FOR TESTING - Option B
 on:
-  # All triggers commented out - workflow exists but won't run
+  workflow_dispatch: # Dummy trigger to satisfy GitHub Actions syntax
   # schedule:
   #   # Run monthly on the 1st at 3 AM UTC
   #   - cron: '0 3 1 * *'
@@ -29,7 +29,19 @@ env:
   RETENTION_DAYS: ${{ inputs.retention_days || '90' }}
   DRY_RUN: ${{ inputs.dry_run || 'false' }}
 
+# All jobs commented out during testing
 jobs:
+  disabled-notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Disabled Notice
+        run: |
+          echo "This workflow is temporarily disabled for testing"
+          echo "Only the Rocky 9 test workflow should be used"
+          exit 1
+
+# Original jobs commented out:
+# jobs:
   cleanup-amis:
     runs-on: ubuntu-latest
     steps:

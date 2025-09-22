@@ -2,7 +2,7 @@ name: Manual AMI Build
 
 # TEMPORARILY DISABLED FOR TESTING - Option B
 on:
-  # All triggers commented out - workflow exists but won't run
+  workflow_dispatch: # Dummy trigger to satisfy GitHub Actions syntax
   # workflow_dispatch:
   #   inputs:
   #     build_targets:
@@ -42,7 +42,19 @@ on:
 env:
   AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
 
+# All jobs commented out during testing
 jobs:
+  disabled-notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Disabled Notice
+        run: |
+          echo "This workflow is temporarily disabled for testing"
+          echo "Only the Rocky 9 test workflow should be used"
+          exit 1
+
+# Original jobs commented out:
+# jobs:
   setup-matrix:
     runs-on: ubuntu-latest
     outputs:
