@@ -240,7 +240,7 @@ command:
   # Go version check
   "/opt/go/bin/go version":
     exit-status: 0
-    stdout: ["go1.24"]
+    stdout: ["go1.25.1"]
     timeout: 5000
 
   # Java version check
