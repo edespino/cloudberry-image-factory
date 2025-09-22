@@ -228,12 +228,12 @@ jobs:
               BUILD_TYPE="scheduled"
             fi
 
-            aws ec2 create-tags --resources $AMI_ID --tags \
-              Key=BuildType,Value=$BUILD_TYPE \
-              Key=GitCommit,Value=${{ github.sha }} \
-              Key=GitRef,Value=${{ github.ref }} \
-              Key=BuildDate,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
-              Key=Workflow,Value=${{ github.workflow }} \
+            aws ec2 create-tags --resources $AMI_ID \
+              --tags Key=BuildType,Value=$BUILD_TYPE \
+                     Key=GitCommit,Value=${{ github.sha }} \
+                     Key=GitRef,Value=${{ github.ref }} \
+                     Key=BuildDate,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+                     Key=Workflow,Value="${{ github.workflow }}" \
               --region ${{ env.AWS_REGION }}
 
             echo "Built and tagged AMI: $AMI_NAME ($AMI_ID)"
