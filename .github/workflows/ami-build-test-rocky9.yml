@@ -25,9 +25,11 @@ jobs:
         with:
           version: "latest"
 
-      - name: Validate Packer template for Rocky 9
+      - name: Initialize and validate Packer template for Rocky 9
         working-directory: vm-images/aws/cloudberry/build/rocky9
         run: |
+          echo "Initializing Packer plugins for rocky9"
+          packer init main.pkr.hcl
           echo "Validating Packer template for rocky9"
           packer validate -var "vm_type=cloudberry" -var "os_name=rocky9" main.pkr.hcl
 

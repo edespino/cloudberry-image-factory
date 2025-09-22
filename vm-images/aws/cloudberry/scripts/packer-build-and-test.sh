@@ -225,48 +225,55 @@ aws ec2 create-key-pair --key-name ${PKR_VAR_KEY_NAME} --query 'KeyMaterial' --o
 chmod 400 ${PKR_VAR_PRIVATE_KEY_FILE}
 echo "Created key pair ${PKR_VAR_KEY_NAME} and saved to ${PKR_VAR_PRIVATE_KEY_FILE}"
 
-# Step 2: Validate the Packer template
+# Step 2: Initialize Packer plugins
+echo "Initializing Packer plugins..."
+if ! packer init "${HCL_FILE}"; then
+  echo "Packer plugin initialization failed. Aborting."
+  exit 1
+fi
+
+# Step 3: Validate the Packer template
 echo "Validating Packer template..."
 if ! packer validate -var "vm_type=${VM_TYPE}" -var "os_name=${OS_NAME}" "${HCL_FILE}"; then
   echo "Packer template validation failed. Aborting."
   exit 1
 fi
 
-# Step 3: Build the AMI using the Packer template
+# Step 4: Build the AMI using the Packer template
 echo "Building the Packer template..."
 packer build \
        -var vm_type=${VM_TYPE} \
        -var os_name=${OS_NAME} \
        "${HCL_FILE}"
 
-# Step 4: Parse the AMI ID from the Packer manifest file
+# Step 5: Parse the AMI ID from the Packer manifest file
 echo "Parsing the AMI ID from packer-manifest.json..."
 AMI_ID=$(jq -r '.builds[-1].artifact_id' packer-manifest.json | cut -d':' -f2)
 
-# Step 5: Retrieve the AMI name
+# Step 6: Retrieve the AMI name
 AMI_NAME=$(aws ec2 describe-images --image-ids ${AMI_ID} --query "Images[*].Name" --output text --region ${REGION})
 
-# Step 6: Retrieve local IP address to restrict SSH access to the current machine
+# Step 7: Retrieve local IP address to restrict SSH access to the current machine
 LOCAL_IP=$(curl -s http://checkip.amazonaws.com)/32
 
-# Step 7: Create a new security group to allow SSH access
+# Step 8: Create a new security group to allow SSH access
 echo "Creating new security group..."
 SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name "${SECURITY_GROUP_NAME}" --description "Security group for ${OS_NAME} ${VM_TYPE}" --region ${REGION} --query 'GroupId' --output text)
 aws ec2 authorize-security-group-ingress --group-id ${SECURITY_GROUP_ID} --protocol tcp --port 22 --cidr ${LOCAL_IP} --region ${REGION}
 echo "Created security group ${SECURITY_GROUP_ID} with SSH access for IP ${LOCAL_IP}"
 
-# Step 8: Start a new EC2 instance using the created AMI
+# Step 9: Start a new EC2 instance using the created AMI
 echo "Starting a new EC2 instance..."
 INSTANCE_ID=$(aws ec2 run-instances --image-id ${AMI_ID} --instance-type t3.medium --key-name ${PKR_VAR_KEY_NAME} --security-group-ids ${SECURITY_GROUP_ID} --query "Instances[0].InstanceId" --output text --region ${REGION})
 
-# Step 9: Wait until the instance is in the running state
+# Step 10: Wait until the instance is in the running state
 echo "Waiting for the instance to be in running state..."
 aws ec2 wait instance-running --instance-ids ${INSTANCE_ID} --region ${REGION}
 
-# Step 10: Retrieve the public DNS name of the instance
+# Step 11: Retrieve the public DNS name of the instance
 HOSTNAME=$(aws ec2 describe-instances --instance-ids ${INSTANCE_ID} --query "Reservations[*].Instances[*].PublicDnsName" --output text --region ${REGION})
 
-# Step 11: Loop until SSH access is available on the instance
+# Step 12: Loop until SSH access is available on the instance
 echo "Waiting for SSH to become available on ${HOSTNAME}..."
 for ((i=1; i<=30; i++)); do
   if nc -zv ${HOSTNAME} 22 2>&1 | grep -q 'succeeded'; then
@@ -285,7 +292,7 @@ for ((i=1; i<=30; i++)); do
   fi
 done
 
-# Step 12: Run Goss tests on the instance
+# Step 13: Run Goss tests on the instance
 echo "Running Goss tests on instance ${INSTANCE_ID}..."
 
 # Copy Goss test file to the instance
@@ -317,17 +324,17 @@ scp -i ${PKR_VAR_PRIVATE_KEY_FILE} \
 
 echo "Goss tests completed successfully!"
 
-# Step 13: Rename the AMI to indicate that tests have passed
+# Step 14: Rename the AMI to indicate that tests have passed
 rename_ami "PASSED"
 
-# Step 14: Check and potentially disable block public access for AMIs
+# Step 15: Check and potentially disable block public access for AMIs
 check_block_public_access
 disable_image_block_public_access
 
-## # Step 15: Make the AMI public
+## # Step 16: Make the AMI public
 make_ami_public
 
-# Step 16: Verify the launch permissions of the AMI
+# Step 17: Verify the launch permissions of the AMI
 verify_launch_permissions
 
 # If the script reaches this point, all operations were successful
