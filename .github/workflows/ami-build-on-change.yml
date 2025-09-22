@@ -1,21 +1,19 @@
 name: AMI Build on Changes
 
-# TEMPORARILY DISABLED FOR TESTING - Option B
-# on:
-#   push:
-#     branches: [main, develop]
-#     paths:
-#       - 'vm-images/aws/cloudberry/build/**'
-#       - 'vm-images/aws/cloudberry/scripts/**'
-#       - '!**/*.md'
-#   pull_request:
-#     branches: [main]
-#     paths:
-#       - 'vm-images/aws/cloudberry/build/**'
-#       - 'vm-images/aws/cloudberry/scripts/**'
-#       - '!**/*.md'
 on:
-  workflow_dispatch:  # Manual trigger only during testing
+  push:
+    branches: [main]
+    paths:
+      - 'vm-images/aws/cloudberry/build/**'
+      - 'vm-images/aws/cloudberry/scripts/**'
+      - '!**/*.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'vm-images/aws/cloudberry/build/**'
+      - 'vm-images/aws/cloudberry/scripts/**'
+      - '!**/*.md'
+  workflow_dispatch:  # Keep manual option too
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-west-2' }}
