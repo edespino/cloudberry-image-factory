@@ -123,6 +123,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_cloudberry_motd.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_add_claude.sh"
   }
 

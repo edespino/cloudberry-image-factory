@@ -42,7 +42,7 @@ jobs:
             ["system_add_cbadmin_ulimits.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
             ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky8,rocky9"
             ["system_add_claude.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_cloudberry_motd.sh"]="rocky8,rocky9,ubuntu20,ubuntu22"
+            ["system_add_cloudberry_motd.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
             ["system_add_golang.sh"]="rocky8,rocky9,ubuntu22"
             ["system_add_goss.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22"
             ["system_add_kernel_configs.sh"]="rocky8,rocky9,rocky10,ubuntu22"
