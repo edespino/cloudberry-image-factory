@@ -37,20 +37,21 @@ fi
 hr1
 cat << 'LOGO'
 
-                 ';cllll:,.          ,cooo
-              .;llll, .loool,     .:oddd;
-             cll.          odd;
-            lll             cddl,,'..
-        .,:llo'          .;lddddddddddl;
-      'clo..ool         cdd;          cxxc
-     coo.   :dd,      .ddl              xxx.
-    'oo,              dxx   .           .xxd
-    cod.              xxx   dx.          xxx
-    .ddo              lxx,  .xxc.       ckk:
-      xxd'             :xx:            ckk;
-        xkko:;;;;;;;;;;okxkxl,.. ...;okkd
-            dkkkkkkkkkkkkkkkkkkkkkkkkd
-                               ,dd,
+                  ++++++++++       ++++++
+                ++++++++++++++   +++++++
+               ++++        +++++ ++++
+              ++++          +++++++++
+           =+====         =============+
+         ========       =====+      =====
+        ====  ====     ====           ====
+       ====    ===     ===             ====
+       ====            === ===         ====
+       ====            ===  ==--       ===
+        =====          ===== --       ====
+         =====================     ======
+           ============================
+                             =-----=
+
 LOGO
 echo
 echo "  Apache Cloudberry (Incubating) – Public VM"
