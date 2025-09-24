@@ -51,7 +51,6 @@ cat << 'LOGO'
        =====================     ======
          ============================
                            =-----=
-
 LOGO
 echo
 echo "  Apache Cloudberry (Incubating) – Public VM"
