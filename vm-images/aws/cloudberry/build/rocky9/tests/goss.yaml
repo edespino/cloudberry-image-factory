@@ -280,12 +280,6 @@ command:
     stdout: ["Docker version"]
     timeout: 10000
 
-  # AWS CLI check
-  "/usr/local/bin/aws --version":
-    exit-status: 0
-    stdout: ["aws-cli"]
-    timeout: 5000
-
   # cbadmin user just command
   "sudo -u cbadmin /home/cbadmin/bin/just --version":
     exit-status: 0
