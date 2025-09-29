@@ -120,6 +120,8 @@ rm -rf "$TEMP_DIR"
 
 # Add Apache Cloudberry (Incubating) entries to cbadmin's .bashrc
 echo -e '\n# Add Apache Cloudberry (Incubating) entries' >> /home/cbadmin/.bashrc
+echo -e 'if [ -f /usr/local/cloudberry/cloudberry-env.sh ]; then\n  source /usr/local/cloudberry/cloudberry-env.sh\nfi' >> /home/cbadmin/.bashrc
+echo -e 'if [ -f /usr/local/cloudberry/greenplum_path.sh ]; then\n  source /usr/local/cloudberry/greenplum_path.sh\nfi' >> /home/cbadmin/.bashrc
 echo -e 'if [ -f /usr/local/cloudberry-db/cloudberry-env.sh ]; then\n  source /usr/local/cloudberry-db/cloudberry-env.sh\nfi' >> /home/cbadmin/.bashrc
 echo -e 'if [ -f /usr/local/cloudberry-db/greenplum_path.sh ]; then\n  source /usr/local/cloudberry-db/greenplum_path.sh\nfi' >> /home/cbadmin/.bashrc
 
