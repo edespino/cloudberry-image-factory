@@ -30,7 +30,9 @@ sudo dnf install -y -d0 --enablerepo=epel the_silver_searcher htop
 sudo dnf install -y -d0 \
      apr-devel \
      autoconf \
+     automake \
      bison \
+     boost-devel \
      bzip2-devel \
      cmake \
      createrepo_c \
@@ -38,8 +40,10 @@ sudo dnf install -y -d0 \
      flex \
      gcc \
      gcc-c++ \
+     gdb \
      glibc-langpack-en \
      glibc-locale-source \
+     gmp-devel \
      initscripts \
      iproute \
      java-1.8.0-openjdk \
@@ -50,16 +54,18 @@ sudo dnf install -y -d0 \
      less \
      libcurl-devel \
      libevent-devel \
+     libtool \
      libuuid-devel \
      libxml2-devel \
      libzstd-devel \
      lz4 \
      lz4-devel \
+     m4 \
      make \
      maven \
-     m4 \
-     nmap-ncat \
+     mpfr-devel \
      net-tools \
+     nmap-ncat \
      openldap-devel \
      openssh-clients \
      openssh-server \
@@ -72,15 +78,16 @@ sudo dnf install -y -d0 \
      perl-Test-Simple \
      pinentry \
      procps-ng \
-     python36 \
-     python36-devel \
      python3-psutil \
      python3-pyyaml \
+     python36 \
+     python36-devel \
      readline-devel \
      rpm-build \
      rpm-sign \
      rpmdevtools \
      rsync \
+     sqlite-devel \
      sshpass \
      sudo \
      tar \
@@ -95,7 +102,12 @@ sudo dnf install -y -d0 --enablerepo=devel \
      libuv-devel \
      libyaml-devel \
      perl-IPC-Run \
-     protobuf-devel
+     protobuf-devel \
+     protobuf-c-devel
+
+sudo dnf install -y -d0 --enablerepo=epel \
+     docbook-style-xsl \
+     libxslt
 
 #Cleanup
 sudo dnf clean all

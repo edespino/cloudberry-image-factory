@@ -40,8 +40,10 @@ sudo dnf install -y -d0 \
      flex \
      gcc \
      gcc-c++ \
+     gdb \
      glibc-langpack-en \
      glibc-locale-source \
+     gmp-devel \
      initscripts \
      iproute \
      java-1.8.0-openjdk \
@@ -60,9 +62,10 @@ sudo dnf install -y -d0 \
      lsof \
      lz4 \
      lz4-devel \
+     m4 \
      make \
      maven \
-     m4 \
+     mpfr-devel \
      nc \
      net-tools \
      openldap-devel \
@@ -86,6 +89,7 @@ sudo dnf install -y -d0 \
      rpm-sign \
      rpmdevtools \
      rsync \
+     sqlite-devel \
      sshpass \
      sudo \
      tar \
@@ -100,7 +104,12 @@ sudo dnf install -y -d0 --enablerepo=devel \
      libuv-devel \
      libyaml-devel \
      perl-IPC-Run \
-     protobuf-devel
+     protobuf-devel \
+     protobuf-c-devel
+
+sudo dnf install -y -d0 --enablerepo=epel \
+     docbook-style-xsl \
+     libxslt
 
 #Cleanup
 sudo dnf clean all
