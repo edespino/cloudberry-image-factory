@@ -30,12 +30,19 @@ sudo dnf install -y -d0 \
      libxml2-devel \
      libyaml-devel \
      libzstd-devel \
+     lz4-devel \
      openldap-devel \
      openssl-devel \
      pam-devel \
-     perl-core \
      perl-ExtUtils-Embed \
+     perl-IPC-Run \
      perl-Opcode \
+     perl-core \
+     protobuf-c-devel \
+     protobuf-devel \
+     python3-devel \
+     python3-pip \
+     python3-psutil \
      readline-devel \
      rpm-build \
      rpm-sign \
