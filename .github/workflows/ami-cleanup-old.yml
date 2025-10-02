@@ -111,14 +111,30 @@ jobs:
             keep_count=${{ env.RETENTION_COUNT }}
             if [ "$config_count" -le "$keep_count" ]; then
               echo "  Keeping all $config_count AMIs (at or below retention limit)"
+              echo "$config_amis" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
               echo "**$config**: $config_count AMIs (keeping all)" >> $GITHUB_STEP_SUMMARY
+              echo "$config_amis" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
             else
               delete_count=$((config_count - keep_count))
               echo "  Keeping $keep_count newest AMIs, marking $delete_count for deletion"
-              echo "**$config**: $config_count AMIs (keeping $keep_count, deleting $delete_count)" >> $GITHUB_STEP_SUMMARY
 
-              # Get AMIs to delete (skip the first N, keep the rest)
+              # Get AMIs to keep (first N)
+              config_keep=$(echo "$config_amis" | jq --arg keep "$keep_count" '[limit($keep | tonumber; .[])]')
+              echo "$config_keep" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+
+              # Get AMIs to delete (skip the first N, take the rest)
               config_delete=$(echo "$config_amis" | jq --arg skip "$keep_count" '[.[] | select(. != null)] | .[$skip | tonumber:]')
+              echo "$config_delete" | jq -r '.[] | "    ❌ DELETE: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+
+              # Add to GitHub summary
+              echo "**$config**: $config_count AMIs (keeping $keep_count, deleting $delete_count)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Keep:" >> $GITHUB_STEP_SUMMARY
+              echo "$config_keep" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Delete:" >> $GITHUB_STEP_SUMMARY
+              echo "$config_delete" | jq -r '.[] | "- ❌ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
 
               # Add to global delete list
               amis_to_delete=$(echo "$amis_to_delete" "$config_delete" | jq -s 'add')
