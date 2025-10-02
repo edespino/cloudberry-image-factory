@@ -75,14 +75,26 @@ jobs:
             exit 0
           fi
 
+          # Separate FAILED AMIs from regular AMIs
+          failed_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED"))]')
+          failed_count=$(echo "$failed_amis" | jq length)
+
+          # Get non-FAILED AMIs for normal retention processing
+          success_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED") | not)]')
+
+          echo "Found $failed_count FAILED AMIs (will be marked for deletion)"
+          if [ "$failed_count" -gt 0 ]; then
+            echo "$failed_amis" | jq -r '.[] | "  🔴 FAILED: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+          fi
+
           # Extract unique configurations (e.g., rocky9, ubuntu22, al2023)
           # AMI name format: cloudberry-packer-build-{config}-{timestamp}
-          configs=$(echo "$all_amis" | jq -r '.[].Name' | sed 's/cloudberry-packer-build-\([^-]*\)-.*/\1/' | sort -u)
+          configs=$(echo "$success_amis" | jq -r '.[].Name' | sed 's/cloudberry-packer-build-\([^-]*\)-.*/\1/' | sort -u)
 
           echo "Found configurations: $(echo $configs | tr '\n' ' ')"
 
-          # Build list of AMIs to delete
-          amis_to_delete='[]'
+          # Build list of AMIs to delete (start with all FAILED AMIs)
+          amis_to_delete="$failed_amis"
 
           # Add to GitHub summary
           echo "## AMI Cleanup Summary" >> $GITHUB_STEP_SUMMARY
@@ -91,6 +103,17 @@ jobs:
           echo "**Retention Policy:** Keep ${{ env.RETENTION_COUNT }} newest AMIs per configuration" >> $GITHUB_STEP_SUMMARY
           echo "**Dry Run:** ${{ env.DRY_RUN }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add FAILED AMIs section if any exist
+          if [ "$failed_count" -gt 0 ]; then
+            echo "### 🔴 FAILED AMIs (Always Deleted)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Found **$failed_count** FAILED AMIs that will be deleted regardless of retention policy:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "$failed_amis" | jq -r '.[] | "- 🔴 **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "### Analysis by Configuration" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -100,7 +123,8 @@ jobs:
             echo "Processing configuration: $config"
 
             # Get all AMIs for this configuration, sorted by creation date (newest first)
-            config_amis=$(echo "$all_amis" | jq -r --arg cfg "$config" \
+            # Note: Using success_amis (excludes FAILED AMIs)
+            config_amis=$(echo "$success_amis" | jq -r --arg cfg "$config" \
               '[.[] | select(.Name | startswith("cloudberry-packer-build-\($cfg)-"))] |
                sort_by(.CreationDate) | reverse')
 
