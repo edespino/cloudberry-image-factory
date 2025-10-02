@@ -11,16 +11,16 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 ### System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         GitHub Repository                                │
+┌────────────────────────────────────────────────────────────────────────┐
+│                         GitHub Repository                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
 │  │  Common Scripts │  │  OS-Specific     │  │  GitHub Actions        │ │
 │  │  (17 scripts)   │  │  Build Configs   │  │  Workflows             │ │
 │  │                 │  │  (6 OS targets)  │  │  - Build on Change     │ │
 │  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
-│                                              │  - AMI Cleanup         │ │
-│                                              └────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
+│                                             │  - AMI Cleanup         │ │
+│                                             └────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────┘
                                     │
                     ┌───────────────┴───────────────┐
                     │   Trigger Events              │
@@ -29,45 +29,45 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
                     │   - Scheduled (cron)          │
                     └───────────────┬───────────────┘
                                     ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          AWS Environment                                 │
-│                                                                          │
+┌────────────────────────────────────────────────────────────────────────┐
+│                          AWS Environment                               │
+│                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │               Packer Build Process (t3.2xlarge)                  │  │
-│  │                                                                   │  │
-│  │  Base AMI → Provision Scripts → Install Tools → Configure →     │  │
+│  │                                                                  │  │
+│  │  Base AMI → Provision Scripts → Install Tools → Configure →      │  │
 │  │           → Security Hardening → Testing Setup → Create AMI      │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
-│                                    │                                     │
-│                                    ▼                                     │
+│                                    │                                   │
+│                                    ▼                                   │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                    New AMI Created                                │  │
-│  │    cloudberry-packer-build-{os}-{timestamp}[-PASSED/FAILED]     │  │
+│  │                    New AMI Created                               │  │
+│  │    cloudberry-packer-build-{os}-{timestamp}[-PASSED/FAILED]      │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
-│                                    │                                     │
-│                                    ▼                                     │
+│                                    │                                   │
+│                                    ▼                                   │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │               Test Instance Launch (t3.medium)                    │  │
-│  │                                                                   │  │
-│  │  Launch → Wait for SSH → Copy Goss Tests → Run Validation →     │  │
+│  │               Test Instance Launch (t3.medium)                   │  │
+│  │                                                                  │  │
+│  │  Launch → Wait for SSH → Copy Goss Tests → Run Validation →      │  │
 │  │         → Collect Results → Terminate Instance                   │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
-│                                    │                                     │
-│                    ┌───────────────┴───────────────┐                    │
-│                    ▼                               ▼                     │
-│            Tests PASSED                    Tests FAILED                 │
-│            Rename: *-PASSED                Rename: *-FAILED             │
-│            Make Public                     Keep Private                 │
-│            Retain (count-based)            Mark for Deletion            │
-└─────────────────────────────────────────────────────────────────────────┘
+│                                    │                                   │
+│                    ┌───────────────┴───────────────┐                   │
+│                    ▼                               ▼                   │
+│            Tests PASSED                    Tests FAILED                │
+│            Rename: *-PASSED                Rename: *-FAILED            │
+│            Make Public                     Keep Private                │
+│            Retain (count-based)            Mark for Deletion           │
+└────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
-                          ┌─────────────────┐
+                          ┌──────────────────┐
                           │  Monthly Cleanup │
                           │  - Keep N newest │
                           │  - Delete FAILED │
                           │  - Delete old    │
-                          └─────────────────┘
+                          └──────────────────┘
 ```
 
 ## Repository Structure
@@ -192,7 +192,7 @@ cd vm-images/aws/cloudberry/build/rocky9
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     packer-build-and-test.sh                             │
+│                     packer-build-and-test.sh                            │
 └─────────────────────────────────────────────────────────────────────────┘
 
 1. Prerequisites Check
@@ -209,18 +209,18 @@ cd vm-images/aws/cloudberry/build/rocky9
 3. AMI Build Process (20-60 minutes)
    ┌────────────────────────────────────────────────────┐
    │ Packer provisions on t3.2xlarge instance:          │
-   │                                                     │
-   │  a. Launch base AMI (Rocky/Ubuntu/AL2023)         │
+   │                                                    │
+   │  a. Launch base AMI (Rocky/Ubuntu/AL2023)          │
    │  b. Wait for SSH availability                      │
    │  c. Execute provisioning scripts in sequence:      │
-   │     ├─ system_adduser_cbadmin.sh                  │
-   │     ├─ system_add_cbdb_build_*_dependencies.sh    │
-   │     ├─ system_add_golang.sh                       │
-   │     ├─ system_add_docker.sh                       │
-   │     ├─ system_add_kernel_configs.sh               │
-   │     ├─ cbadmin_configure_environment.sh           │
-   │     ├─ system_add_cloudberry_motd.sh              │
-   │     └─ system_add_goss.sh (testing framework)     │
+   │     ├─ system_adduser_cbadmin.sh                   │
+   │     ├─ system_add_cbdb_build_*_dependencies.sh     │
+   │     ├─ system_add_golang.sh                        │
+   │     ├─ system_add_docker.sh                        │
+   │     ├─ system_add_kernel_configs.sh                │
+   │     ├─ cbadmin_configure_environment.sh            │
+   │     ├─ system_add_cloudberry_motd.sh               │
+   │     └─ system_add_goss.sh (testing framework)      │
    │  d. Create AMI snapshot from instance              │
    │  e. Terminate build instance                       │
    └────────────────────────────────────────────────────┘
@@ -295,12 +295,12 @@ The repository includes intelligent GitHub Actions workflows:
              ▼                              ▼
     Smart Change Detection          User-Selected Targets
              │                              │
-    ┌────────┴────────┐                    │
-    ▼                 ▼                    │
-Common Script    OS-Specific File          │
-Changed          Changed                   │
-    │                 │                    │
-    ├─ Analyze        └─ Build only        │
+    ┌────────┴────────┐                     │
+    ▼                 ▼                     │
+Common Script    OS-Specific File           │
+Changed          Changed                    │
+    │                 │                     │
+    ├─ Analyze        └─ Build only         │
     │  dependency        affected OS        │
     │  matrix                               │
     │                                       │
