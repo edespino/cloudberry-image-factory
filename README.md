@@ -6,6 +6,70 @@ A comprehensive Packer-based infrastructure project for building development-opt
 
 The Cloudberry Image Factory provides automated AMI builds across multiple operating systems with integrated testing, security enhancements, and intelligent CI/CD workflows. Built specifically for **development environments** with appropriate configurations for development workflows.
 
+## Architecture
+
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         GitHub Repository                                │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
+│  │  Common Scripts │  │  OS-Specific     │  │  GitHub Actions        │ │
+│  │  (17 scripts)   │  │  Build Configs   │  │  Workflows             │ │
+│  │                 │  │  (6 OS targets)  │  │  - Build on Change     │ │
+│  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
+│                                              │  - AMI Cleanup         │ │
+│                                              └────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │   Trigger Events              │
+                    │   - Git Push/PR               │
+                    │   - Manual Run                │
+                    │   - Scheduled (cron)          │
+                    └───────────────┬───────────────┘
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          AWS Environment                                 │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │               Packer Build Process (t3.2xlarge)                  │  │
+│  │                                                                   │  │
+│  │  Base AMI → Provision Scripts → Install Tools → Configure →     │  │
+│  │           → Security Hardening → Testing Setup → Create AMI      │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                     │
+│                                    ▼                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                    New AMI Created                                │  │
+│  │    cloudberry-packer-build-{os}-{timestamp}[-PASSED/FAILED]     │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                     │
+│                                    ▼                                     │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │               Test Instance Launch (t3.medium)                    │  │
+│  │                                                                   │  │
+│  │  Launch → Wait for SSH → Copy Goss Tests → Run Validation →     │  │
+│  │         → Collect Results → Terminate Instance                   │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                    │                                     │
+│                    ┌───────────────┴───────────────┐                    │
+│                    ▼                               ▼                     │
+│            Tests PASSED                    Tests FAILED                 │
+│            Rename: *-PASSED                Rename: *-FAILED             │
+│            Make Public                     Keep Private                 │
+│            Retain (count-based)            Mark for Deletion            │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+                          ┌─────────────────┐
+                          │  Monthly Cleanup │
+                          │  - Keep N newest │
+                          │  - Delete FAILED │
+                          │  - Delete old    │
+                          └─────────────────┘
+```
+
 ## Repository Structure
 
 ```
@@ -124,13 +188,78 @@ cd vm-images/aws/cloudberry/build/rocky9
 ../../scripts/packer-build-and-test.sh
 ```
 
-The `packer-build-and-test.sh` script provides a complete build pipeline:
-- Validates Packer template
-- Builds AMI with all provisioning scripts
-- Launches test instance
-- Runs Goss validation tests
-- Makes AMI public (if tests pass)
-- Cleans up temporary resources
+### Build Pipeline Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     packer-build-and-test.sh                             │
+└─────────────────────────────────────────────────────────────────────────┘
+
+1. Prerequisites Check
+   ├─ Verify: packer, aws, jq, nc, curl installed
+   └─ Generate temporary SSH key pair
+              │
+              ▼
+2. Packer Initialization
+   ├─ packer init (download required plugins)
+   ├─ packer validate (check HCL syntax)
+   └─ Set build variables (vm_type, os_name, credentials)
+              │
+              ▼
+3. AMI Build Process (20-60 minutes)
+   ┌────────────────────────────────────────────────────┐
+   │ Packer provisions on t3.2xlarge instance:          │
+   │                                                     │
+   │  a. Launch base AMI (Rocky/Ubuntu/AL2023)         │
+   │  b. Wait for SSH availability                      │
+   │  c. Execute provisioning scripts in sequence:      │
+   │     ├─ system_adduser_cbadmin.sh                  │
+   │     ├─ system_add_cbdb_build_*_dependencies.sh    │
+   │     ├─ system_add_golang.sh                       │
+   │     ├─ system_add_docker.sh                       │
+   │     ├─ system_add_kernel_configs.sh               │
+   │     ├─ cbadmin_configure_environment.sh           │
+   │     ├─ system_add_cloudberry_motd.sh              │
+   │     └─ system_add_goss.sh (testing framework)     │
+   │  d. Create AMI snapshot from instance              │
+   │  e. Terminate build instance                       │
+   └────────────────────────────────────────────────────┘
+              │
+              ▼
+4. Extract AMI ID from packer-manifest.json
+              │
+              ▼
+5. Test Instance Launch
+   ├─ Create security group (SSH from current IP only)
+   ├─ Launch t3.medium instance from new AMI
+   ├─ Wait for SSH (30 retries with exponential backoff)
+   └─ Upload SSH key to cbadmin authorized_keys
+              │
+              ▼
+6. Goss Test Execution
+   ├─ Copy goss.yaml test specs to instance
+   ├─ Run: goss validate --format rspecish
+   ├─ Run: goss validate --format junit
+   └─ Download results (XML + text format)
+              │
+              ├─────────────┬─────────────┐
+              ▼             ▼             ▼
+         ALL PASSED    SOME FAILED   CONNECTION FAILED
+              │             │             │
+              ▼             ▼             ▼
+7a. Success Path     7b. Failure Path  7c. Error Path
+    ├─ Rename AMI        ├─ Rename AMI     ├─ Keep AMI name
+    │  *-PASSED          │  *-FAILED       └─ Mark for review
+    ├─ Make AMI public   └─ Keep private
+    └─ Exit 0                Exit 1
+              │
+              ▼
+8. Cleanup (always runs)
+   ├─ Terminate test instance
+   ├─ Delete security group
+   ├─ Delete temporary SSH key pair
+   └─ Display final results
+```
 
 ### Automated CI/CD Builds
 
@@ -140,6 +269,126 @@ The repository includes intelligent GitHub Actions workflows:
 - **Manual builds**: On-demand with configurable options
 - **Scheduled builds**: Weekly automated builds
 - **Smart rebuilds**: Only affected AMIs rebuilt based on change detection
+
+### CI/CD Workflow Decision Tree
+
+```
+                        GitHub Event
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+    Push/PR to Main    Manual Trigger    Scheduled (Weekly)
+         │                   │                   │
+         ▼                   │                   │
+    Changed Files?           │                   │
+         │                   │                   │
+    ┌────┴────┐              │                   │
+    ▼         ▼              │                   │
+ Yes         No              │                   │
+    │         │              │                   │
+    │      (Skip)            │                   │
+    │                        │                   │
+    └────────┬───────────────┴───────────────────┘
+             ▼
+    ami-build-on-change.yml     OR     ami-build-manual.yml
+             │                              │
+             ▼                              ▼
+    Smart Change Detection          User-Selected Targets
+             │                              │
+    ┌────────┴────────┐                    │
+    ▼                 ▼                    │
+Common Script    OS-Specific File          │
+Changed          Changed                   │
+    │                 │                    │
+    ├─ Analyze        └─ Build only        │
+    │  dependency        affected OS        │
+    │  matrix                               │
+    │                                       │
+    ├─ cbadmin_configure_environment.sh → Rebuild ALL 6 targets
+    ├─ system_add_awscli.sh → Rebuild Rocky 8/9/10 only
+    ├─ system_add_golang.sh → Rebuild Rocky 8/9, Ubuntu 22, AL2023
+    └─ rocky9/main.pkr.hcl → Rebuild Rocky 9 only
+                │
+                ▼
+    ┌───────────────────────────────┐
+    │   Build Matrix Generation     │
+    │   Max 3 parallel builds       │
+    └───────────────────────────────┘
+                │
+       ┌────────┴────────┐
+       ▼                 ▼
+    Build AMI       Test AMI
+    (60 min)        (10 min)
+       │                 │
+       └────────┬────────┘
+                ▼
+       ┌─────────────────┐
+       │  Test Results   │
+       └─────────────────┘
+                │
+       ┌────────┴────────┐
+       ▼                 ▼
+   ✅ PASSED        ❌ FAILED
+       │                 │
+       ├─ Rename         ├─ Rename
+       │  *-PASSED       │  *-FAILED
+       ├─ Make public    └─ Keep private
+       └─ Comment PR
+```
+
+### Monthly AMI Cleanup Flow
+
+```
+    1st of Month, 3 AM UTC
+             │
+             ▼
+    ami-cleanup-old.yml
+    (Always DRY-RUN)
+             │
+             ▼
+    Find all AMIs:
+    cloudberry-packer-build-*
+             │
+       ┌─────┴─────┐
+       ▼           ▼
+   Contains     Does not
+   "-FAILED"    contain "-FAILED"
+       │           │
+       │           ▼
+       │      Group by Config:
+       │      - al2023
+       │      - rocky8/9/10
+       │      - ubuntu20/22
+       │           │
+       │           ▼
+       │      For each config:
+       │      Sort by CreationDate
+       │      (newest first)
+       │           │
+       │      ┌────┴────┐
+       │      ▼         ▼
+       │   Count ≤ N  Count > N
+       │      │         │
+       │   Keep All  Keep N newest
+       │              Delete rest
+       │           │
+       └─────┬─────┘
+             ▼
+    Delete List Generated:
+    - All FAILED AMIs
+    - Old AMIs beyond retention
+             │
+             ▼
+    Generate Report:
+    - ✅ AMIs to KEEP
+    - ❌ AMIs to DELETE
+    - GitHub Step Summary
+             │
+             ▼
+    DRY-RUN: No action taken
+    Manual trigger required
+    for actual deletion
+```
 
 ## Configuration
 
