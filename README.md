@@ -17,12 +17,17 @@ cloudberry-image-factory/
 │   └── README.md               # Workflow documentation
 ├── vm-images/aws/cloudberry/
 │   ├── build/                  # Build configurations
-│   │   ├── common/scripts/     # 17 shared scripts (1,103 LOC)
+│   │   ├── common/scripts/     # 17 shared provisioning scripts
+│   │   ├── al2023/             # Amazon Linux 2023 build
 │   │   ├── rocky8/             # Rocky Linux 8 build
 │   │   ├── rocky9/             # Rocky Linux 9 build
 │   │   ├── rocky10/            # Rocky Linux 10 build
 │   │   ├── ubuntu20/           # Ubuntu 20.04 build
 │   │   └── ubuntu22/           # Ubuntu 22.04 build
+│   │   # Each build directory contains:
+│   │   #   main.pkr.hcl        - Packer configuration
+│   │   #   scripts/            - OS-specific scripts
+│   │   #   tests/goss.yaml     - Validation tests
 │   └── scripts/                # Operational utilities
 │       ├── packer-build-and-test.sh
 │       └── run-goss-tests.sh
@@ -31,47 +36,74 @@ cloudberry-image-factory/
 
 ## Supported Builds
 
-| Build Target | OS Version | Package Manager | Docker Setup | Testing |
-|--------------|------------|-----------------|--------------|---------|
-| **rocky8** | Rocky Linux 8 | RPM (dnf) | Inline commands | Goss |
-| **rocky9** | Rocky Linux 9 | RPM (dnf) | Inline commands | Goss |
-| **rocky10** | Rocky Linux 10 | RPM (dnf) | Inline commands | Goss |
-| **ubuntu20** | Ubuntu 20.04 LTS | APT | Dedicated script | Goss |
-| **ubuntu22** | Ubuntu 22.04 LTS | APT | Dedicated script | Goss |
+> **Current Build Targets:** See [`vm-images/aws/cloudberry/build/`](vm-images/aws/cloudberry/build/) for the complete list of supported OS configurations.
+
+| Build Target | OS Family | Package Manager | Notes |
+|--------------|-----------|-----------------|-------|
+| **al2023** | Amazon Linux 2023 | RPM (dnf) | AWS-optimized, newest addition |
+| **rocky8** | Rocky Linux 8 | RPM (dnf) | Stable enterprise Linux |
+| **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
+| **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
+| **ubuntu20** | Ubuntu 20.04 LTS | APT | Long-term support |
+| **ubuntu22** | Ubuntu 22.04 LTS | APT | Latest Ubuntu LTS |
+
+**Common Features Across All Builds:**
+- Docker Community Edition with 1GB shared memory
+- Goss validation testing framework
+- Cloudberry Database build dependencies
+- Development tools and utilities
 
 ## Development Stack
 
 ### Languages & Runtimes
-- **Go**: 1.25.1 (rocky8, rocky9, ubuntu22)
+- **Go**: Latest stable release (rocky8, rocky9, ubuntu22, al2023)
 - **Java**: OpenJDK 8/11 (rocky8, rocky9)
-- **Python**: 3.x (system packages)
+- **Python**: System default (version varies by OS)
 
 ### Build Tools & Libraries
 - **Compilers**: System GCC/GCC-C++ (version varies by OS)
-- **Build Systems**: CMake 3.31.6, Maven, Make
-- **Libraries**: Xerces-C 3.3.0, libuv 1.44.2, zstd 1.5.7
+- **Build Systems**: CMake (latest), Maven, Make
+- **Libraries**: Xerces-C, libuv, zstd (versions determined by package managers)
 
 ### Development Utilities
 - **AWS CLI**: v2 with configuration
-- **Docker**: Community edition with 1GB shared memory
-- **Shell Enhancement**: Starship prompt (rocky builds)
-- **Text Processing**: yq YAML processor
+- **Docker**: Community Edition with 1GB shared memory
+- **Shell Enhancement**: Starship prompt (Rocky builds)
+- **Text Processing**: yq (latest)
 - **Testing**: Goss validation framework
+
+> **Note:** Specific versions are managed by individual installation scripts in `vm-images/aws/cloudberry/build/common/scripts/`. Many tools use dynamic version detection to install the latest stable release. See the [Goss test files](vm-images/aws/cloudberry/build/) for verification of installed versions.
 
 ## Build Matrix
 
-### Script Usage by Build Target
+### Script Organization
 
-| Common Script | Rocky 8 | Rocky 9 | Rocky 10 | Ubuntu 20 | Ubuntu 22 |
-|---------------|---------|---------|----------|-----------|-----------|
-| User & Environment Setup | ✅ | ✅ | ✅ | ✅ | ✅ |
-| AWS CLI | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Go Language | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Java Configuration | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Starship Prompt | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Xerces-C Library | ✅ | ✅ | ❌ | ❌ | ❌ |
-| MOTD System | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Swap Configuration | ❌ | ✅ | ✅ | ❌ | ❌ |
+**Common Scripts** (`vm-images/aws/cloudberry/build/common/scripts/`)
+- 17 shared provisioning scripts used across multiple OS builds
+- Include user setup, development tools, kernel configs, testing frameworks
+
+**OS-Specific Scripts** (in each build directory)
+- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: AL2023, Rocky 8/9/10)
+- `system_add_cbdb_build_deb_dependencies.sh` (DEB-based: Ubuntu 20/22)
+- `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
+
+**Build Configuration**: Each OS has a `main.pkr.hcl` file that orchestrates which scripts run and in what order.
+
+> **To see exact script usage per OS:** Review the `main.pkr.hcl` file in each build directory (e.g., `vm-images/aws/cloudberry/build/rocky9/main.pkr.hcl`).
+
+### Build Profiles by OS Family
+
+**Rocky Linux Family** (al2023, rocky8, rocky9, rocky10):
+- Full RPM-based toolchain
+- AWS CLI, Go, Java support (varies by version)
+- Starship prompt, kernel tuning
+- SELinux disabled for development
+
+**Ubuntu Family** (ubuntu20, ubuntu22):
+- DEB-based package management
+- Streamlined build profile
+- Dedicated Docker setup script
+- Locale configuration
 
 ## Getting Started
 
@@ -252,8 +284,11 @@ ssh -i your-key.pem cbladmin@instance-ip
 1. **Create build directory**: `vm-images/aws/cloudberry/build/newos/`
 2. **Copy template structure**: `main.pkr.hcl`, `scripts/`, `tests/`
 3. **Configure base AMI** and OS-specific settings
-4. **Update workflows** to include new target
+4. **Update workflows** to include new target in dependency matrix
 5. **Test build locally** before CI/CD integration
+6. **Update documentation**: Add to Supported Builds table and Repository Structure in README.md
+
+> **Note:** The repository structure and supported builds list in README.md should be kept in sync with actual build directories. When adding/removing OS targets, update both the code and documentation together.
 
 ### Modifying Build Configuration
 
@@ -300,8 +335,12 @@ aws ec2 delete-key-pair --key-name temp-packer-key
 1. **Script Consistency**: Follow established patterns for headers, error handling
 2. **Security First**: All downloads must include verification
 3. **Testing Required**: Add Goss tests for new functionality
-4. **Documentation**: Update README for significant changes
+4. **Documentation**: Update README for significant changes (avoid hardcoding version numbers)
 5. **CI/CD Integration**: Ensure workflows understand new dependencies
+6. **Version Management**:
+   - Prefer dynamic version detection (e.g., "latest" from GitHub releases)
+   - Document versions in Goss tests, not README
+   - Use package manager defaults when appropriate
 
 ### Naming Conventions
 

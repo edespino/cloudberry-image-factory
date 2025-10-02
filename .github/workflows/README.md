@@ -44,14 +44,25 @@ Documentation Change → No builds triggered
 ### 3. `ami-cleanup-old.yml` - AMI Lifecycle Management
 
 **Triggers:**
-- **Scheduled:** Monthly on the 1st at 3 AM UTC
-- **Manual:** `workflow_dispatch` with dry-run support
+- **Scheduled:** Monthly on the 1st at 3 AM UTC (always in dry-run mode)
+- **Manual:** `workflow_dispatch` with full parameter control
 
 **Features:**
-- **Retention Policy**: Configurable retention period (default: 90 days)
-- **Dry Run Mode**: Preview deletions without actual cleanup
-- **Snapshot Cleanup**: Removes associated EBS snapshots
-- **Orphan Detection**: Identifies orphaned snapshots
+- **Count-Based Retention**: Keep N newest AMIs per configuration (default: 3)
+- **Per-Configuration Logic**: Separate retention for rocky9, ubuntu22, al2023, etc.
+- **Dry Run Mode**: Preview deletions without actual cleanup (default: enabled)
+- **Snapshot Cleanup**: Automatically removes associated EBS snapshots
+- **No Age Limit**: AMIs never deleted based on age alone (ensures availability)
+- **Orphan Detection**: Identifies orphaned snapshots for manual review
+
+**Retention Policy:**
+With `retention_count: 3` (default), the workflow keeps the 3 newest AMIs for each configuration:
+- rocky9: Keep 3 newest
+- ubuntu22: Keep 3 newest
+- al2023: Keep 3 newest
+- etc.
+
+This ensures you always have N working AMIs per OS, regardless of their age.
 
 ## Dependency Matrix
 
@@ -137,11 +148,14 @@ The AWS credentials need permissions for:
 
 ### Cleanup Process
 
-1. **Discovery** → Find AMIs older than retention period
-2. **Safety Checks** → Verify AMI ownership and naming patterns
-3. **Deregistration** → Remove old AMIs from AWS
-4. **Snapshot Cleanup** → Delete associated EBS snapshots
-5. **Reporting** → Document cleanup actions
+1. **Discovery** → Find all Cloudberry AMIs (cloudberry-packer-build-*)
+2. **Grouping** → Group AMIs by configuration (rocky9, ubuntu22, al2023, etc.)
+3. **Analysis** → For each configuration, identify oldest AMIs beyond retention count
+4. **Safety Checks** → Verify AMI ownership and naming patterns
+5. **Deregistration** → Remove old AMIs from AWS (if not dry-run)
+6. **Snapshot Cleanup** → Delete associated EBS snapshots
+7. **Orphan Detection** → Identify any orphaned snapshots for manual review
+8. **Reporting** → Document cleanup actions with detailed summary
 
 ## Cost Management
 
@@ -152,10 +166,12 @@ The AWS credentials need permissions for:
 - **Build Timeouts**: Prevent runaway builds from incurring charges
 
 ### AMI Management
-- **Automated Cleanup**: Monthly removal of old AMIs
-- **Retention Policy**: Configurable retention periods
-- **Snapshot Management**: Cleanup of associated storage costs
+- **Automated Cleanup**: Monthly dry-run reports (manual trigger for actual deletion)
+- **Count-Based Retention**: Keep N newest AMIs per configuration (default: 3)
+- **Predictable Costs**: Maximum of N × 6 configurations (e.g., 3 × 6 = 18 AMIs max)
+- **Snapshot Management**: Automatic cleanup of associated storage costs
 - **Build Tagging**: Cost allocation through resource tagging
+- **No Age-Based Deletion**: AMIs kept regardless of age (ensures availability)
 
 ## Monitoring and Troubleshooting
 
@@ -203,9 +219,16 @@ declare -A COMMON_SCRIPT_DEPS=(
 Modify default values in `ami-cleanup-old.yml`:
 
 ```yaml
-retention_days:
-  default: '90'  # Change default retention period
+retention_count:
+  default: '3'  # Keep 3 newest AMIs per configuration
 ```
+
+**Examples:**
+- `retention_count: 1` - Keep only the latest AMI per OS (minimal storage)
+- `retention_count: 3` - Keep 3 newest per OS (recommended for rollback capability)
+- `retention_count: 5` - Keep 5 newest per OS (extended rollback history)
+
+**Testing:** Use `retention_count: 1` with `dry_run: true` to test the cleanup logic without deleting anything.
 
 ## Best Practices
 
