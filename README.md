@@ -152,6 +152,32 @@ The repository includes intelligent GitHub Actions workflows:
 | Base AMI Owner | `792107900819` | Rocky Linux Foundation |
 | Volume Size | 24GB | Root filesystem size |
 
+### AMI Naming Convention
+
+**Format:** `cloudberry-packer-{vm_type}-{os_name}-{timestamp}`
+
+**Example:** `cloudberry-packer-build-rocky9-20251002-170700`
+
+**Important Notes:**
+- **Timestamps are in UTC** (Coordinated Universal Time)
+- The timestamp in the AMI name reflects when the Packer build **started**
+- The AWS `CreationDate` reflects when the AMI was **registered** (after build completion)
+- These times may differ significantly (builds can take minutes to hours)
+- To convert to your local timezone: use the `CreationDate` from AWS, not the AMI name
+
+**Example:**
+```
+AMI Name:       cloudberry-packer-build-rocky9-20251002-100700
+                                                        ↑
+                                            Build started at 10:07 UTC
+
+AWS CreationDate: 2025-10-02T17:07:00.000Z
+                                    ↑
+                      AMI registered at 17:07 UTC (7 hours after build started)
+
+Your Local Time (GMT-7): 2025-10-02 10:07 (subtract 7 hours from UTC)
+```
+
 ### Development-Specific Settings
 
 **Security Configuration** (appropriate for development):
@@ -315,6 +341,13 @@ ssh -i your-key.pem cbladmin@instance-ip
 - Review test expectations in `goss.yaml`
 - Verify package names for different OS versions
 - Check service startup dependencies
+
+**AMI timestamp confusion**:
+- AMI names contain UTC timestamps from when builds **started**
+- AWS CreationDate shows when AMIs were **registered** (after build completed)
+- These timestamps can differ by hours if builds take a long time
+- Always use CreationDate for accurate "newest" determination
+- See [AMI Naming Convention](#ami-naming-convention) for details
 
 ### Resource Cleanup
 
