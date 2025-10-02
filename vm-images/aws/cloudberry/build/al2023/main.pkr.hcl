@@ -115,6 +115,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_swap.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/cbadmin_configure_environment.sh"
   }
 
