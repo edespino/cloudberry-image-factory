@@ -145,7 +145,7 @@ file:
     filetype: file
 
   # System configuration files
-  /etc/security/limits.d/90-db-limits.conf:
+  /etc/security/limits.d/90-db-cbadmin-limits.conf:
     exists: true
     mode: "0644"
     owner: root
