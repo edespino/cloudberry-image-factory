@@ -3,6 +3,16 @@
 # Enable strict mode for better error handling
 set -euo pipefail
 
+# Detect OS type
+if [ -f /etc/rocky-release ] || [ -f /etc/redhat-release ]; then
+    OS="rhel"
+elif [ -f /etc/debian_version ]; then
+    OS="debian"
+else
+    echo "Unsupported OS. This script supports RHEL/Rocky and Debian/Ubuntu."
+    exit 1
+fi
+
 # Configuration
 SWAP_SIZE="${SWAP_SIZE:-8G}"
 SWAP_FILE="${SWAP_FILE:-/swapfile}"
@@ -11,6 +21,7 @@ VFS_CACHE_PRESSURE="${VFS_CACHE_PRESSURE:-50}"
 
 # Header indicating the script execution
 echo "Executing system_add_swap.sh..."
+echo "Detected OS: $OS"
 echo "Configuring swap: size=${SWAP_SIZE}, file=${SWAP_FILE}"
 
 # Function to check if swap is already configured
@@ -55,7 +66,7 @@ create_swap_file() {
     # Create swap file - prefer fallocate for speed, fallback to dd
     if command -v fallocate >/dev/null 2>&1; then
         echo "Using fallocate to create swap file..."
-        # Test if fallocate works on current filesystem (Rocky Linux 10 compatibility)
+        # Test if fallocate works on current filesystem (Rocky Linux 10 / Ubuntu 22.04 compatibility)
         if ! sudo fallocate -l "${SWAP_SIZE}" "${SWAP_FILE}" 2>/dev/null; then
             echo "fallocate not supported on current filesystem, using dd..."
             local count
@@ -103,7 +114,7 @@ configure_fstab() {
     if grep -q "${SWAP_FILE}" /etc/fstab; then
         echo "Successfully added swap entry to /etc/fstab"
 
-        # Reload systemd to recognize fstab changes (Rocky Linux 10 compatibility)
+        # Reload systemd to recognize fstab changes (Rocky Linux 10 / Ubuntu 22.04 compatibility)
         if command -v systemctl >/dev/null 2>&1; then
             echo "Reloading systemd daemon for fstab changes..."
             sudo systemctl daemon-reload

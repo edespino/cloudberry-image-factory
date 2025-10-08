@@ -99,6 +99,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_swap.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_adduser_cbadmin.sh"
   }
 
