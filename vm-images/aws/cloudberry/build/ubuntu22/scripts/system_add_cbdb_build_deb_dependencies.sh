@@ -71,6 +71,7 @@ sudo apt-get install -y \
      python3.10 \
      python3.10-dev \
      python3-psutil \
+     python3-pip \
      zlib1g-dev
 
 sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 && \
