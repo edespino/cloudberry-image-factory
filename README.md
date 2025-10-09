@@ -431,7 +431,7 @@ Your Local Time (GMT-7): 2025-10-02 10:07 (subtract 7 hours from UTC)
 
 **Security Configuration** (appropriate for development):
 - **SELinux**: Disabled (prevents development conflicts)
-- **Sudo Access**: Passwordless for `cbladmin` user
+- **Sudo Access**: Passwordless for `cbadmin` user
 - **Resource Limits**: High limits (524K file handles)
 - **SSH Access**: Key-based authentication
 
@@ -531,7 +531,7 @@ aws ec2 run-instances \
   --security-group-ids sg-xxxxxxxxx
 
 # Connect to instance
-ssh -i your-key.pem cbladmin@instance-ip
+ssh -i your-key.pem cbadmin@instance-ip
 ```
 
 ### Development Workflow
@@ -646,6 +646,6 @@ aws ec2 delete-key-pair --key-name temp-packer-key
 
 ---
 
-**Last Updated**: 2025-01-06
+**Last Updated**: 2025-10-09
 **Repository Status**: Production-ready development image factory
 **Quality Score**: A+ (95%) - Excellent automation with comprehensive testing
