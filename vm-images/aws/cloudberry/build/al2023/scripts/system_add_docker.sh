@@ -19,6 +19,12 @@ sudo systemctl start docker
 # Add ec2-user to docker group
 sudo usermod -aG docker ec2-user
 
+# Add gpadmin to docker group (if user exists)
+if id "gpadmin" &>/dev/null; then
+    sudo usermod -aG docker gpadmin
+    echo "Added gpadmin to docker group"
+fi
+
 # Add cbadmin to docker group (if user exists)
 if id "cbadmin" &>/dev/null; then
     sudo usermod -aG docker cbadmin

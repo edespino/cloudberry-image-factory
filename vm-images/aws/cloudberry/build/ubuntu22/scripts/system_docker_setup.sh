@@ -27,9 +27,20 @@ sudo systemctl start docker
 sudo systemctl status docker
 sudo systemctl enable docker
 
-# Add current user and cbadmin to the docker group
+# Add current user to the docker group
 sudo usermod -aG docker $(whoami)
-sudo usermod -aG docker cbadmin
+
+# Add gpadmin to docker group (if user exists)
+if id "gpadmin" &>/dev/null; then
+    sudo usermod -aG docker gpadmin
+    echo "Added gpadmin to docker group"
+fi
+
+# Add cbadmin to docker group (if user exists)
+if id "cbadmin" &>/dev/null; then
+    sudo usermod -aG docker cbadmin
+    echo "Added cbadmin to docker group"
+fi
 
 # Install unzip and AWS CLI v2
 sudo apt-get install -y unzip
