@@ -136,10 +136,6 @@ build {
     script = "../common/scripts/system_add_kernel_configs.sh"
   }
 
-  provisioner "shell" {
-    script = "../common/scripts/system_add_swap.sh"
-  }
-
   # Configure gpadmin environment
   provisioner "shell" {
     script = "../common/scripts/dbadmin_configure_environment.sh"
