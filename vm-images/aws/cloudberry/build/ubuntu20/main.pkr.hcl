@@ -82,8 +82,70 @@ build {
     script = "scripts/system_add_cbdb_build_deb_dependencies.sh"
   }
 
+  # Create gpadmin user first
+  provisioner "shell" {
+    script = "../common/scripts/system_adduser_dbadmin.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Create cbadmin user second
+  provisioner "shell" {
+    script = "../common/scripts/system_adduser_dbadmin.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
+  }
+
+  # Configure gpadmin environment
+  provisioner "shell" {
+    script = "../common/scripts/dbadmin_configure_environment.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Configure cbadmin environment
+  provisioner "shell" {
+    script = "../common/scripts/dbadmin_configure_environment.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
+  }
+
   provisioner "shell" {
     script = "../common/scripts/system_add_cloudberry_motd.sh"
+  }
+
+  # Install Claude CLI for gpadmin
+  provisioner "shell" {
+    script = "../common/scripts/system_add_claude.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Install Claude CLI for cbadmin
+  provisioner "shell" {
+    script = "../common/scripts/system_add_claude.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
   }
 
   provisioner "shell" {

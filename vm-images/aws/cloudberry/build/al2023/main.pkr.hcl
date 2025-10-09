@@ -94,8 +94,27 @@ build {
     script = "../common/scripts/system_add_golang.sh"
   }
 
+  # Create gpadmin user first
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_cbadmin.sh"
+    script = "../common/scripts/system_adduser_dbadmin.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Create cbadmin user second
+  provisioner "shell" {
+    script = "../common/scripts/system_adduser_dbadmin.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
   }
 
   provisioner "shell" {
@@ -103,7 +122,10 @@ build {
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_cbadmin_ulimits.sh"
+    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
   }
 
   provisioner "shell" {
@@ -118,8 +140,36 @@ build {
     script = "../common/scripts/system_add_swap.sh"
   }
 
+  # Configure gpadmin environment
   provisioner "shell" {
-    script = "../common/scripts/cbadmin_configure_environment.sh"
+    script = "../common/scripts/dbadmin_configure_environment.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Configure cbadmin environment
+  provisioner "shell" {
+    script = "../common/scripts/dbadmin_configure_environment.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
+  }
+
+  # Install Claude CLI for gpadmin
+  provisioner "shell" {
+    script = "../common/scripts/system_add_claude.sh"
+    environment_vars = [
+      "DB_USERNAME=gpadmin"
+    ]
+  }
+
+  # Install Claude CLI for cbadmin
+  provisioner "shell" {
+    script = "../common/scripts/system_add_claude.sh"
+    environment_vars = [
+      "DB_USERNAME=cbadmin"
+    ]
   }
 
   provisioner "shell" {

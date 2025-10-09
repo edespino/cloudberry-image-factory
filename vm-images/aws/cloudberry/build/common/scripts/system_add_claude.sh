@@ -1,12 +1,32 @@
 #!/bin/bash
 
-# Install Claude CLI on Rocky Linux 9
-
+# Unified script to install Claude CLI for database admin user
+# Supports both gpadmin and cbadmin users
+#
+# Usage:
+#   system_add_claude.sh [username]
+#   DB_USERNAME=gpadmin system_add_claude.sh
+#
 # Enable strict mode for better error handling
 set -euo pipefail
 
+# Accept username as parameter or environment variable, default to gpadmin
+DB_USERNAME="${1:-${DB_USERNAME:-gpadmin}}"
+
+# Validate username (alphanumeric and underscore only)
+if ! [[ "${DB_USERNAME}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+  echo "ERROR: Invalid username '${DB_USERNAME}'. Must start with lowercase letter or underscore and contain only lowercase letters, numbers, underscores, or hyphens."
+  exit 1
+fi
+
+# Verify user exists
+if ! id -u "${DB_USERNAME}" > /dev/null 2>&1; then
+  echo "ERROR: User '${DB_USERNAME}' does not exist. Please create the user first."
+  exit 1
+fi
+
 # Header indicating the script execution
-echo "Executing system_add_claude.sh..."
+echo "Executing system_add_claude.sh for user '${DB_USERNAME}'..."
 
 # Detect OS type
 if [ -f /etc/rocky-release ] || [ -f /etc/redhat-release ]; then
@@ -56,49 +76,49 @@ if [ "$NODE_MAJOR" -lt 18 ]; then
     exit 1
 fi
 
-# Create directory for global npm packages for the cbadmin user
-echo "Configuring npm for global packages..."
-sudo -u cbadmin mkdir -p /home/cbadmin/.npm-global
+# Create directory for global npm packages for the database admin user
+echo "Configuring npm for global packages for user '${DB_USERNAME}'..."
+sudo -u "${DB_USERNAME}" mkdir -p "/home/${DB_USERNAME}/.npm-global"
 
-# Configure npm to use this directory for cbadmin user
-echo "Configuring npm for cbadmin user..."
-sudo -u cbadmin npm config set prefix /home/cbadmin/.npm-global --userconfig /home/cbadmin/.npmrc
+# Configure npm to use this directory for database admin user
+echo "Configuring npm for ${DB_USERNAME} user..."
+sudo -u "${DB_USERNAME}" npm config set prefix "/home/${DB_USERNAME}/.npm-global" --userconfig "/home/${DB_USERNAME}/.npmrc"
 
-# Add npm global bin to cbadmin's PATH
-echo "Configuring PATH for cbadmin user..."
-sudo -u cbadmin tee -a /home/cbadmin/.bashrc > /dev/null <<'EOF'
+# Add npm global bin to database admin user's PATH
+echo "Configuring PATH for ${DB_USERNAME} user..."
+sudo -u "${DB_USERNAME}" tee -a "/home/${DB_USERNAME}/.bashrc" > /dev/null <<'EOF'
 
 # Add npm global bin to PATH
 export PATH="$HOME/.npm-global/bin:$PATH"
 EOF
 
-# Disable npm fund messages for cbadmin user
+# Disable npm fund messages for database admin user
 echo "Disabling npm fund messages..."
-sudo -u cbadmin npm config set fund false --userconfig /home/cbadmin/.npmrc
+sudo -u "${DB_USERNAME}" npm config set fund false --userconfig "/home/${DB_USERNAME}/.npmrc"
 
-# Install Claude Code globally for cbadmin user
-echo "Installing Claude Code..."
-sudo -u cbadmin npm install -g @anthropic-ai/claude-code
+# Install Claude Code globally for database admin user
+echo "Installing Claude Code for user '${DB_USERNAME}'..."
+sudo -u "${DB_USERNAME}" npm install -g @anthropic-ai/claude-code
 
 # Verify installation
 echo "Verifying Claude Code installation..."
-sudo -u cbadmin /home/cbadmin/.npm-global/bin/claude --version || {
+sudo -u "${DB_USERNAME}" "/home/${DB_USERNAME}/.npm-global/bin/claude" --version || {
     echo "Warning: Claude CLI verification failed, but installation may still be successful"
 }
 
 # Create system-wide wrapper script for easy access
 echo "Creating system-wide Claude CLI wrapper..."
-sudo tee /usr/local/bin/claude > /dev/null <<'EOF'
+sudo tee /usr/local/bin/claude > /dev/null <<WRAPPER_EOF
 #!/bin/bash
 # System-wide wrapper for Claude CLI
-exec sudo -u cbadmin /home/cbadmin/.npm-global/bin/claude "$@"
-EOF
+exec sudo -u ${DB_USERNAME} /home/${DB_USERNAME}/.npm-global/bin/claude "\$@"
+WRAPPER_EOF
 
 sudo chmod +x /usr/local/bin/claude
 
 # Verify system-wide access
 echo "Verifying system-wide Claude CLI access..."
-claude --version 2>/dev/null || echo "Claude CLI installed for cbadmin user"
+claude --version 2>/dev/null || echo "Claude CLI installed for ${DB_USERNAME} user"
 
 # Footer indicating the script execution is complete
-echo "system_add_claude.sh execution completed."
+echo "system_add_claude.sh execution completed for user '${DB_USERNAME}'."

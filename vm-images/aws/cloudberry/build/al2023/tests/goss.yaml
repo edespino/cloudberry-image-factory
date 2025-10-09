@@ -72,6 +72,10 @@ port:
 
 # User account verification
 user:
+  gpadmin:
+    exists: true
+    home: /home/gpadmin
+    shell: /bin/bash
   cbadmin:
     exists: true
     home: /home/cbadmin
@@ -116,6 +120,71 @@ file:
   /usr/local/bin/goss:
     exists: true
     mode: "0775"
+    filetype: file
+
+  # gpadmin user configuration
+  /home/gpadmin:
+    exists: true
+    mode: "0700"
+    owner: gpadmin
+    group: gpadmin
+    filetype: directory
+
+  # gpadmin environment files
+  /home/gpadmin/.bashrc:
+    exists: true
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+    contents:
+      - "GOPATH"
+      - "greenplum_path.sh"
+  /home/gpadmin/.vimrc:
+    exists: true
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+  /home/gpadmin/.tmux.conf:
+    exists: true
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+  /home/gpadmin/bin:
+    exists: true
+    owner: gpadmin
+    group: gpadmin
+    filetype: directory
+  /home/gpadmin/bin/just:
+    exists: true
+    mode: "0755"
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+
+  # gpadmin SSH configuration
+  /home/gpadmin/.ssh:
+    exists: true
+    mode: "0700"
+    owner: gpadmin
+    group: gpadmin
+    filetype: directory
+  /home/gpadmin/.ssh/id_ed25519:
+    exists: true
+    mode: "0600"
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+  /home/gpadmin/.ssh/id_ed25519.pub:
+    exists: true
+    mode: "0644"
+    owner: gpadmin
+    group: gpadmin
+    filetype: file
+  /home/gpadmin/.ssh/authorized_keys:
+    exists: true
+    mode: "0600"
+    owner: gpadmin
+    group: gpadmin
     filetype: file
 
   # cbadmin user configuration (from system_adduser_cbadmin.sh)
@@ -183,7 +252,21 @@ file:
     group: cbadmin
     filetype: file
 
-  # System configuration files (from system_add_cbadmin_ulimits.sh)
+  # System configuration files
+  /etc/security/limits.d/90-db-gpadmin-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "gpadmin soft core unlimited"
+      - "gpadmin hard core unlimited"
+      - "gpadmin soft nofile 524288"
+      - "gpadmin hard nofile 524288"
+      - "gpadmin soft nproc 131072"
+      - "gpadmin hard nproc 131072"
+
   /etc/security/limits.d/90-db-cbadmin-limits.conf:
     exists: true
     mode: "0644"
@@ -221,10 +304,19 @@ file:
     contents:
       - "SELINUX=disabled"
 
-  # Sudo configuration (from system_adduser_cbadmin.sh)
+  # Sudo configuration
+  /etc/sudoers.d/90-gpadmin:
+    exists: true
+    mode: "0440"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "gpadmin ALL=(ALL) NOPASSWD:ALL"
+
   /etc/sudoers.d/90-cbadmin:
     exists: true
-    mode: "0644"
+    mode: "0440"
     owner: root
     group: root
     filetype: file
@@ -239,13 +331,31 @@ command:
     stdout: ["go1.25.1"]
     timeout: 5000
 
+  # gpadmin user just command
+  "sudo -u gpadmin /home/gpadmin/bin/just --version":
+    exit-status: 0
+    stdout: ["just"]
+    timeout: 5000
+
+  # gpadmin SSH key functionality
+  "sudo -u gpadmin ssh-keygen -l -f /home/gpadmin/.ssh/id_ed25519.pub":
+    exit-status: 0
+    stdout: ["ED25519"]
+    timeout: 5000
+
+  # Verify gpadmin sudo access
+  "sudo -l -U gpadmin":
+    exit-status: 0
+    stdout: ["NOPASSWD: ALL"]
+    timeout: 5000
+
   # cbadmin user just command (from cbadmin_configure_environment.sh)
   "sudo -u cbadmin /home/cbadmin/bin/just --version":
     exit-status: 0
     stdout: ["just"]
     timeout: 5000
 
-  # SSH key functionality (from cbadmin_configure_environment.sh)
+  # cbadmin SSH key functionality (from cbadmin_configure_environment.sh)
   "sudo -u cbadmin ssh-keygen -l -f /home/cbadmin/.ssh/id_ed25519.pub":
     exit-status: 0
     stdout: ["ED25519"]
@@ -271,6 +381,12 @@ command:
 
   # Test ec2-user docker group membership (from system_add_docker.sh)
   "groups ec2-user":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+  # Test gpadmin docker group membership
+  "groups gpadmin":
     exit-status: 0
     stdout: ["docker"]
     timeout: 5000
