@@ -1,6 +1,6 @@
 # Cloudberry Image Factory
 
-A comprehensive Packer-based infrastructure project for building development-optimized Amazon Machine Images (AMIs) for Apache Cloudberry Database on AWS.
+A comprehensive Packer-based infrastructure project for building development-optimized Amazon Machine Images (AMIs) for Apache Cloudberry (Incubating) on AWS.
 
 ## Overview
 
