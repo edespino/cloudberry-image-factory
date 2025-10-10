@@ -119,7 +119,7 @@ file:
   # Goss installation (from system_add_goss.sh)
   /usr/local/bin/goss:
     exists: true
-    mode: "0775"
+    mode: "0755"
     filetype: file
 
   # gpadmin user configuration

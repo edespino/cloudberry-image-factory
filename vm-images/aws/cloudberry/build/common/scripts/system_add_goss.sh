@@ -51,7 +51,7 @@ if ! command -v goss &>/dev/null; then
     # Install Goss
     echo "Installing Goss..."
     sudo mv goss-linux-amd64 /usr/local/bin/goss
-    sudo chmod +x /usr/local/bin/goss
+    sudo chmod 0755 /usr/local/bin/goss
     
     # Clean up
     rm -f goss.sha256
