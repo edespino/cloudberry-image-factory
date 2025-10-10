@@ -6,6 +6,65 @@
 # Enable strict mode for better error handling
 set -euo pipefail
 
+# dnf_robust_install - Robust DNF package installation with retry logic
+# Handles transient mirror synchronization issues common with Rocky Linux
+dnf_robust_install() {
+    local args="$@"
+    local max_attempts=5
+    local attempt=1
+
+    if [ -z "$args" ]; then
+        echo "ERROR: No packages or arguments specified for dnf_robust_install"
+        return 1
+    fi
+
+    echo "==> Installing with retry logic: $args"
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "==> Attempt $attempt/$max_attempts"
+
+        # Clean potentially stale metadata on each attempt
+        sudo dnf clean metadata >/dev/null 2>&1 || true
+
+        # Attempt installation with increased timeouts and retries
+        if sudo dnf install -y \
+            --setopt=retries=3 \
+            --setopt=timeout=120 \
+            --setopt=metadata_expire=1h \
+            $args 2>&1 | tee /tmp/dnf_install_attempt_${attempt}.log; then
+            echo "==> ✓ Successfully installed: $args"
+            rm -f /tmp/dnf_install_attempt_*.log 2>/dev/null || true
+            return 0
+        fi
+
+        # Installation failed, check if we should retry
+        if [ $attempt -lt $max_attempts ]; then
+            sleep_time=$((attempt * 45))
+            echo "==> ⚠ Attempt $attempt/$max_attempts failed. Waiting ${sleep_time}s before retry..."
+            sleep $sleep_time
+
+            # On 3rd attempt, perform aggressive metadata refresh
+            if [ $attempt -eq 3 ]; then
+                echo "==> Performing full metadata refresh (attempt 3)..."
+                sudo dnf clean all >/dev/null 2>&1 || true
+                sudo dnf makecache --refresh >/dev/null 2>&1 || true
+            fi
+        else
+            # All attempts failed
+            echo "==> ✗ FAILED to install $args after $max_attempts attempts"
+            echo "==> Last attempt log:"
+            cat /tmp/dnf_install_attempt_${attempt}.log
+            rm -f /tmp/dnf_install_attempt_*.log 2>/dev/null || true
+            return 1
+        fi
+
+        ((attempt++))
+    done
+
+    # Should never reach here, but just in case
+    return 1
+}
+
 # Header indicating the script execution
 echo "Executing system_add_docker.sh..."
 
@@ -61,8 +120,8 @@ case "$OS" in
         # Update package cache again
         sudo dnf makecache
 
-        # Install Docker
-        sudo dnf install -y docker-ce docker-ce-cli containerd.io
+        # Install Docker with retry logic
+        dnf_robust_install docker-ce docker-ce-cli containerd.io
 
         # Clean up
         sudo dnf clean all
@@ -74,8 +133,8 @@ case "$OS" in
         # Update package cache
         sudo dnf makecache
 
-        # Install Docker (from Amazon Linux repos)
-        sudo dnf install -y docker
+        # Install Docker (from Amazon Linux repos) with retry logic
+        dnf_robust_install docker
         ;;
 
     *)
