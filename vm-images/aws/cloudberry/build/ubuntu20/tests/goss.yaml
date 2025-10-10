@@ -3,72 +3,21 @@
 
 # This file defines validation tests for the Ubuntu 20.04 AMI to ensure all
 # components are properly installed
+#
+# Note: Ubuntu 20 has minimal provisioners compared to Ubuntu 22:
+# - Only git is installed by system_add_cbdb_build_deb_dependencies.sh
+# - No timezone, golang, yq, kernel configs, or swap provisioners
+# - Docker, Claude CLI, and Goss are installed via common scripts
 
 # System packages verification
 package:
-  # Version control and development tools
+  # Version control (from build dependencies)
   git: {installed: true}
-  vim: {installed: true}
-  tmux: {installed: true}
-  wget: {installed: true}
-  curl: {installed: true}
-  unzip: {installed: true}
 
-  # System utilities
-  htop: {installed: true}
-  silversearcher-ag: {installed: true}  # Ubuntu package for ag
-  iproute2: {installed: true}
-  lsof: {installed: true}
-  rsync: {installed: true}
-  sudo: {installed: true}
-
-  # Development and build tools
-  gcc: {installed: true}
-  g++: {installed: true}
-  make: {installed: true}
-  maven: {installed: true}
-  cmake: {installed: true}
-  bison: {installed: true}
-  flex: {installed: true}
-
-  # Libraries and development headers
-  libapr1-dev: {installed: true}
-  libbz2-dev: {installed: true}
-  libcurl4-gnutls-dev: {installed: true}
-  libevent-dev: {installed: true}
-  libldap-dev: {installed: true}
-  libssl-dev: {installed: true}
-  libpam0g-dev: {installed: true}
-  libreadline-dev: {installed: true}
-  zlib1g-dev: {installed: true}
-  libuv1-dev: {installed: true}
-  libyaml-dev: {installed: true}
-  libxml2-dev: {installed: true}
-  libzstd-dev: {installed: true}
-  liblz4-dev: {installed: true}
-
-  # Python
-  python3: {installed: true}
-  python3-dev: {installed: true}
-  python3-setuptools: {installed: true}
-
-  # Perl
-  libperl-dev: {installed: true}
-  libipc-run-perl: {installed: true}
-
-  # Security and authentication
-  libkrb5-dev: {installed: true}
-  openssh-server: {installed: true}
-
-  # Container runtime
+  # Container runtime (from system_add_docker.sh)
   docker-ce: {installed: true}
   docker-ce-cli: {installed: true}
   containerd.io: {installed: true}
-
-  # Additional Ubuntu-specific packages
-  language-pack-en: {installed: true}
-  ca-certificates: {installed: true}
-  apt-transport-https: {installed: true}
 
 # System services verification
 service:
@@ -341,22 +290,16 @@ command:
     stdout: ["docker"]
     timeout: 5000
 
-  # Ubuntu-specific locale check
-  "locale":
-    exit-status: 0
-    stdout: ["en_US.UTF-8"]
-    timeout: 5000
-
-  # GCC version check
-  "gcc --version":
-    exit-status: 0
-    stdout: ["gcc"]
-    timeout: 5000
-
   # Goss testing framework
   "/usr/local/bin/goss --version":
     exit-status: 0
     stdout: ["goss version"]
+    timeout: 5000
+
+  # GitHub CLI
+  "gh --version":
+    exit-status: 0
+    stdout: ["gh version"]
     timeout: 5000
 
 # Process checks
