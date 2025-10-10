@@ -78,6 +78,11 @@ source "amazon-ebs" "base-cbdb-build-image" {
 build {
   sources = ["source.amazon-ebs.base-cbdb-build-image"]
 
+  # Configure DNF for resilient package operations (must run first)
+  provisioner "shell" {
+    script = "../common/scripts/system_configure_dnf.sh"
+  }
+
   provisioner "shell" {
     script = "scripts/system_add_cbdb_build_rpm_dependencies.sh"
   }

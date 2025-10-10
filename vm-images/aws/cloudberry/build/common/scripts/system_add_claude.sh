@@ -10,6 +10,14 @@
 # Enable strict mode for better error handling
 set -euo pipefail
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source the dnf_robust_install library for RHEL-based systems
+if [ -f "${SCRIPT_DIR}/lib/dnf_robust_install.sh" ]; then
+    source "${SCRIPT_DIR}/lib/dnf_robust_install.sh"
+fi
+
 # Accept username as parameter or environment variable, default to gpadmin
 DB_USERNAME="${1:-${DB_USERNAME:-gpadmin}}"
 
@@ -42,15 +50,20 @@ echo "Detected OS: $OS"
 
 # Install Node.js 20.x and ripgrep based on OS
 if [ "$OS" = "rhel" ]; then
-    # Install EPEL repository if not already available
-    sudo dnf install -y epel-release
+    # Install EPEL repository if not already available using robust install
+    echo "Installing EPEL repository..."
+    dnf_robust_install epel-release
 
     # Add NodeSource repository for latest Node.js
+    echo "Adding NodeSource repository..."
     curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
 
-    # Install Node.js 18+ (required for Claude Code)
-    sudo dnf install -y -d0 nodejs
-    sudo dnf install -y -d0 --enablerepo=epel ripgrep
+    # Install Node.js 18+ (required for Claude Code) using robust install
+    echo "Installing Node.js..."
+    dnf_robust_install nodejs
+
+    echo "Installing ripgrep..."
+    dnf_robust_install --enablerepo=epel ripgrep
 elif [ "$OS" = "debian" ]; then
     # Add NodeSource repository for Debian/Ubuntu
     echo "Adding NodeSource repository..."
