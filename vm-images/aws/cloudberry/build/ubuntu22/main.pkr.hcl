@@ -181,6 +181,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_gh.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_add_goss.sh"
   }
 

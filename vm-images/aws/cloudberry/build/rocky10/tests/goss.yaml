@@ -412,6 +412,12 @@ command:
     stdout: ["zoneinfo/America/Los_Angeles"]
     timeout: 5000
 
+  # GitHub CLI check
+  "gh --version":
+    exit-status: 0
+    stdout: ["gh version"]
+    timeout: 5000
+
 # Process checks
 process:
   sshd:
