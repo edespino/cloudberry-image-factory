@@ -10,13 +10,64 @@
 # Enable strict mode for better error handling
 set -euo pipefail
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# dnf_robust_install - Robust DNF package installation with retry logic
+# Handles transient mirror synchronization issues common with Rocky Linux
+dnf_robust_install() {
+    local args="$@"
+    local max_attempts=5
+    local attempt=1
 
-# Source the dnf_robust_install library for RHEL-based systems
-if [ -f "${SCRIPT_DIR}/lib/dnf_robust_install.sh" ]; then
-    source "${SCRIPT_DIR}/lib/dnf_robust_install.sh"
-fi
+    if [ -z "$args" ]; then
+        echo "ERROR: No packages or arguments specified for dnf_robust_install"
+        return 1
+    fi
+
+    echo "==> Installing with retry logic: $args"
+
+    while [ $attempt -le $max_attempts ]; do
+        echo "==> Attempt $attempt/$max_attempts"
+
+        # Clean potentially stale metadata on each attempt
+        sudo dnf clean metadata >/dev/null 2>&1 || true
+
+        # Attempt installation with increased timeouts and retries
+        if sudo dnf install -y \
+            --setopt=retries=3 \
+            --setopt=timeout=120 \
+            --setopt=metadata_expire=1h \
+            $args 2>&1 | tee /tmp/dnf_install_attempt_${attempt}.log; then
+            echo "==> ✓ Successfully installed: $args"
+            rm -f /tmp/dnf_install_attempt_*.log 2>/dev/null || true
+            return 0
+        fi
+
+        # Installation failed, check if we should retry
+        if [ $attempt -lt $max_attempts ]; then
+            sleep_time=$((attempt * 45))
+            echo "==> ⚠ Attempt $attempt/$max_attempts failed. Waiting ${sleep_time}s before retry..."
+            sleep $sleep_time
+
+            # On 3rd attempt, perform aggressive metadata refresh
+            if [ $attempt -eq 3 ]; then
+                echo "==> Performing full metadata refresh (attempt 3)..."
+                sudo dnf clean all >/dev/null 2>&1 || true
+                sudo dnf makecache --refresh >/dev/null 2>&1 || true
+            fi
+        else
+            # All attempts failed
+            echo "==> ✗ FAILED to install $args after $max_attempts attempts"
+            echo "==> Last attempt log:"
+            cat /tmp/dnf_install_attempt_${attempt}.log
+            rm -f /tmp/dnf_install_attempt_*.log 2>/dev/null || true
+            return 1
+        fi
+
+        ((attempt++))
+    done
+
+    # Should never reach here, but just in case
+    return 1
+}
 
 # Accept username as parameter or environment variable, default to gpadmin
 DB_USERNAME="${1:-${DB_USERNAME:-gpadmin}}"
