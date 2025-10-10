@@ -8,11 +8,7 @@ echo "Executing system_set_default_locale.sh..."
 # Update package lists
 sudo apt-get update
 
-# Ensure the universe repository is enabled
-sudo add-apt-repository universe
-
-# Update package lists again after adding universe repository
-sudo apt-get update
+# Note: universe repository is already enabled by system_add_cbdb_build_deb_dependencies.sh
 
 # Install language-pack-en which includes locales
 sudo apt-get install -y language-pack-en
