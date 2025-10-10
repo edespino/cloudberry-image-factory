@@ -95,6 +95,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_awscli.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_add_kernel_configs.sh"
   }
 

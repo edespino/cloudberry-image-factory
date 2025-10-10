@@ -23,7 +23,7 @@ sudo apt-get update
 sudo apt-get install -y git less
 
 # Install additional utilities
-sudo apt-get install -y bat htop silversearcher-ag sudo tmux
+sudo apt-get install -y bat htop silversearcher-ag sudo tmux unzip
 
 # Install build essentials and development tools
 sudo apt-get install -y \
