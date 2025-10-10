@@ -149,6 +149,10 @@ build {
   }
 
   provisioner "shell" {
+    script = "../common/scripts/system_add_docker.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_add_goss.sh"
   }
 

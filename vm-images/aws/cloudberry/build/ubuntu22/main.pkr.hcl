@@ -149,11 +149,11 @@ build {
   }
 
   provisioner "shell" {
-    script = "scripts/system_docker_setup.sh"
+    script = "scripts/system_set_default_locale.sh"
   }
 
   provisioner "shell" {
-    script = "scripts/system_set_default_locale.sh"
+    script = "../common/scripts/system_add_docker.sh"
   }
 
   provisioner "shell" {

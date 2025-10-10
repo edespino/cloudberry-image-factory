@@ -193,21 +193,7 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = []
-    inline = concat([
-      "sudo dnf makecache",
-      "sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo",
-      "sudo dnf makecache",
-      "sudo dnf install -y docker-ce docker-ce-cli containerd.io",
-      "echo '{\"default-shm-size\": \"1G\"}' | sudo tee /etc/docker/daemon.json",
-      "sudo systemctl start docker",
-      "sudo systemctl status docker",
-      "sudo systemctl enable docker",
-      "sudo usermod -aG docker $(whoami)",
-      "sudo usermod -aG docker gpadmin",
-      "sudo usermod -aG docker cbadmin",
-      "sudo dnf clean all",
-    ], var.custom_shell_commands)
+    script = "../common/scripts/system_add_docker.sh"
   }
 
   post-processors {

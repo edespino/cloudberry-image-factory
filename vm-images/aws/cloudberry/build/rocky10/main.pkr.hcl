@@ -180,6 +180,10 @@ build {
     script = "../common/scripts/system_add_goss.sh"
   }
 
+  provisioner "shell" {
+    script = "../common/scripts/system_add_docker.sh"
+  }
+
   post-processors {
     post-processor "manifest" {
       output = "packer-manifest.json"
