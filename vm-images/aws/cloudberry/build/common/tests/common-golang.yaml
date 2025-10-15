@@ -1,0 +1,49 @@
+---
+# Common Golang Installation Tests
+# This file is included by all platform-specific goss.yaml files
+# to ensure consistent Go version testing across all platforms.
+#
+# Included by:
+# - ubuntu22/tests/goss.yaml
+# - rocky8/tests/goss.yaml
+# - rocky9/tests/goss.yaml
+# - al2023/tests/goss.yaml
+#
+# Installation structure (from system_add_golang.sh):
+# - /opt/go1.25.2 (version-specific directory)
+# - /opt/go -> /opt/go1.25.2 (symlink)
+# - /opt/go/bin/go (binary)
+
+# Go installation files
+file:
+  # Go binary
+  /opt/go/bin/go:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Version-specific installation directory
+  /opt/go1.25.2:
+    exists: true
+    filetype: directory
+
+  # Symlink to current Go version
+  /opt/go:
+    exists: true
+    filetype: symlink
+
+  # Go environment configuration
+  /etc/profile.d/go.sh:
+    exists: true
+    mode: "0644"
+    filetype: file
+    contents:
+      - "/opt/go/bin"
+
+# Go functionality tests
+command:
+  # Go version check
+  "/opt/go/bin/go version":
+    exit-status: 0
+    stdout: ["go1.25.2"]
+    timeout: 5000

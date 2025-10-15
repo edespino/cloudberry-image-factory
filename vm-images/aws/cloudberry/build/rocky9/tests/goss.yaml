@@ -4,6 +4,10 @@
 # This file defines validation tests for the AMI to ensure all
 # components are properly installed
 
+# Include common tests
+gossfile:
+  ../../common/tests/common-golang.yaml: {}
+
 # System packages verification
 package:
   # Version control and development tools
@@ -104,18 +108,6 @@ user:
 
 # Critical files and directories
 file:
-  # Go installation
-  /opt/go/bin/go:
-    exists: true
-    mode: "0755"
-    filetype: file
-  /etc/profile.d/go.sh:
-    exists: true
-    mode: "0644"
-    filetype: file
-    contents:
-      - "/opt/go/bin"
-
   # Xerces-C installation
   /opt/xerces-c/lib/libxerces-c.so:
     exists: true
@@ -338,12 +330,6 @@ file:
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
-  # Go version check
-  "/opt/go/bin/go version":
-    exit-status: 0
-    stdout: ["go1.25.1"]
-    timeout: 5000
-
   # Java version check
   "java -version":
     exit-status: 0

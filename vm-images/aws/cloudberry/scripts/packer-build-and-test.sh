@@ -295,14 +295,35 @@ done
 # Step 13: Run Goss tests on the instance
 echo "Running Goss tests on instance ${INSTANCE_ID}..."
 
-# Copy Goss test file to the instance
+# Copy Goss test files to the instance (including common tests)
 echo "Copying Goss test configuration to instance..."
+
+# Create directory structure on the instance to match source layout
+ssh -i ${PKR_VAR_PRIVATE_KEY_FILE} \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o LogLevel=ERROR \
+    ${OS_USER}@${HOSTNAME} \
+    "mkdir -p ~/${OS_NAME}/tests ~/common/tests"
+
+# Copy common test files
+if [ -d "${CURRENT_DIR}/../common/tests" ]; then
+    echo "Copying common test files..."
+    scp -i ${PKR_VAR_PRIVATE_KEY_FILE} \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR \
+        "${CURRENT_DIR}/../common/tests/"*.yaml \
+        ${OS_USER}@${HOSTNAME}:~/common/tests/
+fi
+
+# Copy platform-specific Goss test file
 scp -i ${PKR_VAR_PRIVATE_KEY_FILE} \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR \
     "${CURRENT_DIR}/tests/goss.yaml" \
-    ${OS_USER}@${HOSTNAME}:~/goss.yaml
+    ${OS_USER}@${HOSTNAME}:~/${OS_NAME}/tests/goss.yaml
 
 # Run Goss tests
 echo "Executing Goss validation tests..."
@@ -311,7 +332,7 @@ ssh -i ${PKR_VAR_PRIVATE_KEY_FILE} \
     -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR \
     ${OS_USER}@${HOSTNAME} \
-    'sudo /usr/local/bin/goss --gossfile ~/goss.yaml validate --format junit > ~/goss-results.xml 2>/dev/null; echo "=== GOSS TEST RESULTS ==="; sudo /usr/local/bin/goss --gossfile ~/goss.yaml validate --format rspecish'
+    "sudo /usr/local/bin/goss --gossfile ~/${OS_NAME}/tests/goss.yaml validate --format junit > ~/goss-results.xml 2>/dev/null; echo '=== GOSS TEST RESULTS ==='; sudo /usr/local/bin/goss --gossfile ~/${OS_NAME}/tests/goss.yaml validate --format rspecish"
 
 # Copy test results back
 echo "Retrieving Goss test results..."

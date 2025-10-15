@@ -5,6 +5,10 @@
 # This file defines validation tests for the AMI to ensure all
 # components are properly installed
 
+# Include common tests
+gossfile:
+  ../../common/tests/common-golang.yaml: {}
+
 # System packages verification
 package:
   # Version control and development tools (from system_add_cbdb_build_rpm_dependencies.sh)
@@ -87,24 +91,6 @@ user:
 
 # Critical files and directories
 file:
-  # Go installation (from system_add_golang.sh)
-  /opt/go/bin/go:
-    exists: true
-    mode: "0755"
-    filetype: file
-  /opt/go1.25.1:
-    exists: true
-    filetype: directory
-  /opt/go:
-    exists: true
-    filetype: symlink
-  /etc/profile.d/go.sh:
-    exists: true
-    mode: "0644"
-    filetype: file
-    contents:
-      - "/opt/go/bin"
-
   # Xerces-C installation (from system_add_cbdb_xerces_c_build_dependency.sh)
   /opt/xerces-c/lib/libxerces-c.so:
     exists: true
@@ -325,12 +311,6 @@ file:
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
-  # Go version check (from system_add_golang.sh)
-  "/opt/go/bin/go version":
-    exit-status: 0
-    stdout: ["go1.25.1"]
-    timeout: 5000
-
   # gpadmin user just command
   "sudo -u gpadmin /home/gpadmin/bin/just --version":
     exit-status: 0
