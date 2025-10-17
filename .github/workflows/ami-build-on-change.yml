@@ -133,8 +133,8 @@ jobs:
               "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
                 test_file=$(basename "$file")
                 echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                # Common tests are included by: al2023, rocky8, rocky9, rocky10, ubuntu22
-                builds_to_run+=("al2023" "rocky8" "rocky9" "rocky10" "ubuntu22")
+                # Common tests are included by: al2023, rocky8, rocky9, rocky10, ubuntu20, ubuntu22
+                builds_to_run+=("al2023" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
                 ;;
 
               # Main build script affects all

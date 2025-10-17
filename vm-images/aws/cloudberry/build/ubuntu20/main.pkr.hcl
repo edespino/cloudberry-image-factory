@@ -82,6 +82,30 @@ build {
     script = "scripts/system_add_cbdb_build_deb_dependencies.sh"
   }
 
+  provisioner "shell" {
+    script = "../common/scripts/system_set_timezone.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_golang.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_yq.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_awscli.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_kernel_configs.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_swap.sh"
+  }
+
   # Create gpadmin user first
   provisioner "shell" {
     script = "../common/scripts/system_adduser_dbadmin.sh"
@@ -129,6 +153,14 @@ build {
   }
 
   provisioner "shell" {
+    script = "scripts/system_set_default_locale.sh"
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_docker.sh"
+  }
+
+  provisioner "shell" {
     script = "../common/scripts/system_add_cloudberry_motd.sh"
   }
 
@@ -146,10 +178,6 @@ build {
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
-  }
-
-  provisioner "shell" {
-    script = "../common/scripts/system_add_docker.sh"
   }
 
   provisioner "shell" {

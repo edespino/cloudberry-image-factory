@@ -3,11 +3,13 @@
 
 # This file defines validation tests for the Ubuntu 20.04 AMI to ensure all
 # components are properly installed
-#
-# Note: Ubuntu 20 has minimal provisioners compared to Ubuntu 22:
-# - Only git is installed by system_add_cbdb_build_deb_dependencies.sh
-# - No timezone, golang, yq, kernel configs, or swap provisioners
-# - Docker, Claude CLI, and Goss are installed via common scripts
+
+# Include common tests
+gossfile:
+  ../../common/tests/common-golang.yaml: {}
+  ../../common/tests/common-users.yaml: {}
+  ../../common/tests/common-security.yaml: {}
+  ../../common/tests/common-docker.yaml: {}
 
 # System packages verification
 package:
@@ -24,8 +26,6 @@ service:
   sshd:
     enabled: true
     running: true
-  docker:
-    enabled: true
 
 # Network ports verification
 port:
@@ -36,14 +36,6 @@ port:
 
 # User account verification
 user:
-  gpadmin:
-    exists: true
-    home: /home/gpadmin
-    shell: /bin/bash
-  cbadmin:
-    exists: true
-    home: /home/cbadmin
-    shell: /bin/bash
   ubuntu:
     exists: true
     home: /home/ubuntu
@@ -57,249 +49,12 @@ file:
     mode: "0755"
     filetype: file
 
-  # gpadmin user configuration
-  /home/gpadmin:
-    exists: true
-    mode: "0700"
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-  /home/gpadmin/.bashrc:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-    contents:
-      - "GOPATH"
-      - "greenplum_path.sh"
-  /home/gpadmin/.vimrc:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.tmux.conf:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/bin:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-  /home/gpadmin/bin/just:
-    exists: true
-    mode: "0755"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-
-  # gpadmin SSH configuration
-  /home/gpadmin/.ssh:
-    exists: true
-    mode: "0700"
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-  /home/gpadmin/.ssh/id_ed25519:
-    exists: true
-    mode: "0600"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.ssh/id_ed25519.pub:
-    exists: true
-    mode: "0644"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.ssh/authorized_keys:
-    exists: true
-    mode: "0600"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-
-  # cbadmin user configuration
-  /home/cbadmin:
-    exists: true
-    mode: "0700"
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-  /home/cbadmin/.bashrc:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-    contents:
-      - "GOPATH"
-      - "greenplum_path.sh"
-  /home/cbadmin/.vimrc:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.tmux.conf:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/bin:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-  /home/cbadmin/bin/just:
-    exists: true
-    mode: "0755"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-
-  # cbadmin SSH configuration
-  /home/cbadmin/.ssh:
-    exists: true
-    mode: "0700"
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-  /home/cbadmin/.ssh/id_ed25519:
-    exists: true
-    mode: "0600"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.ssh/id_ed25519.pub:
-    exists: true
-    mode: "0644"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.ssh/authorized_keys:
-    exists: true
-    mode: "0600"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-
-  # System configuration files
-  /etc/security/limits.d/90-db-gpadmin-limits.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "gpadmin soft core unlimited"
-      - "gpadmin hard core unlimited"
-      - "gpadmin soft nofile 524288"
-      - "gpadmin hard nofile 524288"
-
-  /etc/security/limits.d/90-db-cbadmin-limits.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "cbadmin soft core unlimited"
-      - "cbadmin hard core unlimited"
-      - "cbadmin soft nofile 524288"
-      - "cbadmin hard nofile 524288"
-
-  /etc/sudoers.d/90-gpadmin:
-    exists: true
-    mode: "0440"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "gpadmin ALL=(ALL) NOPASSWD:ALL"
-
-  /etc/sudoers.d/90-cbadmin:
-    exists: true
-    mode: "0440"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
-
-  # Docker configuration
-  /etc/docker/daemon.json:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "default-shm-size"
-
 # Command execution tests
 command:
-  # Docker functionality check
-  "docker --version":
-    exit-status: 0
-    stdout: ["Docker version"]
-    timeout: 5000
-
-  # gpadmin user verification
-  "getent passwd gpadmin":
-    exit-status: 0
-    stdout: ["gpadmin"]
-    timeout: 5000
-
-  # gpadmin SSH key file verification
-  "test -f /home/gpadmin/.ssh/id_ed25519.pub":
-    exit-status: 0
-    timeout: 5000
-
-  # Verify gpadmin sudo access
-  "id gpadmin":
-    exit-status: 0
-    stdout: ["gpadmin"]
-    timeout: 5000
-
-  # Test gpadmin Docker group membership
-  "groups gpadmin":
-    exit-status: 0
-    stdout: ["docker"]
-    timeout: 5000
-
-  # cbadmin user verification
-  "getent passwd cbadmin":
-    exit-status: 0
-    stdout: ["cbadmin"]
-    timeout: 5000
-
-  # cbadmin SSH key file verification
-  "test -f /home/cbadmin/.ssh/id_ed25519.pub":
-    exit-status: 0
-    timeout: 5000
-
-  # Verify cbadmin sudo access
-  "id cbadmin":
-    exit-status: 0
-    stdout: ["cbadmin"]
-    timeout: 5000
-
-  # Test cbadmin Docker group membership
-  "groups cbadmin":
-    exit-status: 0
-    stdout: ["docker"]
-    timeout: 5000
-
   # Goss testing framework
   "/usr/local/bin/goss --version":
     exit-status: 0
     stdout: ["goss version"]
-    timeout: 5000
-
-  # GitHub CLI
-  "gh --version":
-    exit-status: 0
-    stdout: ["gh version"]
     timeout: 5000
 
 # Process checks
