@@ -87,6 +87,10 @@ build {
     script = "scripts/system_add_cbdb_build_rpm_dependencies.sh"
   }
 
+  provisioner "shell" {
+    script = "../common/scripts/system_add_golang.sh"
+  }
+
   # Create gpadmin user first
   provisioner "shell" {
     script = "../common/scripts/system_adduser_dbadmin.sh"
@@ -159,6 +163,10 @@ build {
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
+  }
+
+  provisioner "shell" {
+    script = "../common/scripts/system_add_docker.sh"
   }
 
   provisioner "shell" {
