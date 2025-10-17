@@ -1,0 +1,46 @@
+---
+# Common Docker Configuration Tests
+# This file is included by all platform-specific goss.yaml files
+# to ensure consistent Docker setup across all platforms.
+#
+# Included by:
+# - ubuntu22/tests/goss.yaml
+# - rocky8/tests/goss.yaml
+# - rocky9/tests/goss.yaml
+# - al2023/tests/goss.yaml
+#
+# Tests for:
+# - Docker service enabled state
+# - Docker configuration files
+# - Docker version and functionality
+
+# System services verification
+service:
+  docker:
+    enabled: true
+
+# Docker configuration files
+file:
+  # Docker daemon configuration
+  /etc/docker/daemon.json:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "default-shm-size"
+
+# Command execution tests
+command:
+  # Docker version check
+  "docker --version":
+    exit-status: 0
+    stdout: ["Docker version"]
+    timeout: 5000
+
+  # GitHub CLI check
+  "gh --version":
+    exit-status: 0
+    stdout: ["gh version"]
+    timeout: 5000

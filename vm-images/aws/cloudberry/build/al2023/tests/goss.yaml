@@ -8,6 +8,9 @@
 # Include common tests
 gossfile:
   ../../common/tests/common-golang.yaml: {}
+  ../../common/tests/common-users.yaml: {}
+  ../../common/tests/common-security.yaml: {}
+  ../../common/tests/common-docker.yaml: {}
 
 # System packages verification
 package:
@@ -64,8 +67,6 @@ service:
   sshd:
     enabled: true
     running: true
-  docker:
-    enabled: true
 
 # Network ports verification
 port:
@@ -76,14 +77,6 @@ port:
 
 # User account verification
 user:
-  gpadmin:
-    exists: true
-    home: /home/gpadmin
-    shell: /bin/bash
-  cbadmin:
-    exists: true
-    home: /home/cbadmin
-    shell: /bin/bash
   ec2-user:
     exists: true
     home: /home/ec2-user
@@ -108,176 +101,7 @@ file:
     mode: "0755"
     filetype: file
 
-  # gpadmin user configuration
-  /home/gpadmin:
-    exists: true
-    mode: "0700"
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-
-  # gpadmin environment files
-  /home/gpadmin/.bashrc:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-    contents:
-      - "GOPATH"
-      - "greenplum_path.sh"
-  /home/gpadmin/.vimrc:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.tmux.conf:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/bin:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-  /home/gpadmin/bin/just:
-    exists: true
-    mode: "0755"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-
-  # gpadmin SSH configuration
-  /home/gpadmin/.ssh:
-    exists: true
-    mode: "0700"
-    owner: gpadmin
-    group: gpadmin
-    filetype: directory
-  /home/gpadmin/.ssh/id_ed25519:
-    exists: true
-    mode: "0600"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.ssh/id_ed25519.pub:
-    exists: true
-    mode: "0644"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-  /home/gpadmin/.ssh/authorized_keys:
-    exists: true
-    mode: "0600"
-    owner: gpadmin
-    group: gpadmin
-    filetype: file
-
-  # cbadmin user configuration (from system_adduser_cbadmin.sh)
-  /home/cbadmin:
-    exists: true
-    mode: "0700"
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-
-  # cbadmin environment files (from cbadmin_configure_environment.sh)
-  /home/cbadmin/.bashrc:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-    contents:
-      - "GOPATH"
-      - "greenplum_path.sh"
-  /home/cbadmin/.vimrc:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.tmux.conf:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/bin:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-  /home/cbadmin/bin/just:
-    exists: true
-    mode: "0755"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-
-  # SSH configuration (from cbadmin_configure_environment.sh)
-  /home/cbadmin/.ssh:
-    exists: true
-    mode: "0700"
-    owner: cbadmin
-    group: cbadmin
-    filetype: directory
-  /home/cbadmin/.ssh/id_ed25519:
-    exists: true
-    mode: "0600"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.ssh/id_ed25519.pub:
-    exists: true
-    mode: "0644"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-  /home/cbadmin/.ssh/authorized_keys:
-    exists: true
-    mode: "0600"
-    owner: cbadmin
-    group: cbadmin
-    filetype: file
-
-  # System configuration files
-  /etc/security/limits.d/90-db-gpadmin-limits.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "gpadmin soft core unlimited"
-      - "gpadmin hard core unlimited"
-      - "gpadmin soft nofile 524288"
-      - "gpadmin hard nofile 524288"
-      - "gpadmin soft nproc 131072"
-      - "gpadmin hard nproc 131072"
-
-  /etc/security/limits.d/90-db-cbadmin-limits.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "cbadmin soft core unlimited"
-      - "cbadmin hard core unlimited"
-      - "cbadmin soft nofile 524288"
-      - "cbadmin hard nofile 524288"
-      - "cbadmin soft nproc 131072"
-      - "cbadmin hard nproc 131072"
-
   # Kernel configurations (from system_add_kernel_configs.sh)
-  /etc/sysctl.d/90-db-sysctl.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "kernel.msgmax = 65536"
-      - "vm.overcommit_memory = 2"
-      - "net.core.somaxconn = 10000"
   /var/crash:
     exists: true
     mode: "1777"
@@ -290,73 +114,12 @@ file:
     contents:
       - "SELINUX=disabled"
 
-  # Sudo configuration
-  /etc/sudoers.d/90-gpadmin:
-    exists: true
-    mode: "0440"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "gpadmin ALL=(ALL) NOPASSWD:ALL"
-
-  /etc/sudoers.d/90-cbadmin:
-    exists: true
-    mode: "0440"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
-
 # Command execution tests (using full paths to avoid PATH issues)
 command:
-  # gpadmin user just command
-  "sudo -u gpadmin /home/gpadmin/bin/just --version":
-    exit-status: 0
-    stdout: ["just"]
-    timeout: 5000
-
-  # gpadmin SSH key functionality
-  "sudo -u gpadmin ssh-keygen -l -f /home/gpadmin/.ssh/id_ed25519.pub":
-    exit-status: 0
-    stdout: ["ED25519"]
-    timeout: 5000
-
-  # Verify gpadmin sudo access
-  "sudo -l -U gpadmin":
-    exit-status: 0
-    stdout: ["NOPASSWD: ALL"]
-    timeout: 5000
-
-  # cbadmin user just command (from cbadmin_configure_environment.sh)
-  "sudo -u cbadmin /home/cbadmin/bin/just --version":
-    exit-status: 0
-    stdout: ["just"]
-    timeout: 5000
-
-  # cbadmin SSH key functionality (from cbadmin_configure_environment.sh)
-  "sudo -u cbadmin ssh-keygen -l -f /home/cbadmin/.ssh/id_ed25519.pub":
-    exit-status: 0
-    stdout: ["ED25519"]
-    timeout: 5000
-
-  # Verify cbadmin sudo access (from system_adduser_cbadmin.sh)
-  "sudo -l -U cbadmin":
-    exit-status: 0
-    stdout: ["NOPASSWD: ALL"]
-    timeout: 5000
-
   # Goss check (from system_add_goss.sh)
   "/usr/local/bin/goss --version":
     exit-status: 0
     stdout: ["goss version"]
-    timeout: 5000
-
-  # Docker functionality check (from system_add_docker.sh)
-  "docker --version":
-    exit-status: 0
-    stdout: ["Docker version"]
     timeout: 5000
 
   # Test ec2-user docker group membership (from system_add_docker.sh)
@@ -365,39 +128,7 @@ command:
     stdout: ["docker"]
     timeout: 5000
 
-  # Test gpadmin docker group membership
-  "groups gpadmin":
-    exit-status: 0
-    stdout: ["docker"]
-    timeout: 5000
-
-  # Test cbadmin docker group membership (from system_add_docker.sh)
-  "groups cbadmin":
-    exit-status: 0
-    stdout: ["docker"]
-    timeout: 5000
-
-  # GitHub CLI check
-  "gh --version":
-    exit-status: 0
-    stdout: ["gh version"]
-    timeout: 5000
-
 # Process checks
 process:
   sshd:
     running: true
-
-# Kernel parameter verification (sample of critical ones)
-kernel-param:
-  # Memory management
-  vm.overcommit_memory:
-    value: "2"
-  vm.overcommit_ratio:
-    value: "95"
-
-  # Network settings
-  net.core.somaxconn:
-    value: "10000"
-  net.ipv4.tcp_congestion_control:
-    value: "cubic"

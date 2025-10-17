@@ -1,0 +1,94 @@
+---
+# Common Security Configuration Tests
+# This file is included by all platform-specific goss.yaml files
+# to ensure consistent security settings across all platforms.
+#
+# Included by:
+# - ubuntu22/tests/goss.yaml
+# - rocky8/tests/goss.yaml
+# - rocky9/tests/goss.yaml
+# - al2023/tests/goss.yaml
+#
+# Tests for:
+# - System resource limits (nofile, nproc, core)
+# - Sudo configuration (NOPASSWD access)
+# - Kernel parameters (sysctl settings)
+# - SELinux configuration (for RHEL-based systems)
+
+# System configuration files
+file:
+  # gpadmin resource limits
+  /etc/security/limits.d/90-db-gpadmin-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "gpadmin soft core unlimited"
+      - "gpadmin hard core unlimited"
+      - "gpadmin soft nofile 524288"
+      - "gpadmin hard nofile 524288"
+      - "gpadmin soft nproc 131072"
+      - "gpadmin hard nproc 131072"
+
+  # cbadmin resource limits
+  /etc/security/limits.d/90-db-cbadmin-limits.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin soft core unlimited"
+      - "cbadmin hard core unlimited"
+      - "cbadmin soft nofile 524288"
+      - "cbadmin hard nofile 524288"
+      - "cbadmin soft nproc 131072"
+      - "cbadmin hard nproc 131072"
+
+  # Kernel configurations (sysctl)
+  /etc/sysctl.d/90-db-sysctl.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "kernel.msgmax = 65536"
+      - "vm.overcommit_memory = 2"
+      - "net.core.somaxconn = 10000"
+
+  # Sudo configuration for gpadmin
+  /etc/sudoers.d/90-gpadmin:
+    exists: true
+    mode: "0440"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "gpadmin ALL=(ALL) NOPASSWD:ALL"
+
+  # Sudo configuration for cbadmin
+  /etc/sudoers.d/90-cbadmin:
+    exists: true
+    mode: "0440"
+    owner: root
+    group: root
+    filetype: file
+    contents:
+      - "cbadmin ALL=(ALL) NOPASSWD:ALL"
+
+# Kernel parameter verification
+kernel-param:
+  # Memory management
+  vm.overcommit_memory:
+    value: "2"
+  vm.overcommit_ratio:
+    value: "95"
+
+  # Network settings
+  net.core.somaxconn:
+    value: "10000"
+  net.ipv4.tcp_congestion_control:
+    value: "cubic"
