@@ -22,4 +22,4 @@ sudo sed -i 's/^# deb .*universe/deb &/' /etc/apt/sources.list
 sudo apt-get update
 
 # Install initial packages
-sudo apt-get install -y git
+sudo apt-get install -y git unzip software-properties-common

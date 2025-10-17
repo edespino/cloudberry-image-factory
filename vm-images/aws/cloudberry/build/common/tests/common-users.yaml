@@ -5,6 +5,8 @@
 #
 # Included by:
 # - ubuntu22/tests/goss.yaml
+# - ubuntu20/tests/goss.yaml
+# - rocky10/tests/goss.yaml
 # - rocky8/tests/goss.yaml
 # - rocky9/tests/goss.yaml
 # - al2023/tests/goss.yaml
@@ -15,7 +17,8 @@
 # - Environment configuration files
 # - SSH key setup
 # - Sudo access
-# - Docker group membership
+#
+# Note: Docker group membership tests moved to common-docker.yaml
 
 # User account verification
 user:
@@ -180,12 +183,6 @@ command:
     stdout: ["NOPASSWD: ALL"]
     timeout: 5000
 
-  # Test gpadmin Docker group membership
-  "groups gpadmin":
-    exit-status: 0
-    stdout: ["docker"]
-    timeout: 5000
-
   # cbadmin user just command
   "sudo -u cbadmin /home/cbadmin/bin/just --version":
     exit-status: 0
@@ -202,10 +199,4 @@ command:
   "sudo -l -U cbadmin":
     exit-status: 0
     stdout: ["NOPASSWD: ALL"]
-    timeout: 5000
-
-  # Test cbadmin Docker group membership
-  "groups cbadmin":
-    exit-status: 0
-    stdout: ["docker"]
     timeout: 5000

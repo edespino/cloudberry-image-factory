@@ -1,18 +1,22 @@
 ---
 # Common Docker Configuration Tests
-# This file is included by all platform-specific goss.yaml files
-# to ensure consistent Docker setup across all platforms.
+# This file is included by platform-specific goss.yaml files
+# to ensure consistent Docker setup across platforms.
 #
 # Included by:
 # - ubuntu22/tests/goss.yaml
+# - ubuntu20/tests/goss.yaml
 # - rocky8/tests/goss.yaml
 # - rocky9/tests/goss.yaml
 # - al2023/tests/goss.yaml
+#
+# Note: rocky10 does not include this file (Docker not yet supported)
 #
 # Tests for:
 # - Docker service enabled state
 # - Docker configuration files
 # - Docker version and functionality
+# - Docker group membership for gpadmin/cbadmin
 
 # System services verification
 service:
@@ -43,4 +47,16 @@ command:
   "gh --version":
     exit-status: 0
     stdout: ["gh version"]
+    timeout: 5000
+
+  # Test gpadmin Docker group membership
+  "groups gpadmin":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+  # Test cbadmin Docker group membership
+  "groups cbadmin":
+    exit-status: 0
+    stdout: ["docker"]
     timeout: 5000
