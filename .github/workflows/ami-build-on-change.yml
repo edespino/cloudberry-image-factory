@@ -126,6 +126,14 @@ jobs:
                 builds_to_run+=("$build_name")
                 ;;
 
+              # Common test files (used by all platforms)
+              "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
+                test_file=$(basename "$file")
+                echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
+                # Common tests are included by: al2023, rocky8, rocky9, ubuntu22
+                builds_to_run+=("al2023" "rocky8" "rocky9" "ubuntu22")
+                ;;
+
               # Main build script affects all
               "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
                 echo "Main build script changed - rebuilding all"
