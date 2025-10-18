@@ -26,7 +26,7 @@ echo "Configuring swap: size=${SWAP_SIZE}, file=${SWAP_FILE}"
 
 # Function to check if swap is already configured
 check_existing_swap() {
-    if swapon --show | grep -q "${SWAP_FILE}"; then
+    if sudo swapon --show | grep -q "${SWAP_FILE}"; then
         echo "Swap already active on ${SWAP_FILE}"
         return 0
     fi
@@ -37,7 +37,7 @@ check_existing_swap() {
 disable_existing_swap() {
     if [ -f "${SWAP_FILE}" ]; then
         echo "Disabling existing swap file: ${SWAP_FILE}"
-        if swapon --show | grep -q "${SWAP_FILE}"; then
+        if sudo swapon --show | grep -q "${SWAP_FILE}"; then
             sudo swapoff "${SWAP_FILE}" || {
                 echo "Warning: Failed to disable swap file"
                 return 1
@@ -53,13 +53,20 @@ create_swap_file() {
     echo "Creating ${SWAP_SIZE} swap file at ${SWAP_FILE}..."
 
     # Check available disk space
+    echo "Checking available disk space..."
+    df -h /
+
     local available_space
     available_space=$(df / | awk 'NR==2 {print $4}')
     local swap_size_kb
     swap_size_kb=$(echo "${SWAP_SIZE}" | sed 's/G$//' | awk '{print $1 * 1024 * 1024}')
 
+    echo "Available space: ${available_space} KB"
+    echo "Swap size needed: ${swap_size_kb} KB (${SWAP_SIZE})"
+
     if [ "${swap_size_kb}" -gt "${available_space}" ]; then
         echo "Error: Insufficient disk space for ${SWAP_SIZE} swap file"
+        echo "Required: ${swap_size_kb} KB, Available: ${available_space} KB"
         exit 1
     fi
 
@@ -143,7 +150,7 @@ optimize_swap_settings() {
 # Function to display swap status
 show_swap_status() {
     echo "Current swap status:"
-    swapon --show --bytes
+    sudo swapon --show --bytes
     echo ""
     echo "Memory usage:"
     free -h

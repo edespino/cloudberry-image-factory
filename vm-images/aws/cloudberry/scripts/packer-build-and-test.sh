@@ -78,6 +78,9 @@ case "$OS_NAME" in
     ubuntu*)
         OS_USER="ubuntu"
         ;;
+    debian*)
+        OS_USER="admin"
+        ;;
     amazon*|amzn*|al2023*)
         OS_USER="ec2-user"
         ;;

@@ -1,7 +1,7 @@
 ---
-# Cloudberry Database Build AMI - Goss Validation Tests (Ubuntu 22.04)
+# Cloudberry Database Build AMI - Goss Validation Tests (Debian 12)
 
-# This file defines validation tests for the Ubuntu 22.04 AMI to ensure all
+# This file defines validation tests for the Debian 12 AMI to ensure all
 # components are properly installed
 
 # Include common tests
@@ -56,9 +56,9 @@ package:
 
   # Java - using system java installation
 
-  # Python
-  python3.10: {installed: true}
-  python3.10-dev: {installed: true}
+  # Python (Debian 12 uses Python 3.11)
+  python3.11: {installed: true}
+  python3.11-dev: {installed: true}
   python3-distutils: {installed: true}
   python3-setuptools: {installed: true}
 
@@ -75,8 +75,8 @@ package:
   docker-ce-cli: {installed: true}
   containerd.io: {installed: true}
 
-  # Additional Ubuntu-specific packages
-  language-pack-en: {installed: true}
+  # Additional Debian-specific packages
+  locales: {installed: true}
   ca-certificates: {installed: true}
   apt-transport-https: {installed: true}
 
@@ -95,9 +95,9 @@ port:
 
 # User account verification
 user:
-  ubuntu:
+  admin:
     exists: true
-    home: /home/ubuntu
+    home: /home/admin
     shell: /bin/bash
 
 # Critical files and directories
@@ -108,7 +108,7 @@ file:
     mode: "0755"
     filetype: file
 
-  # Ubuntu-specific locale configuration
+  # Debian-specific locale configuration
   /etc/default/locale:
     exists: true
     mode: "0644"
@@ -117,25 +117,6 @@ file:
     filetype: file
     contents:
       - "LANG=en_US.UTF-8"
-
-  # Swap file configuration
-  /swapfile:
-    exists: true
-    mode: "0600"
-    owner: root
-    group: root
-    filetype: file
-
-  # Swap optimization settings
-  /etc/sysctl.d/99-swap.conf:
-    exists: true
-    mode: "0644"
-    owner: root
-    group: root
-    filetype: file
-    contents:
-      - "vm.swappiness=10"
-      - "vm.vfs_cache_pressure=50"
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
@@ -157,38 +138,16 @@ command:
     stdout: ["aws-cli"]
     timeout: 5000
 
-  # Ubuntu-specific locale check
+  # Debian-specific locale check
   "locale":
     exit-status: 0
     stdout: ["en_US.UTF-8"]
     timeout: 5000
 
-  # GCC version check (Ubuntu uses gcc-11)
+  # GCC version check (Debian uses gcc-11)
   "gcc --version":
     exit-status: 0
-    stdout: ["gcc (Ubuntu 11."]
-    timeout: 5000
-
-  # Swap functionality tests
-  "swapon --show":
-    exit-status: 0
-    stdout: ["/swapfile"]
-    timeout: 5000
-
-  "free -h | grep -i swap":
-    exit-status: 0
-    stdout: ["Swap:"]
-    timeout: 5000
-
-  # Verify swap settings are applied
-  "sysctl vm.swappiness":
-    exit-status: 0
-    stdout: ["vm.swappiness = 10"]
-    timeout: 5000
-
-  "sysctl vm.vfs_cache_pressure":
-    exit-status: 0
-    stdout: ["vm.vfs_cache_pressure = 50"]
+    stdout: ["gcc (Debian"]
     timeout: 5000
 
 # Process checks

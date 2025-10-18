@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Unified GitHub CLI (gh) installation script for multiple Linux distributions
-# Supports: Ubuntu, Rocky Linux, Amazon Linux 2023
+# Supports: Ubuntu, Debian, Rocky Linux, Amazon Linux 2023
 #
 # Enable strict mode for better error handling
 set -euo pipefail
@@ -25,6 +25,27 @@ echo "Detected OS: $OS $VERSION"
 case "$OS" in
     ubuntu)
         echo "Installing GitHub CLI on Ubuntu..."
+
+        # Download GitHub's GPG key
+        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+
+        # Add GitHub CLI apt repository
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+        # Update package index
+        sudo apt-get update
+
+        # Install gh
+        sudo apt-get install -y gh
+
+        # Clean up
+        sudo apt-get clean
+        sudo rm -rf /var/lib/apt/lists/*
+        ;;
+
+    debian)
+        echo "Installing GitHub CLI on Debian..."
 
         # Download GitHub's GPG key
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
