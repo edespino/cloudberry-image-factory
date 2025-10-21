@@ -16,7 +16,7 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
 │  │  Common Scripts │  │  OS-Specific     │  │  GitHub Actions        │ │
 │  │  (17 scripts)   │  │  Build Configs   │  │  Workflows             │ │
-│  │                 │  │  (6 OS targets)  │  │  - Build on Change     │ │
+│  │                 │  │  (7 OS targets)  │  │  - Build on Change     │ │
 │  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
 │                                             │  - AMI Cleanup         │ │
 │                                             └────────────────────────┘ │
@@ -83,6 +83,7 @@ cloudberry-image-factory/
 │   ├── build/                  # Build configurations
 │   │   ├── common/scripts/     # 17 shared provisioning scripts
 │   │   ├── al2023/             # Amazon Linux 2023 build
+│   │   ├── debian12/           # Debian 12 build
 │   │   ├── rocky8/             # Rocky Linux 8 build
 │   │   ├── rocky9/             # Rocky Linux 9 build
 │   │   ├── rocky10/            # Rocky Linux 10 build
@@ -105,6 +106,7 @@ cloudberry-image-factory/
 | Build Target | OS Family | Package Manager | Notes |
 |--------------|-----------|-----------------|-------|
 | **al2023** | Amazon Linux 2023 | RPM (dnf) | AWS-optimized, newest addition |
+| **debian12** | Debian 12 (Bookworm) | APT | Latest Debian stable |
 | **rocky8** | Rocky Linux 8 | RPM (dnf) | Stable enterprise Linux |
 | **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
 | **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
@@ -148,7 +150,8 @@ cloudberry-image-factory/
 
 **OS-Specific Scripts** (in each build directory)
 - `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: AL2023, Rocky 8/9/10)
-- `system_add_cbdb_build_deb_dependencies.sh` (DEB-based: Ubuntu 20/22)
+- `system_add_cbdb_build_deb_dependencies.sh` (DEB-based: Debian 12, Ubuntu 20/22)
+- `system_set_default_locale.sh` (DEB-based: Debian 12, Ubuntu 20/22)
 - `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
 
 **Build Configuration**: Each OS has a `main.pkr.hcl` file that orchestrates which scripts run and in what order.
@@ -163,11 +166,12 @@ cloudberry-image-factory/
 - Starship prompt, kernel tuning
 - SELinux disabled for development
 
-**Ubuntu Family** (ubuntu20, ubuntu22):
-- DEB-based package management
+**Debian/Ubuntu Family** (debian12, ubuntu20, ubuntu22):
+- DEB-based package management (APT)
 - Streamlined build profile
-- Dedicated Docker setup script
+- Docker Community Edition
 - Locale configuration
+- Python 3.11 (Debian 12) or system default (Ubuntu)
 
 ## Getting Started
 
@@ -505,6 +509,10 @@ cd vm-images/aws/cloudberry/build/rocky9
 
 # Rocky Linux 8 (basic development stack)
 cd vm-images/aws/cloudberry/build/rocky8
+../../scripts/packer-build-and-test.sh
+
+# Debian 12 (latest Debian stable)
+cd vm-images/aws/cloudberry/build/debian12
 ../../scripts/packer-build-and-test.sh
 
 # Ubuntu 22.04 (minimal development configuration)
