@@ -72,8 +72,11 @@ VM_TYPE=$(basename "$(dirname "$CURRENT_DIR")")  # VM_TYPE is the parent directo
 OS_NAME=$(basename "$CURRENT_DIR")  # OS_NAME is the current directory name
 # Determine the correct SSH user based on the OS
 case "$OS_NAME" in
-    rocky*|centos*|rhel*)
+    rocky*|rhel*)
         OS_USER="rocky"
+        ;;
+    centos7*)
+        OS_USER="centos"
         ;;
     ubuntu*)
         OS_USER="ubuntu"
@@ -81,7 +84,7 @@ case "$OS_NAME" in
     debian*)
         OS_USER="admin"
         ;;
-    amazon*|amzn*|al2023*)
+    amazon*|amzn*|al2023*|centos10)
         OS_USER="ec2-user"
         ;;
     *)

@@ -83,6 +83,7 @@ cloudberry-image-factory/
 │   ├── build/                  # Build configurations
 │   │   ├── common/scripts/     # 17 shared provisioning scripts
 │   │   ├── al2023/             # Amazon Linux 2023 build
+│   │   ├── centos10/           # CentOS Stream 10 build
 │   │   ├── debian12/           # Debian 12 build
 │   │   ├── rocky8/             # Rocky Linux 8 build
 │   │   ├── rocky9/             # Rocky Linux 9 build
@@ -106,6 +107,7 @@ cloudberry-image-factory/
 | Build Target | OS Family | Package Manager | Notes |
 |--------------|-----------|-----------------|-------|
 | **al2023** | Amazon Linux 2023 | RPM (dnf) | AWS-optimized, newest addition |
+| **centos10** | CentOS Stream 10 | RPM (dnf) | Basic development build |
 | **debian12** | Debian 12 (Bookworm) | APT | Latest Debian stable |
 | **rocky8** | Rocky Linux 8 | RPM (dnf) | Stable enterprise Linux |
 | **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |

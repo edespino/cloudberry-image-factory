@@ -37,25 +37,25 @@ jobs:
         run: |
           # Define dependency mapping for common scripts
           declare -A COMMON_SCRIPT_DEPS=(
-            ["dbadmin_configure_environment.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_add_awscli.sh"]="rocky8,rocky9,rocky10,ubuntu20,debian12"
-            ["system_add_dbadmin_ulimits.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["dbadmin_configure_environment.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_add_awscli.sh"]="centos10,rocky8,rocky9,rocky10,ubuntu20,debian12"
+            ["system_add_dbadmin_ulimits.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
             ["system_add_cbdb_xerces_c_build_dependency.sh"]="al2023,rocky8,rocky9"
             ["system_add_claude.sh"]="rocky8,rocky9,rocky10,debian12"
-            ["system_add_cloudberry_motd.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_add_docker.sh"]="al2023,rocky8,rocky9,ubuntu20,ubuntu22,debian12"
+            ["system_add_cloudberry_motd.sh"]="centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_add_docker.sh"]="al2023,centos10,rocky8,rocky9,ubuntu20,ubuntu22,debian12"
             ["system_add_gh.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
             ["system_add_golang.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_add_goss.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_add_kernel_configs.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_add_swap.sh"]="rocky9,rocky10,ubuntu20"
-            ["system_add_yq.sh"]="rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
-            ["system_adduser_dbadmin.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_add_goss.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_add_kernel_configs.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_add_swap.sh"]="centos10,rocky9,rocky10,ubuntu20"
+            ["system_add_yq.sh"]="centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_adduser_dbadmin.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
             ["system_config_java_home.sh"]="rocky8,rocky9"
             ["system_config_starship_prompt.sh"]="rocky8,rocky9,rocky10"
-            ["system_configure_dnf.sh"]="rocky8,rocky9,rocky10"
+            ["system_configure_dnf.sh"]="centos10,rocky8,rocky9,rocky10"
             ["system_disable_selinux.sh"]="al2023,rocky8,rocky9,rocky10"
-            ["system_set_timezone.sh"]="al2023,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
+            ["system_set_timezone.sh"]="al2023,centos10,rocky8,rocky9,rocky10,ubuntu20,ubuntu22,debian12"
             ["system_set_locale.sh"]=""
             ["system_add_cmake.sh"]=""
             ["system_add_gcc_build_dependency.sh"]=""
@@ -103,6 +103,12 @@ jobs:
                 builds_to_run+=("al2023")
                 ;;
 
+              # CentOS-specific scripts
+              "vm-images/aws/cloudberry/build/centos"*"/scripts/"*.sh)
+                echo "CentOS-specific script changed"
+                builds_to_run+=("centos10")
+                ;;
+
               # Rocky-specific scripts
               "vm-images/aws/cloudberry/build/rocky"*"/scripts/"*.sh)
                 echo "Rocky-specific script changed"
@@ -139,14 +145,14 @@ jobs:
               "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
                 test_file=$(basename "$file")
                 echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                # Common tests are included by: al2023, rocky8, rocky9, rocky10, ubuntu20, ubuntu22, debian12
-                builds_to_run+=("al2023" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22" "debian12")
+                # Common tests are included by: al2023, centos10, rocky8, rocky9, rocky10, ubuntu20, ubuntu22, debian12
+                builds_to_run+=("al2023" "centos10" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22" "debian12")
                 ;;
 
               # Main build script affects all
               "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
                 echo "Main build script changed - rebuilding all"
-                builds_to_run+=("al2023" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22" "debian12")
+                builds_to_run+=("al2023" "centos10" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22" "debian12")
                 ;;
 
               *)

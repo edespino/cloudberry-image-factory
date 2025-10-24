@@ -11,6 +11,7 @@ on:
         options:
           - 'all'
           - 'al2023'
+          - 'centos10'
           - 'debian12'
           - 'rocky8'
           - 'rocky9'
@@ -79,7 +80,7 @@ jobs:
         id: set-matrix
         run: |
           # Available builds
-          all_builds=("al2023" "debian12" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
+          all_builds=("al2023" "centos10" "debian12" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
 
           # Determine which builds to run
           if [ "${{ github.event_name }}" == "schedule" ]; then
