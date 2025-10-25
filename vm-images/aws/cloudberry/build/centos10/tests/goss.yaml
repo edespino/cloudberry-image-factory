@@ -9,6 +9,7 @@ gossfile:
   ../../common/tests/common-users.yaml: {}
   ../../common/tests/common-security.yaml: {}
   ../../common/tests/common-docker.yaml: {}
+  ../../common/tests/common-motd.yaml: {}
 
 # System packages verification
 package:
@@ -65,20 +66,6 @@ file:
   # Docker systemd service
   /usr/lib/systemd/system/docker.service:
     exists: true
-    filetype: file
-
-  # Cloudberry MOTD generator
-  /usr/local/sbin/cloudberry-motd:
-    exists: true
-    mode: "0755"
-    filetype: file
-    contains:
-      - "Apache Cloudberry"
-
-  # Cloudberry MOTD profile hook
-  /etc/profile.d/10-cloudberry-motd.sh:
-    exists: true
-    mode: "0644"
     filetype: file
 
   # Swap file configuration

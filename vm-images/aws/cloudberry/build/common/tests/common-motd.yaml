@@ -1,0 +1,72 @@
+---
+# Common MOTD Manager Tests
+# This file is included by platform-specific goss.yaml files
+# to ensure consistent MOTD manager setup across platforms.
+#
+# Included by:
+# - centos10/tests/goss.yaml
+# - debian12/tests/goss.yaml
+# - rocky8/tests/goss.yaml
+# - rocky9/tests/goss.yaml
+# - rocky10/tests/goss.yaml
+# - ubuntu20/tests/goss.yaml
+# - ubuntu22/tests/goss.yaml
+#
+# Tests for:
+# - MOTD manager executable
+# - MOTD switcher utility
+# - Configuration files
+# - Template files (cloudberry and synx)
+# - Profile hook
+# - Command functionality
+
+# MOTD manager files
+file:
+  /usr/local/sbin/motd-manager:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  /usr/local/bin/motd-switch:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  /etc/motd.conf:
+    exists: true
+    mode: "0644"
+    filetype: file
+    contents:
+      - "MOTD_TEMPLATE="
+
+  /usr/local/share/motd-templates/cloudberry.txt:
+    exists: true
+    mode: "0644"
+    filetype: file
+
+  /usr/local/share/motd-templates/synx.txt:
+    exists: true
+    mode: "0644"
+    filetype: file
+
+  /etc/profile.d/10-motd.sh:
+    exists: true
+    mode: "0644"
+    filetype: file
+
+# Command execution tests
+command:
+  # MOTD manager script validation (check shebang and syntax)
+  "head -n1 /usr/local/sbin/motd-manager":
+    exit-status: 0
+    stdout: ["#!/usr/bin/env bash"]
+    timeout: 5000
+
+  "bash -n /usr/local/sbin/motd-manager":
+    exit-status: 0
+    timeout: 5000
+
+  "/usr/local/bin/motd-switch --help":
+    exit-status: 0
+    stdout: ["Usage"]
+    timeout: 5000

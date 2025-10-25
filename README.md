@@ -225,7 +225,7 @@ cd vm-images/aws/cloudberry/build/rocky9
    │     ├─ system_add_docker.sh                        │
    │     ├─ system_add_kernel_configs.sh                │
    │     ├─ cbadmin_configure_environment.sh            │
-   │     ├─ system_add_cloudberry_motd.sh               │
+   │     ├─ system_add_motd_manager.sh                  │
    │     └─ system_add_goss.sh (testing framework)      │
    │  d. Create AMI snapshot from instance              │
    │  e. Terminate build instance                       │

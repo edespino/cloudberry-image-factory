@@ -9,6 +9,7 @@ gossfile:
   ../../common/tests/common-golang.yaml: {}
   ../../common/tests/common-users.yaml: {}
   ../../common/tests/common-security.yaml: {}
+  ../../common/tests/common-motd.yaml: {}
 
 # System packages verification
 package:

@@ -14,7 +14,8 @@ common/tests/
 ├── common-golang.yaml      # Go installation and version tests (Go 1.25.2)
 ├── common-users.yaml       # gpadmin/cbadmin user configuration and SSH setup
 ├── common-security.yaml    # System limits, sudoers, sysctl, and kernel parameters
-└── common-docker.yaml      # Docker service, configuration, and GitHub CLI
+├── common-docker.yaml      # Docker service, configuration, and GitHub CLI
+└── common-motd.yaml        # MOTD manager system with template switching
 ```
 
 ## Usage in Platform Tests
@@ -29,6 +30,7 @@ gossfile:
   ../../common/tests/common-users.yaml: {}
   ../../common/tests/common-security.yaml: {}
   ../../common/tests/common-docker.yaml: {}
+  ../../common/tests/common-motd.yaml: {}
 
 # Platform-specific tests follow...
 package:
@@ -46,7 +48,8 @@ During testing, the `packer-build-and-test.sh` script creates this structure on 
   ├── common-golang.yaml              # Common Go tests
   ├── common-users.yaml               # Common user tests
   ├── common-security.yaml            # Common security tests
-  └── common-docker.yaml              # Common Docker tests
+  ├── common-docker.yaml              # Common Docker tests
+  └── common-motd.yaml                # Common MOTD manager tests
 ```
 
 This matches the relative path `../../common/tests/` used in the platform test files.
@@ -77,6 +80,14 @@ This matches the relative path `../../common/tests/` used in the platform test f
 - **Configuration**: /etc/docker/daemon.json with default-shm-size
 - **Functionality**: Docker version check
 - **GitHub CLI**: gh version check
+
+### common-motd.yaml (69 lines)
+- **MOTD manager executable**: /usr/local/sbin/motd-manager (755 permissions)
+- **MOTD switcher utility**: /usr/local/bin/motd-switch (755 permissions)
+- **Configuration**: /etc/motd.conf with MOTD_TEMPLATE setting
+- **Templates**: cloudberry.txt and synx.txt in /usr/local/share/motd-templates/
+- **Profile hook**: /etc/profile.d/10-motd.sh integration
+- **Functionality tests**: motd-manager execution, motd-switch --help
 
 ## Adding New Common Tests
 
@@ -169,9 +180,19 @@ To add a new test for gpadmin's Git configuration:
 
 ## Platforms Using These Common Tests
 
+**All common test files (golang, users, security, docker):**
 - Amazon Linux 2023 (al2023)
 - Rocky Linux 8 (rocky8)
 - Rocky Linux 9 (rocky9)
+- Ubuntu 22.04 (ubuntu22)
+
+**MOTD common tests (common-motd.yaml):**
+- CentOS Stream 10 (centos10)
+- Debian 12 (debian12)
+- Rocky Linux 8 (rocky8)
+- Rocky Linux 9 (rocky9)
+- Rocky Linux 10 (rocky10)
+- Ubuntu 20.04 (ubuntu20)
 - Ubuntu 22.04 (ubuntu22)
 
 ## Future Enhancement Plans

@@ -166,7 +166,7 @@ build {
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_cloudberry_motd.sh"
+    script = "../common/scripts/system_add_motd_manager.sh"
   }
 
   # Install Claude CLI for gpadmin
