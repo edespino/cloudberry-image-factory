@@ -59,7 +59,7 @@ vm-images/aws/cloudberry/build/{osname}/
 11. `dbadmin_configure_environment.sh` (gpadmin)
 12. `dbadmin_configure_environment.sh` (cbadmin)
 13. `system_add_docker.sh`
-14. `system_add_cloudberry_motd.sh`
+14. `system_add_motd_manager.sh`
 15. **`system_add_goss.sh`** ⚠️ **DO NOT FORGET THIS!**
 
 **Common Mistake:** Creating Goss tests without including `system_add_goss.sh` provisioner. This causes "goss: command not found" errors during testing.
@@ -184,7 +184,7 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 
 ## Key Files
 
-- `vm-images/aws/cloudberry/build/common/scripts/` - Shared provisioners (17 scripts)
+- `vm-images/aws/cloudberry/build/common/scripts/` - Shared provisioners (21 scripts)
 - `vm-images/aws/cloudberry/scripts/packer-build-and-test.sh` - Main build orchestrator
 - `.github/workflows/` - CI/CD automation
 - Each platform's `main.pkr.hcl` - Build definition

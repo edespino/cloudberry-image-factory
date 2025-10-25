@@ -15,7 +15,7 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                         GitHub Repository                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
 │  │  Common Scripts │  │  OS-Specific     │  │  GitHub Actions        │ │
-│  │  (17 scripts)   │  │  Build Configs   │  │  Workflows             │ │
+│  │  (21 scripts)   │  │  Build Configs   │  │  Workflows             │ │
 │  │                 │  │  (7 OS targets)  │  │  - Build on Change     │ │
 │  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
 │                                             │  - AMI Cleanup         │ │
@@ -147,8 +147,8 @@ cloudberry-image-factory/
 ### Script Organization
 
 **Common Scripts** (`vm-images/aws/cloudberry/build/common/scripts/`)
-- 17 shared provisioning scripts used across multiple OS builds
-- Include user setup, development tools, kernel configs, testing frameworks
+- 21 shared provisioning scripts used across multiple OS builds
+- Include user setup, development tools, kernel configs, testing frameworks, MOTD management
 
 **OS-Specific Scripts** (in each build directory)
 - `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: AL2023, Rocky 8/9/10)
