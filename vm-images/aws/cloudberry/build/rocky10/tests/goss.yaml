@@ -24,6 +24,8 @@ package:
   bat: {installed: true}
   unzip: {installed: true}
   ripgrep: {installed: true}
+  time: {installed: true}
+  tree: {installed: true}
 
   # Node.js (npm is not a separate package in Rocky 10)
   nodejs: {installed: true}

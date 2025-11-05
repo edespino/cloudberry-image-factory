@@ -41,6 +41,8 @@ package:
   iproute: {installed: true}
   glibc-langpack-en: {installed: true}
   glibc-locale-source: {installed: true}
+  time: {installed: true}
+  tree: {installed: true}
 
   # Development and build tools
   gcc: {installed: true}

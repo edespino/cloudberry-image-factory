@@ -21,7 +21,7 @@ sudo dnf makecache
 sudo dnf config-manager --disable epel
 
 # Install basic utilities
-sudo dnf install -y -d0 git vim tmux wget
+sudo dnf install -y -d0 git vim tmux wget time tree
 
 # Install additional tools from EPEL repository
 sudo dnf install -y -d0 --enablerepo=epel the_silver_searcher htop

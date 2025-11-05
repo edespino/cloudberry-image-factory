@@ -29,6 +29,8 @@ package:
   nmap-ncat: {installed: true}
   rsync: {installed: true}
   sudo: {installed: true}
+  time: {installed: true}
+  tree: {installed: true}
 
   # Development and build tools
   gcc: {installed: true}
