@@ -6,10 +6,10 @@ set -euo pipefail
 # Header indicating the script execution
 echo "Executing system_add_motd_manager.sh..."
 
-# 1. Create template storage directory
+# Create template storage directory
 sudo mkdir -p /usr/local/share/motd-templates
 
-# 2. Install Cloudberry template
+# Install Cloudberry template
 cat <<'EOF' | sudo tee /usr/local/share/motd-templates/cloudberry.txt >/dev/null
 
                 ++++++++++       ++++++
@@ -30,7 +30,7 @@ cat <<'EOF' | sudo tee /usr/local/share/motd-templates/cloudberry.txt >/dev/null
   Apache Cloudberry (Incubating) – Public VM
 EOF
 
-# 3. Install Synx template
+# Install Synx template
 cat <<'EOF' | sudo tee /usr/local/share/motd-templates/synx.txt >/dev/null
 
     ███████████░  █               █        ███████        █               █
@@ -47,18 +47,56 @@ cat <<'EOF' | sudo tee /usr/local/share/motd-templates/synx.txt >/dev/null
   Powered by Apache Cloudberry (Incubating)
 EOF
 
+# Install ASF template
+cat <<'EOF' | sudo tee /usr/local/share/motd-templates/asf.txt >/dev/null
+
+                         =====
+                        =======
+               =====   ========
+              ++==============
+              +++=============
+    ++++++    +++++=== ==========
+   **+++++++++ ++++++ =============
+   ****+++++++++++++ +++++++++++++
+   *****+++++++++++ +++++++++++++
+    ******+++++++++ ++++++++++
+     *******++++++ ++++++++++
+      ********+++ +++++++++++++
+  **    ******** ++++++++++++++++++
+ ##************  *****+++++++++++++++
+  ###********** *********************
+   ###******** ********************
+     ####****  *****************
+       ####** ***********
+   ######### ##************
+  #########  ##############
+  ######### ##############
+   #######  ######
+     ##### ###########
+       ##  ###########
+        #   #######
+       #
+       #
+      #
+      #
+     #
+     #
+
+  Apache Software Foundation
+EOF
+
 sudo chmod 644 /usr/local/share/motd-templates/*.txt
 
-# 4. Create default configuration file
+# Create default configuration file
 cat <<'EOF' | sudo tee /etc/motd.conf >/dev/null
 # MOTD Manager Configuration
-# Valid values: cloudberry, synx
+# Valid values: cloudberry, synx, asf
 MOTD_TEMPLATE=cloudberry
 EOF
 
 sudo chmod 644 /etc/motd.conf
 
-# 5. Install the main MOTD manager script
+# Install the main MOTD manager script
 cat <<'EOF' | sudo tee /usr/local/sbin/motd-manager >/dev/null
 #!/usr/bin/env bash
 
@@ -131,6 +169,9 @@ case "$MOTD_TEMPLATE" in
   synx)
     echo "  Docs: https://www.synxdata.com/  |  User: ${USER}"
     ;;
+  asf)
+    echo "  Docs: https://www.apache.org  |  User: ${USER}"
+    ;;
   *)
     echo "  User: ${USER}"
     ;;
@@ -141,7 +182,7 @@ EOF
 
 sudo chmod +x /usr/local/sbin/motd-manager
 
-# 6. Install the template switcher utility
+# Install the template switcher utility
 cat <<'EOF' | sudo tee /usr/local/bin/motd-switch >/dev/null
 #!/usr/bin/env bash
 
@@ -199,7 +240,7 @@ EOF
 
 sudo chmod +x /usr/local/bin/motd-switch
 
-# 7. Add profile.d hook for interactive shells
+# Add profile.d hook for interactive shells
 cat <<'EOF' | sudo tee /etc/profile.d/10-motd.sh >/dev/null
 # Show dynamic MOTD for interactive logins
 [ -t 1 ] && /usr/local/sbin/motd-manager
@@ -209,6 +250,6 @@ sudo chmod 644 /etc/profile.d/10-motd.sh
 
 # Footer indicating the script execution is complete
 echo "system_add_motd_manager.sh execution completed."
-echo "  - Templates: cloudberry, synx"
+echo "  - Templates: cloudberry, synx, asf"
 echo "  - Default: cloudberry"
-echo "  - Switch command: motd-switch [cloudberry|synx]"
+echo "  - Switch command: motd-switch [cloudberry|synx|asf]"
