@@ -9,7 +9,11 @@
 # key pairs, and security groups.
 #
 # Usage:
-# ./packer-build-and-test.sh
+# ./packer-build-and-test.sh [OPTIONS]
+#
+# Options:
+#   -p, --private    Keep AMI private (default: public)
+#   -h, --help       Display help message
 #
 # Prerequisites:
 # - AWS CLI configured with appropriate credentials
@@ -29,6 +33,37 @@ set -euo pipefail
 
 # Header indicating the script execution
 echo "Executing packer-build-and-test.sh..."
+
+# Parse command-line options
+AMI_PUBLIC="true"  # Default to public
+
+# Function to display usage
+usage() {
+  echo "Usage: $0 [OPTIONS]"
+  echo ""
+  echo "Options:"
+  echo "  -p, --private    Keep AMI private (default: public)"
+  echo "  -h, --help       Display this help message"
+  echo ""
+  exit 0
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -p|--private)
+      AMI_PUBLIC="false"
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo "Unknown option: $1"
+      usage
+      ;;
+  esac
+done
 
 # Function to check if a command is available in the system
 # Arguments:
@@ -208,7 +243,11 @@ cleanup() {
     echo "AMI ID: ${AMI_ID}"
     echo "AMI Name: ${AMI_NAME}"
     echo "Region: ${REGION}"
-    echo "This AMI has passed all tests and is now public."
+    if [ "$AMI_PUBLIC" = "true" ]; then
+      echo "This AMI has passed all tests and is now public."
+    else
+      echo "This AMI has passed all tests and remains private."
+    fi
     echo "-----------------------------------"
   fi
 }
@@ -354,15 +393,22 @@ echo "Goss tests completed successfully!"
 # Step 14: Rename the AMI to indicate that tests have passed
 rename_ami "PASSED"
 
-# Step 15: Check and potentially disable block public access for AMIs
-check_block_public_access
-disable_image_block_public_access
+# Step 15-17: Conditionally make AMI public based on AMI_PUBLIC variable
+if [ "$AMI_PUBLIC" = "true" ]; then
+  echo "Making AMI public (AMI_PUBLIC=${AMI_PUBLIC})..."
 
-## # Step 16: Make the AMI public
-make_ami_public
+  # Step 15: Check and potentially disable block public access for AMIs
+  check_block_public_access
+  disable_image_block_public_access
 
-# Step 17: Verify the launch permissions of the AMI
-verify_launch_permissions
+  # Step 16: Make the AMI public
+  make_ami_public
+
+  # Step 17: Verify the launch permissions of the AMI
+  verify_launch_permissions
+else
+  echo "Keeping AMI private (AMI_PUBLIC=${AMI_PUBLIC})"
+fi
 
 # If the script reaches this point, all operations were successful
 SUCCESS=true
