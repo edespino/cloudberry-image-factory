@@ -6,6 +6,17 @@ set -euo pipefail
 # Header indicating the script execution
 echo "Executing system_add_motd_manager.sh..."
 
+# Accept MOTD template as environment variable, default to cloudberry
+MOTD_TEMPLATE="${MOTD_TEMPLATE:-cloudberry}"
+
+# Validate template choice
+if [[ ! "$MOTD_TEMPLATE" =~ ^(cloudberry|synx|asf)$ ]]; then
+  echo "ERROR: Invalid MOTD_TEMPLATE='$MOTD_TEMPLATE'. Valid values: cloudberry, synx, asf"
+  exit 1
+fi
+
+echo "Using MOTD template: $MOTD_TEMPLATE"
+
 # Create template storage directory
 sudo mkdir -p /usr/local/share/motd-templates
 
@@ -87,11 +98,11 @@ EOF
 
 sudo chmod 644 /usr/local/share/motd-templates/*.txt
 
-# Create default configuration file
-cat <<'EOF' | sudo tee /etc/motd.conf >/dev/null
+# Create configuration file with selected template
+cat <<EOF | sudo tee /etc/motd.conf >/dev/null
 # MOTD Manager Configuration
 # Valid values: cloudberry, synx, asf
-MOTD_TEMPLATE=cloudberry
+MOTD_TEMPLATE=${MOTD_TEMPLATE}
 EOF
 
 sudo chmod 644 /etc/motd.conf
@@ -250,6 +261,6 @@ sudo chmod 644 /etc/profile.d/10-motd.sh
 
 # Footer indicating the script execution is complete
 echo "system_add_motd_manager.sh execution completed."
-echo "  - Templates: cloudberry, synx, asf"
-echo "  - Default: cloudberry"
+echo "  - Templates available: cloudberry, synx, asf"
+echo "  - Selected template: ${MOTD_TEMPLATE}"
 echo "  - Switch command: motd-switch [cloudberry|synx|asf]"
