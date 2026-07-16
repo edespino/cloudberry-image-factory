@@ -23,10 +23,14 @@ case "$OS" in
         sudo dnf install -y -d0 ansible-core
         ;;
     ubuntu|debian)
-        # ansible-core ships in the Ubuntu universe / Debian main archive
+        # ansible-core ships in the Ubuntu universe / Debian main archive.
+        # --no-install-recommends: ansible-core Recommends the full 'ansible'
+        # community bundle, which pre-installs community.sops under
+        # /usr/lib/python3/dist-packages/ansible_collections and makes the
+        # ansible-galaxy install below a silent no-op ("Nothing to do").
         export DEBIAN_FRONTEND=noninteractive
         sudo apt-get update
-        sudo apt-get install -y ansible-core
+        sudo apt-get install -y --no-install-recommends ansible-core
         ;;
     *)
         echo "Unsupported operating system: $OS"
@@ -40,8 +44,11 @@ esac
 sudo /usr/bin/ansible-galaxy collection install community.sops \
   -p /usr/share/ansible/collections
 
-# Verify
+# Verify — fail the build if the collection did not land at the system-wide
+# path (ansible-galaxy exits 0 when it skips an already-satisfied collection,
+# which goss then catches only after the AMI is baked)
 /usr/bin/ansible --version
+test -d /usr/share/ansible/collections/ansible_collections/community/sops
 /usr/bin/ansible-galaxy collection list community.sops 2>/dev/null | grep -i community.sops || \
   echo "Warning: community.sops not listed (check collection path)"
 

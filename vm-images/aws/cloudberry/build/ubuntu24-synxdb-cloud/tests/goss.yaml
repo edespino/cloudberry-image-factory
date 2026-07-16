@@ -78,8 +78,19 @@ file:
     mode: "0755"
     filetype: file
 
-  # Ubuntu-specific locale configuration
+  # Ubuntu-specific locale configuration. Noble's update-locale replaces
+  # /etc/default/locale with a symlink to ../locale.conf (unlike jammy, where
+  # it stays a regular file); goss reports symlinks as mode 0777, so no mode
+  # assertion here. Contents are read through the symlink.
   /etc/default/locale:
+    exists: true
+    owner: root
+    group: root
+    filetype: symlink
+    linked-to: ../locale.conf
+    contents:
+      - "LANG=en_US.UTF-8"
+  /etc/locale.conf:
     exists: true
     mode: "0644"
     owner: root
