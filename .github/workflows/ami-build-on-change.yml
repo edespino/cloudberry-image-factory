@@ -76,6 +76,12 @@ jobs:
               continue
             fi
 
+            # Deleted files cannot affect a build (removed platforms/scripts)
+            if [ ! -f "$file" ]; then
+              echo "Skipping deleted file: $file"
+              continue
+            fi
+
             echo "Processing file: $file"
 
             case "$file" in
@@ -142,8 +148,16 @@ jobs:
             esac
           done <<< "$changed_files"
 
-          # Remove duplicates and create matrix
-          unique_builds=($(printf '%s\n' "${builds_to_run[@]}" | sort -u))
+          # Remove duplicates, drop builds whose directory no longer exists,
+          # and create matrix
+          unique_builds=()
+          while IFS= read -r build; do
+            if [[ -n "$build" ]] && [ -d "vm-images/aws/cloudberry/build/$build" ]; then
+              unique_builds+=("$build")
+            elif [[ -n "$build" ]]; then
+              echo "Skipping build with missing directory: $build"
+            fi
+          done < <(printf '%s\n' "${builds_to_run[@]}" | sort -u)
 
           echo "Unique builds to run: ${unique_builds[*]}"
 
