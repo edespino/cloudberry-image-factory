@@ -140,8 +140,14 @@ case "$OS" in
         # Update package cache
         sudo dnf makecache
 
-        # Add Docker CE repository
-        sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        # Add Docker CE repository (RHEL repo for version 10+, CentOS repo for older)
+        MAJOR_VERSION=$(echo "$VERSION" | cut -d. -f1)
+        if [ "$MAJOR_VERSION" -ge 10 ]; then
+            echo "Using Docker RHEL repository for version $MAJOR_VERSION..."
+            sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+        else
+            sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        fi
 
         # Update package cache again
         sudo dnf makecache
@@ -172,6 +178,13 @@ esac
 # Configure Docker daemon with shared memory size
 echo "Configuring Docker daemon..."
 echo '{"default-shm-size": "1G"}' | sudo tee /etc/docker/daemon.json > /dev/null
+
+# Load kernel modules required by Docker networking (needed on RHEL 10+ where
+# iptables modules live in kernel-modules-extra and may not be loaded yet)
+echo "Loading Docker-required kernel modules..."
+sudo modprobe xt_addrtype || true
+sudo modprobe br_netfilter || true
+sudo modprobe overlay || true
 
 # Enable and start Docker service
 echo "Starting Docker service..."

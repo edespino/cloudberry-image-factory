@@ -93,7 +93,7 @@ cp vimrc.tmp "/home/${DB_USERNAME}/.vimrc"
 # Download and verify .tmux.conf configuration
 echo "Downloading and verifying .tmux.conf..."
 TMUX_URL="https://raw.githubusercontent.com/tony/tmux-config/master/.tmux.conf"
-TMUX_SHA256="a1da56919e5610d85fa3dad9ddf731c97ea3c8d6a33a99d4ceb8ab58bf0f260b"
+TMUX_SHA256="c166f0934de53dc1e50109262626bde2ef7c1fd534e129040b7a9199ccbf02fc"
 
 wget -nv -q "\$TMUX_URL" -O tmux.conf.tmp
 verify_checksum "tmux.conf.tmp" "\$TMUX_SHA256"
@@ -150,6 +150,10 @@ echo -e 'if [ -f /usr/local/cloudberry-db/greenplum_path.sh ]; then\n  source /u
 
 echo -e 'export GOPATH=~/go' >> "/home/${DB_USERNAME}/.bashrc"
 echo -e 'export PATH=\${GOPATH}/bin:\${PATH}' >> "/home/${DB_USERNAME}/.bashrc"
+
+# Configure git defaults
+echo "Configuring git defaults..."
+git config --global init.defaultBranch main
 
 # Ensure the .ssh directory exists
 mkdir -p "/home/${DB_USERNAME}/.ssh"

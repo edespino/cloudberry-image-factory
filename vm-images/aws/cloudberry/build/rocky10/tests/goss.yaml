@@ -74,23 +74,17 @@ file:
     mode: "0755"
     filetype: file
 
-  # Claude CLI
-  /usr/local/bin/claude:
+  # Claude CLI (native installer: ~/.local/bin/claude per user)
+  /home/gpadmin/.local/bin/claude:
     exists: true
-    mode: "0755"
-    filetype: file
-  /home/gpadmin/.npm-global/bin/claude:
-    exists: true
-    mode: "0777"
     owner: gpadmin
     group: gpadmin
-    filetype: symlink
-  /home/cbadmin/.npm-global/bin/claude:
+    filetype: file
+  /home/cbadmin/.local/bin/claude:
     exists: true
-    mode: "0777"
     owner: cbadmin
     group: cbadmin
-    filetype: symlink
+    filetype: file
 
   # SELinux configuration
   /etc/selinux/config:

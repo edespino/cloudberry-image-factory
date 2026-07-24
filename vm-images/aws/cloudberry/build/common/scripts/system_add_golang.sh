@@ -11,8 +11,8 @@ echo "Executing system_add_golang.sh..."
 
 # Official GO Download page - https://go.dev/dl/
 # Hardcoded Go version and SHA256 checksum
-GO_VERSION="go1.25.2"
-GO_SHA256="d7fa7f8fbd16263aa2501d681b11f972a5fd8e811f7b10cb9b26d031a3d7454b"
+GO_VERSION="go1.26.1"
+GO_SHA256="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a"
 GO_URL="https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz"
 
 echo "GO_VERSION=${GO_VERSION}"
