@@ -96,34 +96,81 @@ AWS_REGION           # Default AWS region (defaults to us-west-2)
 
 ### AWS IAM Permissions
 
-The AWS credentials need permissions for:
+Least-privilege policy for the CI user (e.g. `github-actions-packer-user`).
+It covers the Packer amazon-ebs builder, the build-and-test script (test
+instance lifecycle, AMI rename/publish), and the cleanup workflows. No IAM
+actions are required — the Packer templates do not use instance profiles.
+`sts:GetCallerIdentity` needs no permission.
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "PackerBuildAndTest",
       "Effect": "Allow",
       "Action": [
-        "ec2:*",
-        "iam:PassRole",
-        "iam:CreateInstanceProfile",
-        "iam:DeleteInstanceProfile",
-        "iam:GetRole",
-        "iam:GetInstanceProfile",
-        "iam:DeleteRole",
-        "iam:CreateRole",
-        "iam:PutRolePolicy",
-        "iam:AddRoleToInstanceProfile",
-        "iam:RemoveRoleFromInstanceProfile",
-        "iam:DeleteRolePolicy",
-        "sts:GetCallerIdentity"
+        "ec2:AttachVolume",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:CreateImage",
+        "ec2:CreateKeyPair",
+        "ec2:CreateSecurityGroup",
+        "ec2:CreateSnapshot",
+        "ec2:CreateTags",
+        "ec2:CreateVolume",
+        "ec2:DeleteKeyPair",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DeleteSnapshot",
+        "ec2:DeleteVolume",
+        "ec2:DeregisterImage",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeImageAttribute",
+        "ec2:DescribeImages",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeInstances",
+        "ec2:DescribeKeyPairs",
+        "ec2:DescribeRegions",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeTags",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeVpcs",
+        "ec2:DetachVolume",
+        "ec2:ModifyImageAttribute",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifySnapshotAttribute",
+        "ec2:RegisterImage",
+        "ec2:RunInstances",
+        "ec2:StopInstances",
+        "ec2:TerminateInstances"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "aws:RequestedRegion": "us-west-2" }
+      }
+    },
+    {
+      "Sid": "ImageBlockPublicAccessToggle",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:GetImageBlockPublicAccessState",
+        "ec2:DisableImageBlockPublicAccess",
+        "ec2:EnableImageBlockPublicAccess"
       ],
       "Resource": "*"
     }
   ]
 }
 ```
+
+Notes:
+- The `aws:RequestedRegion` condition pins mutating access to us-west-2.
+  Remove it only if builds in other regions are actually needed
+  (`ami-build-manual.yml` exposes an `aws_region` input).
+- `ImageBlockPublicAccessToggle` is an account-level grant, needed only
+  because the build script publishes public AMIs. If public AMIs are ever
+  dropped, remove this statement.
 
 ## Build Process Flow
 
