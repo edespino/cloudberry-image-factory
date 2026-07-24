@@ -245,9 +245,12 @@ build {
     script = "../common/scripts/system_add_nodejs.sh"
   }
 
-  # Install PI coding agent (pi) globally via npm
+  # Install PI coding agent (pi) for ubuntu (per-user so `pi update` works)
   provisioner "shell" {
     script = "../common/scripts/system_add_pi.sh"
+    environment_vars = [
+      "DB_USERNAME=ubuntu"
+    ]
   }
 
   # Install Omnigent for ubuntu

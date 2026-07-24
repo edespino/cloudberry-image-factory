@@ -203,8 +203,8 @@ file:
     exists: true
     filetype: symlink
 
-  # PI coding agent (global npm install, symlink into node_modules)
-  /usr/local/bin/pi:
+  # PI coding agent (per-user npm install, symlink into node_modules)
+  /home/ubuntu/.local/bin/pi:
     exists: true
     filetype: symlink
 
@@ -487,7 +487,7 @@ command:
 
   # PI coding agent functionality check (verify binary is executable;
   # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
-  "test -x /usr/local/bin/pi":
+  "test -x /home/ubuntu/.local/bin/pi":
     exit-status: 0
     timeout: 5000
 
