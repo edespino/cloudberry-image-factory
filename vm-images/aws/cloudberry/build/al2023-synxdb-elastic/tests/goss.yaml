@@ -1,0 +1,138 @@
+---
+# SynxDB Elastic Bastion Host AMI - Goss Validation Tests
+# Amazon Linux 2023 (AL2023)
+
+# This file defines validation tests for the SynxDB Elastic bastion host AMI
+# to ensure all components are properly installed and configured.
+
+# Include common tests
+gossfile:
+  ../../common/tests/common-users.yaml: {}
+  ../../common/tests/common-docker.yaml: {}
+
+# System packages verification
+package:
+  # Basic utilities (from system_add_synxdb_elastic_dependencies.sh)
+  git: {installed: true}
+  vim-common: {installed: true}
+  tmux: {installed: true}
+  wget: {installed: true}
+  time: {installed: true}
+  tree: {installed: true}
+  htop: {installed: true}
+
+# Network ports verification
+port:
+  # SSH should be listening
+  tcp:22:
+    listening: true
+    ip: ["0.0.0.0"]
+
+# User account verification
+user:
+  ec2-user:
+    exists: true
+    home: /home/ec2-user
+    shell: /bin/bash
+
+# Critical files and directories
+file:
+  # Goss installation (from system_add_goss.sh)
+  /usr/local/bin/goss:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # Helm installation (from system_add_helm_kubectl.sh)
+  /usr/local/bin/helm:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # kubectl installation (from system_add_helm_kubectl.sh)
+  /usr/local/bin/kubectl:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # GitHub CLI installation (from system_add_gh.sh)
+  /usr/bin/gh:
+    exists: true
+    filetype: file
+
+  # MOTD manager (from system_add_motd_manager.sh)
+  /usr/local/sbin/motd-manager:
+    exists: true
+    mode: "0755"
+    filetype: file
+
+  # MOTD configuration (from system_add_motd_manager.sh)
+  /etc/motd.conf:
+    exists: true
+    mode: "0644"
+    filetype: file
+
+  # SynxDB DBaaS package installed to cbadmin home
+  /home/cbadmin/README.md:
+    exists: true
+    filetype: file
+
+  /home/cbadmin/image:
+    exists: true
+    filetype: directory
+
+  /home/cbadmin/helm:
+    exists: true
+    filetype: directory
+
+# Command execution tests
+command:
+  # Goss check (from system_add_goss.sh)
+  "/usr/local/bin/goss --version":
+    exit-status: 0
+    stdout: ["goss version"]
+    timeout: 5000
+
+  # Helm check (from system_add_helm_kubectl.sh) - use --short to avoid cluster connection
+  "/usr/local/bin/helm version --short":
+    exit-status: 0
+    stdout: ["v"]
+    timeout: 5000
+
+  # kubectl check (from system_add_helm_kubectl.sh) - use --client to avoid cluster connection
+  "/usr/local/bin/kubectl version --client --output=json":
+    exit-status: 0
+    stdout: ["gitVersion"]
+    timeout: 5000
+
+  # GitHub CLI check (from system_add_gh.sh)
+  "/usr/bin/gh --version":
+    exit-status: 0
+    stdout: ["gh version"]
+    timeout: 5000
+
+  # Test ec2-user docker group membership (from system_add_docker.sh)
+  "groups ec2-user":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+  # Test cbadmin docker group membership (from system_add_docker.sh)
+  "groups cbadmin":
+    exit-status: 0
+    stdout: ["docker"]
+    timeout: 5000
+
+  # Verify MOTD template is set to synx
+  "grep MOTD_TEMPLATE /etc/motd.conf":
+    exit-status: 0
+    stdout: ["MOTD_TEMPLATE=synx"]
+    timeout: 5000
+
+# Process checks
+process:
+  sshd:
+    running: true
+
+  dockerd:
+    running: true
