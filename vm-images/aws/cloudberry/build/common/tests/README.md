@@ -11,7 +11,7 @@ Centralize common tests to follow the DRY (Don't Repeat Yourself) principle. Whe
 ```
 common/tests/
 ├── README.md
-├── common-golang.yaml      # Go installation and version tests (Go 1.25.2)
+├── common-golang.yaml      # Go installation and version tests (version must match GO_VERSION in system_add_golang.sh)
 ├── common-users.yaml       # gpadmin/cbadmin user configuration and SSH setup
 ├── common-security.yaml    # System limits, sudoers, sysctl, and kernel parameters
 ├── common-docker.yaml      # Docker service, configuration, and GitHub CLI
@@ -57,10 +57,10 @@ This matches the relative path `../../common/tests/` used in the platform test f
 ## Common Test File Contents
 
 ### common-golang.yaml
-- Go binary and installation directory checks (`/opt/go1.25.2`)
+- Go binary and installation directory checks (`/opt/go<version>`)
 - Go symlink verification (`/opt/go`)
 - Environment configuration (`/etc/profile.d/go.sh`)
-- Go version validation (checks for `go1.25.2`)
+- Go version validation (must match `GO_VERSION` in `system_add_golang.sh`)
 
 ### common-users.yaml (211 lines)
 - **User accounts**: gpadmin and cbadmin existence, home directories, shells
@@ -146,7 +146,7 @@ To update the Go version from 1.25.2 to 1.25.3:
        stdout: ["go1.25.3"]  # Update version check
    ```
 
-2. All 4 platforms (al2023, rocky8, rocky9, ubuntu22) automatically test the new version
+2. All platforms that include `common-golang.yaml` automatically test the new version
 
 ### Example 2: Changing Resource Limits
 
