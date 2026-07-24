@@ -10,16 +10,10 @@ on:
         type: choice
         options:
           - 'all'
-          - 'al2023'
-          - 'centos10'
-          - 'debian12'
           - 'rocky8'
           - 'rocky9'
           - 'rocky10'
-          - 'ubuntu20'
-          - 'ubuntu22'
           - 'rocky8,rocky9,rocky10'
-          - 'ubuntu20,ubuntu22,debian12'
       aws_region:
         description: 'AWS Region'
         required: false
@@ -30,38 +24,6 @@ on:
         required: false
         default: true
         type: boolean
-  # workflow_dispatch:
-  #   inputs:
-  #     build_targets:
-  #       description: 'Select builds to run (comma-separated or "all")'
-  #       required: true
-  #       default: 'all'
-  #       type: choice
-  #       options:
-  #         - 'all'
-  #         - 'rocky8'
-  #         - 'rocky9'
-  #         - 'rocky10'
-  #         - 'ubuntu20'
-  #         - 'ubuntu22'
-  #         - 'rocky8,rocky9,rocky10'
-  #         - 'ubuntu20,ubuntu22'
-  #     aws_region:
-  #       description: 'AWS Region'
-  #       required: false
-  #       default: 'us-west-2'
-  #       type: string
-  #     make_public:
-  #       description: 'Make AMIs public'
-  #       required: false
-  #       default: true
-  #       type: boolean
-  #     force_rebuild:
-  #       description: 'Force rebuild even if no changes detected'
-  #       required: false
-  #       default: false
-  #       type: boolean
-  #
   # schedule:
   #   # Run weekly builds on Sundays at 2 AM UTC
   #   - cron: '0 2 * * 0'
@@ -80,7 +42,7 @@ jobs:
         id: set-matrix
         run: |
           # Available builds
-          all_builds=("al2023" "centos10" "debian12" "rocky8" "rocky9" "rocky10" "ubuntu20" "ubuntu22")
+          all_builds=("rocky8" "rocky9" "rocky10")
 
           # Determine which builds to run
           if [ "${{ github.event_name }}" == "schedule" ]; then
@@ -298,7 +260,6 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "**Build Targets:** ${{ inputs.build_targets }}" >> $GITHUB_STEP_SUMMARY
             echo "**Make Public:** ${{ inputs.make_public }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Force Rebuild:** ${{ inputs.force_rebuild }}" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY

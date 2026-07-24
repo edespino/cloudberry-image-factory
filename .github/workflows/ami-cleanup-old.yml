@@ -15,7 +15,7 @@ on:
           - 'true'
           - 'false'
       retention_count:
-        description: 'Number of AMIs to keep per configuration (e.g., 3 keeps 3 newest rocky9, 3 newest ubuntu22, etc.)'
+        description: 'Number of AMIs to keep per configuration (e.g., 3 keeps 3 newest rocky9, 3 newest rocky10, etc.)'
         required: false
         default: '3'
         type: string
@@ -87,7 +87,7 @@ jobs:
             echo "$failed_amis" | jq -r '.[] | "  🔴 FAILED: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
           fi
 
-          # Extract unique configurations (e.g., rocky9, ubuntu22, al2023)
+          # Extract unique configurations (e.g., rocky8, rocky9, rocky10)
           # AMI name format: cloudberry-packer-build-{config}-{timestamp}
           configs=$(echo "$success_amis" | jq -r '.[].Name' | sed 's/cloudberry-packer-build-\([^-]*\)-.*/\1/' | sort -u)
 

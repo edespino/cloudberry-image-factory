@@ -141,14 +141,16 @@ Before committing, verify:
 
 | Platform | Package Manager | Default User | Notes |
 |----------|----------------|--------------|-------|
-| al2023 | RPM (dnf) | ec2-user | AWS-optimized |
-| centos10 | RPM (dnf) | ec2-user | Basic development build |
-| debian12 | APT | admin | Latest Debian stable |
 | rocky8 | RPM (dnf) | rocky | Stable enterprise |
 | rocky9 | RPM (dnf) | rocky | Full-featured, primary |
 | rocky10 | RPM (dnf) | rocky | Latest Rocky |
-| ubuntu20 | APT | ubuntu | LTS |
-| ubuntu22 | APT | ubuntu | Latest LTS |
+| al2023-synxdb-cloud | RPM (dnf) | ec2-user | SynxDB Cloud ops image |
+| al2023-synxdb-elastic | RPM (dnf) | ec2-user | SynxDB Elastic ops image |
+| rocky9-synxdb-cloud | RPM (dnf) | rocky | SynxDB Cloud ops image |
+| rocky10-synxdb-cloud | RPM (dnf) | rocky | SynxDB Cloud workstation image |
+| ubuntu24-synxdb-cloud | APT | ubuntu | SynxDB Cloud workstation image |
+
+Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
 
 ## Common Errors and Solutions
 

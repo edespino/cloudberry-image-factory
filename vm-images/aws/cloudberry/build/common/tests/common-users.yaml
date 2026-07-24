@@ -3,13 +3,7 @@
 # This file is included by all platform-specific goss.yaml files
 # to ensure consistent user setup testing across all platforms.
 #
-# Included by:
-# - ubuntu22/tests/goss.yaml
-# - ubuntu20/tests/goss.yaml
-# - rocky10/tests/goss.yaml
-# - rocky8/tests/goss.yaml
-# - rocky9/tests/goss.yaml
-# - al2023/tests/goss.yaml
+# Included by: run `grep -rl common-users.yaml ../..` for the current list
 #
 # Tests for gpadmin and cbadmin users including:
 # - User account existence and properties

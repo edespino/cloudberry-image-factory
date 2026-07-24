@@ -81,15 +81,15 @@ cloudberry-image-factory/
 │   └── README.md               # Workflow documentation
 ├── vm-images/aws/cloudberry/
 │   ├── build/                  # Build configurations
-│   │   ├── common/scripts/     # 17 shared provisioning scripts
-│   │   ├── al2023/             # Amazon Linux 2023 build
-│   │   ├── centos10/           # CentOS Stream 10 build
-│   │   ├── debian12/           # Debian 12 build
+│   │   ├── common/scripts/     # Shared provisioning scripts
 │   │   ├── rocky8/             # Rocky Linux 8 build
 │   │   ├── rocky9/             # Rocky Linux 9 build
 │   │   ├── rocky10/            # Rocky Linux 10 build
-│   │   ├── ubuntu20/           # Ubuntu 20.04 build
-│   │   └── ubuntu22/           # Ubuntu 22.04 build
+│   │   ├── al2023-synxdb-cloud/    # SynxDB Cloud on Amazon Linux 2023
+│   │   ├── al2023-synxdb-elastic/  # SynxDB Elastic on Amazon Linux 2023
+│   │   ├── rocky9-synxdb-cloud/    # SynxDB Cloud on Rocky Linux 9
+│   │   ├── rocky10-synxdb-cloud/   # SynxDB Cloud on Rocky Linux 10
+│   │   └── ubuntu24-synxdb-cloud/  # SynxDB Cloud on Ubuntu 24.04
 │   │   # Each build directory contains:
 │   │   #   main.pkr.hcl        - Packer configuration
 │   │   #   scripts/            - OS-specific scripts
@@ -106,14 +106,17 @@ cloudberry-image-factory/
 
 | Build Target | OS Family | Package Manager | Notes |
 |--------------|-----------|-----------------|-------|
-| **al2023** | Amazon Linux 2023 | RPM (dnf) | AWS-optimized, newest addition |
-| **centos10** | CentOS Stream 10 | RPM (dnf) | Basic development build |
-| **debian12** | Debian 12 (Bookworm) | APT | Latest Debian stable |
 | **rocky8** | Rocky Linux 8 | RPM (dnf) | Stable enterprise Linux |
 | **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
 | **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
-| **ubuntu20** | Ubuntu 20.04 LTS | APT | Long-term support |
-| **ubuntu22** | Ubuntu 22.04 LTS | APT | Latest Ubuntu LTS |
+| **al2023-synxdb-cloud** | Amazon Linux 2023 | RPM (dnf) | SynxDB Cloud operations image |
+| **al2023-synxdb-elastic** | Amazon Linux 2023 | RPM (dnf) | SynxDB Elastic operations image |
+| **rocky9-synxdb-cloud** | Rocky Linux 9 | RPM (dnf) | SynxDB Cloud operations image |
+| **rocky10-synxdb-cloud** | Rocky Linux 10 | RPM (dnf) | SynxDB Cloud developer workstation image |
+| **ubuntu24-synxdb-cloud** | Ubuntu 24.04 LTS | APT | SynxDB Cloud developer workstation image |
+
+> **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
+> removed after ~9 months without maintenance. They remain recoverable from git history.
 
 **Common Features Across All Builds:**
 - Docker Community Edition with 1GB shared memory
@@ -124,7 +127,7 @@ cloudberry-image-factory/
 ## Development Stack
 
 ### Languages & Runtimes
-- **Go**: Latest stable release (rocky8, rocky9, ubuntu22, al2023)
+- **Go**: Latest stable release (rocky8, rocky9, rocky10)
 - **Java**: OpenJDK 8/11 (rocky8, rocky9)
 - **Python**: System default (version varies by OS)
 
@@ -151,9 +154,9 @@ cloudberry-image-factory/
 - Include user setup, development tools, kernel configs, testing frameworks, MOTD management
 
 **OS-Specific Scripts** (in each build directory)
-- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: AL2023, Rocky 8/9/10)
-- `system_add_cbdb_build_deb_dependencies.sh` (DEB-based: Debian 12, Ubuntu 20/22)
-- `system_set_default_locale.sh` (DEB-based: Debian 12, Ubuntu 20/22)
+- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: Rocky 8/9/10)
+- `system_add_synxdb_cloud_dependencies.sh` / `system_add_synxdb_elastic_dependencies.sh` (synxdb variants)
+- `system_set_default_locale.sh` (DEB-based: Ubuntu 24)
 - `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
 
 **Build Configuration**: Each OS has a `main.pkr.hcl` file that orchestrates which scripts run and in what order.
@@ -162,18 +165,16 @@ cloudberry-image-factory/
 
 ### Build Profiles by OS Family
 
-**Rocky Linux Family** (al2023, rocky8, rocky9, rocky10):
+**Rocky Linux Family** (rocky8, rocky9, rocky10):
 - Full RPM-based toolchain
 - AWS CLI, Go, Java support (varies by version)
 - Starship prompt, kernel tuning
 - SELinux disabled for development
 
-**Debian/Ubuntu Family** (debian12, ubuntu20, ubuntu22):
-- DEB-based package management (APT)
-- Streamlined build profile
-- Docker Community Edition
-- Locale configuration
-- Python 3.11 (Debian 12) or system default (Ubuntu)
+**SynxDB Variants** (al2023-synxdb-cloud, al2023-synxdb-elastic, rocky9-synxdb-cloud, rocky10-synxdb-cloud, ubuntu24-synxdb-cloud):
+- Operations/workstation profile: kubectl/helm, cloud CLIs, no Cloudberry build toolchain
+- SynxDB-branded AMI naming and MOTD
+- Cloudsmith credentials required (`PKR_VAR_cloudsmith_user` / `PKR_VAR_cloudsmith_token`)
 
 ## Getting Started
 
@@ -310,9 +311,9 @@ Changed          Changed                    │
     │  dependency        affected OS        │
     │  matrix                               │
     │                                       │
-    ├─ cbadmin_configure_environment.sh → Rebuild ALL 6 targets
-    ├─ system_add_awscli.sh → Rebuild Rocky 8/9/10 only
-    ├─ system_add_golang.sh → Rebuild Rocky 8/9, Ubuntu 22, AL2023
+    ├─ dbadmin_configure_environment.sh → Rebuild Rocky 8/9/10
+    ├─ system_add_awscli.sh → Rebuild Rocky 8/9/10
+    ├─ system_add_golang.sh → Rebuild Rocky 8/9/10
     └─ rocky9/main.pkr.hcl → Rebuild Rocky 9 only
                 │
                 ▼
@@ -362,9 +363,7 @@ Changed          Changed                    │
        │           │
        │           ▼
        │      Group by Config:
-       │      - al2023
        │      - rocky8/9/10
-       │      - ubuntu20/22
        │           │
        │           ▼
        │      For each config:
@@ -513,21 +512,13 @@ cd vm-images/aws/cloudberry/build/rocky9
 cd vm-images/aws/cloudberry/build/rocky8
 ../../scripts/packer-build-and-test.sh
 
-# Debian 12 (latest Debian stable)
-cd vm-images/aws/cloudberry/build/debian12
-../../scripts/packer-build-and-test.sh
-
-# Ubuntu 22.04 (minimal development configuration)
-cd vm-images/aws/cloudberry/build/ubuntu22
-../../scripts/packer-build-and-test.sh
-
-# Ubuntu 20.04 (lightweight build)
-cd vm-images/aws/cloudberry/build/ubuntu20
-../../scripts/packer-build-and-test.sh
-
 # Rocky Linux 10 (latest Rocky with core tools)
 cd vm-images/aws/cloudberry/build/rocky10
 ../../scripts/packer-build-and-test.sh
+
+# SynxDB Cloud on Rocky Linux 10 (requires Cloudsmith credentials)
+cd vm-images/aws/cloudberry/build/rocky10-synxdb-cloud
+PKR_VAR_cloudsmith_user=... PKR_VAR_cloudsmith_token=... ../../scripts/packer-build-and-test.sh
 ```
 
 ### Using Built AMIs

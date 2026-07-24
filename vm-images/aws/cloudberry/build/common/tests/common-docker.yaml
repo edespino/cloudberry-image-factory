@@ -3,12 +3,7 @@
 # This file is included by platform-specific goss.yaml files
 # to ensure consistent Docker setup across platforms.
 #
-# Included by:
-# - ubuntu22/tests/goss.yaml
-# - ubuntu20/tests/goss.yaml
-# - rocky8/tests/goss.yaml
-# - rocky9/tests/goss.yaml
-# - al2023/tests/goss.yaml
+# Included by: run `grep -rl common-docker.yaml ../..` for the current list
 #
 # Note: rocky10 does not include this file (Docker not yet supported)
 #

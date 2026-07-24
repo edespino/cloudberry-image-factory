@@ -3,11 +3,7 @@
 # This file is included by all platform-specific goss.yaml files
 # to ensure consistent Go version testing across all platforms.
 #
-# Included by:
-# - ubuntu22/tests/goss.yaml
-# - rocky8/tests/goss.yaml
-# - rocky9/tests/goss.yaml
-# - al2023/tests/goss.yaml
+# Included by: run `grep -rl common-golang.yaml ../..` for the current list
 #
 # Installation structure (from system_add_golang.sh):
 # - /opt/go1.25.2 (version-specific directory)

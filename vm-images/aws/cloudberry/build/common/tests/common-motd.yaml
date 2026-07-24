@@ -3,14 +3,7 @@
 # This file is included by platform-specific goss.yaml files
 # to ensure consistent MOTD manager setup across platforms.
 #
-# Included by:
-# - centos10/tests/goss.yaml
-# - debian12/tests/goss.yaml
-# - rocky8/tests/goss.yaml
-# - rocky9/tests/goss.yaml
-# - rocky10/tests/goss.yaml
-# - ubuntu20/tests/goss.yaml
-# - ubuntu22/tests/goss.yaml
+# Included by: run `grep -rl common-motd.yaml ../..` for the current list
 #
 # Tests for:
 # - MOTD manager executable

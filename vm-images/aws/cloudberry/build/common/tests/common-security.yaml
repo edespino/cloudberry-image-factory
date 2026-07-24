@@ -3,11 +3,7 @@
 # This file is included by all platform-specific goss.yaml files
 # to ensure consistent security settings across all platforms.
 #
-# Included by:
-# - ubuntu22/tests/goss.yaml
-# - rocky8/tests/goss.yaml
-# - rocky9/tests/goss.yaml
-# - al2023/tests/goss.yaml
+# Included by: run `grep -rl common-security.yaml ../..` for the current list
 #
 # Tests for:
 # - System resource limits (nofile, nproc, core)

@@ -49,7 +49,7 @@ Documentation Change → No builds triggered
 
 **Features:**
 - **Count-Based Retention**: Keep N newest AMIs per configuration (default: 3)
-- **Per-Configuration Logic**: Separate retention for rocky9, ubuntu22, al2023, etc.
+- **Per-Configuration Logic**: Separate retention for rocky8, rocky9, rocky10, etc.
 - **Dry Run Mode**: Preview deletions without actual cleanup (default: enabled)
 - **Snapshot Cleanup**: Automatically removes associated EBS snapshots
 - **No Age Limit**: AMIs never deleted based on age alone (ensures availability)
@@ -57,9 +57,9 @@ Documentation Change → No builds triggered
 
 **Retention Policy:**
 With `retention_count: 3` (default), the workflow keeps the 3 newest AMIs for each configuration:
+- rocky8: Keep 3 newest
 - rocky9: Keep 3 newest
-- ubuntu22: Keep 3 newest
-- al2023: Keep 3 newest
+- rocky10: Keep 3 newest
 - etc.
 
 This ensures you always have N working AMIs per OS, regardless of their age.
@@ -70,11 +70,11 @@ The workflows understand the following build dependencies:
 
 | Common Script | Affected Builds |
 |---------------|-----------------|
-| `cbadmin_configure_environment.sh` | All builds |
-| `system_add_goss.sh` | All builds |
-| `system_add_awscli.sh` | Rocky builds only |
-| `system_add_golang.sh` | rocky8, rocky9, ubuntu22 |
-| `system_disable_selinux.sh` | Rocky builds only |
+| `dbadmin_configure_environment.sh` | rocky8, rocky9, rocky10 |
+| `system_add_goss.sh` | rocky8, rocky9, rocky10 |
+| `system_add_awscli.sh` | rocky8, rocky9, rocky10 |
+| `system_add_golang.sh` | rocky8, rocky9, rocky10 |
+| `system_disable_selinux.sh` | rocky8, rocky9, rocky10 |
 | ... | (see workflow file for complete matrix) |
 
 ## Setup Requirements
@@ -149,7 +149,7 @@ The AWS credentials need permissions for:
 ### Cleanup Process
 
 1. **Discovery** → Find all Cloudberry AMIs (cloudberry-packer-build-*)
-2. **Grouping** → Group AMIs by configuration (rocky9, ubuntu22, al2023, etc.)
+2. **Grouping** → Group AMIs by configuration (rocky8, rocky9, rocky10, etc.)
 3. **Analysis** → For each configuration, identify oldest AMIs beyond retention count
 4. **Safety Checks** → Verify AMI ownership and naming patterns
 5. **Deregistration** → Remove old AMIs from AWS (if not dry-run)
