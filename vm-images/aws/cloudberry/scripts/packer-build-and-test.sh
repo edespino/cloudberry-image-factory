@@ -12,8 +12,11 @@
 # ./packer-build-and-test.sh [OPTIONS]
 #
 # Options:
-#   -p, --private    Keep AMI private (default: public)
+#   -p, --private    Keep AMI private (default: public unless PKR_VAR_AMI_PUBLIC is set)
 #   -h, --help       Display help message
+#
+# Environment Variables:
+#   PKR_VAR_AMI_PUBLIC    Set to "false" to make AMIs private by default (default: "true")
 #
 # Prerequisites:
 # - AWS CLI configured with appropriate credentials
@@ -35,15 +38,19 @@ set -euo pipefail
 echo "Executing packer-build-and-test.sh..."
 
 # Parse command-line options
-AMI_PUBLIC="true"  # Default to public
+# Check for environment variable first, then default to public
+AMI_PUBLIC="${PKR_VAR_AMI_PUBLIC:-true}"
 
 # Function to display usage
 usage() {
   echo "Usage: $0 [OPTIONS]"
   echo ""
   echo "Options:"
-  echo "  -p, --private    Keep AMI private (default: public)"
+  echo "  -p, --private    Keep AMI private (default: public unless PKR_VAR_AMI_PUBLIC is set)"
   echo "  -h, --help       Display this help message"
+  echo ""
+  echo "Environment Variables:"
+  echo "  PKR_VAR_AMI_PUBLIC    Set to \"false\" to make AMIs private by default (default: \"true\")"
   echo ""
   exit 0
 }
