@@ -2,7 +2,7 @@
 
 # Azure CLI (az) installation script
 # Installs from the official Microsoft package repository
-# Supports: Rocky Linux, RHEL, CentOS
+# Supports: Rocky Linux, RHEL, CentOS, Ubuntu, Debian
 
 # Enable strict mode for better error handling
 set -euo pipefail
@@ -43,6 +43,27 @@ case "$OS" in
 
         # Clean up
         sudo dnf clean all
+        ;;
+
+    ubuntu|debian)
+        echo "Installing Azure CLI on Ubuntu/Debian..."
+        export DEBIAN_FRONTEND=noninteractive
+
+        # Add the Microsoft APT repository signing key
+        # (per https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
+        sudo mkdir -p /etc/apt/keyrings
+        curl -sLS https://packages.microsoft.com/keys/microsoft.asc | \
+            sudo gpg --dearmor --yes -o /etc/apt/keyrings/microsoft.gpg
+        sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
+
+        # Add the Azure CLI APT repository for this release
+        AZ_DIST=$(lsb_release -cs)
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ ${AZ_DIST} main" | \
+            sudo tee /etc/apt/sources.list.d/azure-cli.list > /dev/null
+
+        # Install Azure CLI
+        sudo apt-get update
+        sudo apt-get install -y azure-cli
         ;;
 
     *)

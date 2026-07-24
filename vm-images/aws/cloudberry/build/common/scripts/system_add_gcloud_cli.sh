@@ -34,8 +34,8 @@ echo "Detected OS: $OS $VERSION"
 
 # Install Google Cloud CLI based on the detected OS
 case "$OS" in
-    rocky|rhel|centos)
-        echo "Installing Google Cloud CLI on Rocky/RHEL/CentOS..."
+    rocky|rhel|centos|ubuntu|debian)
+        echo "Installing Google Cloud CLI on ${OS} (distro-agnostic tarball)..."
 
         INSTALL_ROOT="/usr/local"
         SDK_DIR="${INSTALL_ROOT}/google-cloud-sdk"

@@ -20,7 +20,13 @@ echo "Using Go: $(go version)"
 
 # gastown's build pulls in Dolt's go-icu-regex, a cgo binding that needs the
 # ICU development headers (unicode/uregex.h) and a C++ compiler (g++).
-sudo dnf install -y -d0 libicu-devel gcc-c++
+if command -v dnf &>/dev/null; then
+  sudo dnf install -y -d0 libicu-devel gcc-c++
+else
+  export DEBIAN_FRONTEND=noninteractive
+  sudo apt-get update
+  sudo apt-get install -y libicu-dev g++
+fi
 
 # Clone, build, and install gastown
 git clone https://github.com/steveyegge/gastown /tmp/gastown

@@ -17,16 +17,32 @@ GNU_KEYRING_URL="https://ftpmirror.gnu.org/gnu-keyring.gpg"
 
 echo "EMACS_VERSION=${EMACS_VERSION}"
 
-# Install build dependencies
-sudo dnf install -y -d0 \
-    autoconf \
-    gcc \
-    gnutls-devel \
-    libgccjit-devel \
-    make \
-    ncurses-devel \
-    sqlite-devel \
-    zlib-devel
+# Install build dependencies (distro-aware)
+if command -v dnf &>/dev/null; then
+    sudo dnf install -y -d0 \
+        autoconf \
+        gcc \
+        gnutls-devel \
+        libgccjit-devel \
+        make \
+        ncurses-devel \
+        sqlite-devel \
+        zlib-devel
+else
+    # Debian/Ubuntu equivalents (libgccjit omitted: native compilation is
+    # disabled in the configure flags below)
+    export DEBIAN_FRONTEND=noninteractive
+    sudo apt-get update
+    sudo apt-get install -y \
+        autoconf \
+        gcc \
+        libgnutls28-dev \
+        libncurses-dev \
+        libsqlite3-dev \
+        make \
+        pkg-config \
+        zlib1g-dev
+fi
 
 # Download tarball and GPG signature
 # Use curl instead of wget — the gnutls-devel install above can upgrade
