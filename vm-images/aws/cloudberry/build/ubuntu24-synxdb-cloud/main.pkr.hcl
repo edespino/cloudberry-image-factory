@@ -340,6 +340,11 @@ build {
     script = "../common/scripts/system_add_zellij.sh"
   }
 
+  # Install herdr (agent multiplexer)
+  provisioner "shell" {
+    script = "../common/scripts/system_add_herdr.sh"
+  }
+
   # Install hwatch (modern watch alternative)
   provisioner "shell" {
     script = "../common/scripts/system_add_hwatch.sh"

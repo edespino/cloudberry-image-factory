@@ -39,7 +39,7 @@ This platform is the DEB/apt port of `rocky10-synxdb-cloud` — mirror its provi
 16. ~~`system_add_synxdb_dbaas.sh`~~ - DBaaS offline package (disabled, commented out)
 17. `system_add_motd_manager.sh` - MOTD with `synx` template
 18. `system_add_claude.sh` x3 - gpadmin, cbadmin, ubuntu
-19. Tooling: gitleaks, opencode, cloudsmith-cli, autoenv, git-profiles, zellij, hwatch, dysk, zoxide, golang, dolt, beads, bun, gastown, emacs, ssh-agent-tmux, configure-claude x3
+19. Tooling: gitleaks, opencode, cloudsmith-cli, autoenv, git-profiles, zellij, herdr, hwatch, dysk, zoxide, golang, dolt, beads, bun, gastown, emacs, ssh-agent-tmux, configure-claude x3
 20. `system_add_goss.sh` - Must be near end
 21. `system_add_docker.sh`
 

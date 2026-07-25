@@ -274,6 +274,12 @@ file:
     mode: "0755"
     filetype: file
 
+  # herdr agent multiplexer
+  /usr/local/bin/herdr:
+    exists: true
+    mode: "0755"
+    filetype: file
+
   # hwatch
   /usr/local/bin/hwatch:
     exists: true
