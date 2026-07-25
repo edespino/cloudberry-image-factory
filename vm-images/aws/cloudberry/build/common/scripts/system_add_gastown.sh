@@ -33,7 +33,12 @@ git clone https://github.com/steveyegge/gastown /tmp/gastown
 cd /tmp/gastown
 make build
 sudo cp gt /usr/local/bin/
+cd /
 rm -rf /tmp/gastown
+
+# Drop the Go build and module caches (several GB from dolt's dependency
+# tree) so they don't persist into the baked image
+go clean -cache -modcache
 
 # Verify
 /usr/local/bin/gt --version

@@ -311,11 +311,6 @@ file:
     exists: true
     filetype: symlink
 
-  # Emacs installation (built from source, symlink to emacs-30.2)
-  /usr/local/bin/emacs:
-    exists: true
-    filetype: symlink
-
   # Go installation
   /opt/go/bin/go:
     exists: true
@@ -338,12 +333,6 @@ file:
 
   # Bun installation
   /usr/local/bin/bun:
-    exists: true
-    mode: "0755"
-    filetype: file
-
-  # gastown (gt) installation
-  /usr/local/bin/gt:
     exists: true
     mode: "0755"
     filetype: file
@@ -582,18 +571,6 @@ command:
     stdout: ["tmux 3.4"]
     timeout: 5000
 
-  # Emacs functionality check
-  "/usr/local/bin/emacs --version":
-    exit-status: 0
-    stdout: ["GNU Emacs 30.2"]
-    timeout: 5000
-
-  # Magit installed system-wide
-  "/usr/local/bin/emacs --batch --eval '(require (quote magit))' --eval '(princ (format \"magit %s\" magit-version))'":
-    exit-status: 0
-    stdout: ["magit"]
-    timeout: 10000
-
   # Go functionality check
   "/opt/go/bin/go version":
     exit-status: 0
@@ -616,12 +593,6 @@ command:
   "/usr/local/bin/bun --version":
     exit-status: 0
     timeout: 5000
-
-  # gastown (gt) functionality check
-  # First invocation can initialize config/state, so allow extra time (like dolt)
-  "/usr/local/bin/gt --version":
-    exit-status: 0
-    timeout: 30000
 
   # OpenCode CLI functionality check (verify binary is executable)
   "test -x /home/ubuntu/.opencode/bin/opencode":

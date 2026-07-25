@@ -369,17 +369,17 @@ build {
     script = "../common/scripts/system_add_zoxide.sh"
   }
 
-  # Install Go (required for gastown)
+  # Install Go
   provisioner "shell" {
     script = "../common/scripts/system_add_golang.sh"
   }
 
-  # Install Dolt (required for gastown)
+  # Install Dolt
   provisioner "shell" {
     script = "../common/scripts/system_add_dolt.sh"
   }
 
-  # Install beads/bd (required for gastown)
+  # Install beads/bd
   provisioner "shell" {
     script = "../common/scripts/system_add_beads.sh"
   }
@@ -387,16 +387,6 @@ build {
   # Install Bun JavaScript runtime
   provisioner "shell" {
     script = "../common/scripts/system_add_bun.sh"
-  }
-
-  # Install gastown (gt) multi-agent workspace manager
-  provisioner "shell" {
-    script = "../common/scripts/system_add_gastown.sh"
-  }
-
-  # Install Emacs (built from source)
-  provisioner "shell" {
-    script = "../common/scripts/system_add_emacs.sh"
   }
 
   # Configure SSH agent forwarding persistence for tmux
