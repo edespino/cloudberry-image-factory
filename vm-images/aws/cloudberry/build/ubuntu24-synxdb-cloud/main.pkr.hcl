@@ -253,6 +253,15 @@ build {
     ]
   }
 
+  # Install Hermes Agent for ubuntu (per-user; setup wizard and browser
+  # tooling deferred to runtime)
+  provisioner "shell" {
+    script = "../common/scripts/system_add_hermes.sh"
+    environment_vars = [
+      "DB_USERNAME=ubuntu"
+    ]
+  }
+
   # Install Omnigent for ubuntu
   provisioner "shell" {
     script = "../common/scripts/system_add_omnigent.sh"

@@ -208,6 +208,10 @@ file:
     exists: true
     filetype: symlink
 
+  # Hermes Agent (per-user install, command link into ~/.hermes venv)
+  /home/ubuntu/.local/bin/hermes:
+    exists: true
+
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
@@ -494,6 +498,12 @@ command:
   # PI coding agent functionality check (verify binary is executable;
   # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
   "test -x /home/ubuntu/.local/bin/pi":
+    exit-status: 0
+    timeout: 5000
+
+  # Hermes Agent functionality check (verify binary is executable;
+  # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
+  "test -x /home/ubuntu/.local/bin/hermes":
     exit-status: 0
     timeout: 5000
 
