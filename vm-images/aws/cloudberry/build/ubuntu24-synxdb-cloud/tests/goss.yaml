@@ -212,6 +212,26 @@ file:
   /home/ubuntu/.local/bin/hermes:
     exists: true
 
+  # OpenAI Codex CLI
+  /home/ubuntu/.local/bin/codex:
+    exists: true
+
+  # GitHub Copilot CLI (per-user npm install)
+  /home/ubuntu/.local/bin/copilot:
+    exists: true
+
+  # Google Gemini CLI (per-user npm install)
+  /home/ubuntu/.local/bin/gemini:
+    exists: true
+
+  # Cursor Agent
+  /home/ubuntu/.local/bin/cursor-agent:
+    exists: true
+
+  # Kimi Code CLI
+  /home/ubuntu/.kimi-code/bin/kimi:
+    exists: true
+
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
@@ -493,6 +513,27 @@ command:
   # Hermes Agent functionality check (verify binary is executable;
   # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
   "test -x /home/ubuntu/.local/bin/hermes":
+    exit-status: 0
+    timeout: 5000
+
+  # AI toolchain functionality checks (executable-only, same rationale)
+  "test -x /home/ubuntu/.local/bin/codex":
+    exit-status: 0
+    timeout: 5000
+
+  "test -x /home/ubuntu/.local/bin/copilot":
+    exit-status: 0
+    timeout: 5000
+
+  "test -x /home/ubuntu/.local/bin/gemini":
+    exit-status: 0
+    timeout: 5000
+
+  "test -x /home/ubuntu/.local/bin/cursor-agent":
+    exit-status: 0
+    timeout: 5000
+
+  "test -x /home/ubuntu/.kimi-code/bin/kimi":
     exit-status: 0
     timeout: 5000
 

@@ -245,18 +245,11 @@ build {
     script = "../common/scripts/system_add_nodejs.sh"
   }
 
-  # Install PI coding agent (pi) for ubuntu (per-user so `pi update` works)
+  # Install the AI agent toolchain for ubuntu (single consolidated process:
+  # claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes
+  # — all per-user so each tool can self-update)
   provisioner "shell" {
-    script = "../common/scripts/system_add_pi.sh"
-    environment_vars = [
-      "DB_USERNAME=ubuntu"
-    ]
-  }
-
-  # Install Hermes Agent for ubuntu (per-user; setup wizard and browser
-  # tooling deferred to runtime)
-  provisioner "shell" {
-    script = "../common/scripts/system_add_hermes.sh"
+    script = "../common/scripts/system_add_ai_toolchain.sh"
     environment_vars = [
       "DB_USERNAME=ubuntu"
     ]
@@ -311,23 +304,15 @@ build {
     ]
   }
 
-  # Install Claude CLI for ubuntu
-  provisioner "shell" {
-    script = "../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=ubuntu"
-    ]
-  }
+  # NOTE: claude for ubuntu comes from system_add_ai_toolchain.sh above;
+  # gpadmin/cbadmin keep the standalone claude install.
 
   # Install gitleaks + auto-enable pre-commit hook via init.templatedir
   provisioner "shell" {
     script = "../common/scripts/system_add_gitleaks.sh"
   }
 
-  # Install OpenCode CLI (installs for ubuntu, the Packer SSH user)
-  provisioner "shell" {
-    script = "../common/scripts/system_add_opencode.sh"
-  }
+  # NOTE: opencode for ubuntu comes from system_add_ai_toolchain.sh above.
 
   # Install Cloudsmith CLI (pip --user, installs to /home/ubuntu/.local/bin/cloudsmith)
   provisioner "shell" {
