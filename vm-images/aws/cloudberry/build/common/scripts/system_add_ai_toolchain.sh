@@ -82,7 +82,7 @@ echo "=== [2/9] pi (PI coding agent, npm) ==="
 run_as_user /usr/local/bin/npm install -g --prefix "${USER_HOME}/.local" @earendil-works/pi-coding-agent
 
 echo "=== [3/9] codex (OpenAI Codex CLI) ==="
-run_as_user bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | sh'
+run_as_user bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh'
 
 echo "=== [4/9] copilot (GitHub Copilot CLI, npm) ==="
 run_as_user /usr/local/bin/npm install -g --prefix "${USER_HOME}/.local" @github/copilot
