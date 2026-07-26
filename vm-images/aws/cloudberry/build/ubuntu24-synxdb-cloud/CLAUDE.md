@@ -35,7 +35,7 @@ This platform is the DEB/apt port of `rocky10-synxdb-cloud` — mirror its provi
 12. `system_add_gh.sh` - GitHub CLI
 13. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
 14. `system_add_omnistrate_ctl.sh` - Omnistrate CLI (latest release, platform-detected)
-15. Tooling: k9s, kind, terraform, tofu, packer, age, sops, ansible, uv, nodejs, ai-toolchain (ubuntu: claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes), omnigent, 1password-cli, direnv
+15. Tooling: k9s, kind, terraform, tofu, packer, age, sops, ansible, uv, nodejs, ai-toolchain (ubuntu: claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes, agy), omnigent, 1password-cli, direnv
 16. ~~`system_add_synxdb_dbaas.sh`~~ - DBaaS offline package (disabled, commented out)
 17. `system_add_motd_manager.sh` - MOTD with `synx` template
 18. `system_add_claude.sh` x2 - gpadmin, cbadmin (ubuntu gets claude via ai-toolchain)

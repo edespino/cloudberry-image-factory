@@ -232,6 +232,10 @@ file:
   /home/ubuntu/.kimi-code/bin/kimi:
     exists: true
 
+  # Google Antigravity CLI
+  /home/ubuntu/.local/bin/agy:
+    exists: true
+
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
@@ -534,6 +538,10 @@ command:
     timeout: 5000
 
   "test -x /home/ubuntu/.kimi-code/bin/kimi":
+    exit-status: 0
+    timeout: 5000
+
+  "test -x /home/ubuntu/.local/bin/agy":
     exit-status: 0
     timeout: 5000
 
