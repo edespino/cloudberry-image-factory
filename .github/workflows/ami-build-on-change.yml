@@ -39,25 +39,25 @@ jobs:
         run: |
           # Define dependency mapping for common scripts
           declare -A COMMON_SCRIPT_DEPS=(
-            ["dbadmin_configure_environment.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_awscli.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_dbadmin_ulimits.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky8,rocky9"
-            ["system_add_claude.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_motd_manager.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_docker.sh"]="rocky8,rocky9"
-            ["system_add_gh.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_golang.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_goss.sh"]="rocky8,rocky9,rocky10"
-            ["system_add_kernel_configs.sh"]="rocky8,rocky9,rocky10"
+            ["dbadmin_configure_environment.sh"]="rocky9,rocky10"
+            ["system_add_awscli.sh"]="rocky9,rocky10"
+            ["system_add_dbadmin_ulimits.sh"]="rocky9,rocky10"
+            ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky9"
+            ["system_add_claude.sh"]="rocky9,rocky10"
+            ["system_add_motd_manager.sh"]="rocky9,rocky10"
+            ["system_add_docker.sh"]="rocky9"
+            ["system_add_gh.sh"]="rocky9,rocky10"
+            ["system_add_golang.sh"]="rocky9,rocky10"
+            ["system_add_goss.sh"]="rocky9,rocky10"
+            ["system_add_kernel_configs.sh"]="rocky9,rocky10"
             ["system_add_swap.sh"]="rocky9,rocky10"
-            ["system_add_yq.sh"]="rocky8,rocky9,rocky10"
-            ["system_adduser_dbadmin.sh"]="rocky8,rocky9,rocky10"
-            ["system_config_java_home.sh"]="rocky8,rocky9"
-            ["system_config_starship_prompt.sh"]="rocky8,rocky9,rocky10"
-            ["system_configure_dnf.sh"]="rocky8,rocky9,rocky10"
-            ["system_disable_selinux.sh"]="rocky8,rocky9,rocky10"
-            ["system_set_timezone.sh"]="rocky8,rocky9,rocky10"
+            ["system_add_yq.sh"]="rocky9,rocky10"
+            ["system_adduser_dbadmin.sh"]="rocky9,rocky10"
+            ["system_config_java_home.sh"]="rocky9"
+            ["system_config_starship_prompt.sh"]="rocky9,rocky10"
+            ["system_configure_dnf.sh"]="rocky9,rocky10"
+            ["system_disable_selinux.sh"]="rocky9,rocky10"
+            ["system_set_timezone.sh"]="rocky9,rocky10"
           )
 
           # Get changed files
@@ -103,11 +103,6 @@ jobs:
 
               # Platform-specific scripts (exact platform dirs only, so
               # synxdb variants do not trigger base-platform rebuilds)
-              "vm-images/aws/cloudberry/build/rocky8/scripts/"*.sh)
-                echo "rocky8-specific script changed"
-                builds_to_run+=("rocky8")
-                ;;
-
               "vm-images/aws/cloudberry/build/rocky9/scripts/"*.sh)
                 echo "rocky9-specific script changed"
                 builds_to_run+=("rocky9")
@@ -136,13 +131,13 @@ jobs:
               "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
                 test_file=$(basename "$file")
                 echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                builds_to_run+=("rocky8" "rocky9" "rocky10")
+                builds_to_run+=("rocky9" "rocky10")
                 ;;
 
               # Main build script affects all
               "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
                 echo "Main build script changed - rebuilding all"
-                builds_to_run+=("rocky8" "rocky9" "rocky10")
+                builds_to_run+=("rocky9" "rocky10")
                 ;;
 
               *)
@@ -242,6 +237,7 @@ jobs:
           version: "latest"
 
       - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -320,6 +316,7 @@ jobs:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
     steps:
       - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}

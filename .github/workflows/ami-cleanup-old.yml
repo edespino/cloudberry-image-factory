@@ -81,7 +81,7 @@ jobs:
             echo "$failed_amis" | jq -r '.[] | "  🔴 FAILED: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
           fi
 
-          # Extract unique configurations (e.g., rocky8, rocky9, rocky10)
+          # Extract unique configurations (e.g., rocky9, rocky10)
           # AMI name format: cloudberry-packer-build-{config}-{timestamp}
           configs=$(echo "$success_amis" | jq -r '.[].Name' | sed 's/cloudberry-packer-build-\([^-]*\)-.*/\1/' | sort -u)
 

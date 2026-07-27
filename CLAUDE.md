@@ -141,7 +141,6 @@ Before committing, verify:
 
 | Platform | Package Manager | Default User | Notes |
 |----------|----------------|--------------|-------|
-| rocky8 | RPM (dnf) | rocky | Stable enterprise |
 | rocky9 | RPM (dnf) | rocky | Full-featured, primary |
 | rocky10 | RPM (dnf) | rocky | Latest Rocky |
 | al2023-synxdb-cloud | RPM (dnf) | ec2-user | SynxDB Cloud ops image |
@@ -150,7 +149,7 @@ Before committing, verify:
 | ubuntu24-synxdb-cloud | APT | ubuntu | SynxDB Cloud workstation image |
 
 Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
-Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic.
+Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8.
 
 ## Common Errors and Solutions
 

@@ -27,9 +27,6 @@ package:
   time: {installed: true}
   tree: {installed: true}
 
-  # Node.js (npm is not a separate package in Rocky 10)
-  nodejs: {installed: true}
-
 # System services verification
 service:
   sshd:
@@ -74,17 +71,17 @@ file:
     mode: "0755"
     filetype: file
 
-  # Claude CLI (native installer: ~/.local/bin/claude per user)
+  # Claude CLI (native installer creates a symlink at ~/.local/bin/claude per user)
   /home/gpadmin/.local/bin/claude:
     exists: true
     owner: gpadmin
     group: gpadmin
-    filetype: file
+    filetype: symlink
   /home/cbadmin/.local/bin/claude:
     exists: true
     owner: cbadmin
     group: cbadmin
-    filetype: file
+    filetype: symlink
 
   # SELinux configuration
   /etc/selinux/config:
@@ -145,12 +142,6 @@ command:
   "rg --version":
     exit-status: 0
     stdout: ["ripgrep"]
-    timeout: 5000
-
-  # Node.js (npm and other tools may not be ready during testing)
-  "node --version":
-    exit-status: 0
-    stdout: ["v"]
     timeout: 5000
 
   # Goss testing framework

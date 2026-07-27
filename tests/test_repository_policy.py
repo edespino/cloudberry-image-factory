@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import unittest
+import yaml
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -61,15 +62,24 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertNotIn("origin/${{ github.base_ref }}...HEAD", workflow)
 
     def test_pull_requests_validate_without_building_or_cleaning_aws(self) -> None:
-        workflow = (
-            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
-        ).read_text()
+        workflow_path = REPOSITORY / ".github/workflows/ami-build-on-change.yml"
+        workflow = yaml.safe_load(workflow_path.read_text())
         event_gate = "github.event_name != 'pull_request'"
-        build = workflow.index("\n  build:\n")
-        cleanup = workflow.index("\n  cleanup:\n")
-        summary = workflow.index("\n  summary:\n")
-        self.assertIn(event_gate, workflow[build:cleanup])
-        self.assertIn(event_gate, workflow[cleanup:summary])
+
+        for job_name in ("build", "cleanup"):
+            with self.subTest(job=job_name):
+                job = workflow["jobs"][job_name]
+                job_if = str(job.get("if", ""))
+                self.assertIn(event_gate, job_if)
+
+                for step in job.get("steps", []):
+                    if "configure-aws-credentials" in str(step.get("uses", "")):
+                        step_if = str(step.get("if", ""))
+                        self.assertIn(
+                            event_gate,
+                            step_if,
+                            f"{job_name} credential step must be gated on non-PR events",
+                        )
 
     def test_retired_elastic_platform_is_not_an_active_target(self) -> None:
         # Split the retired name so this test does not count itself as an
@@ -88,6 +98,97 @@ class RepositoryPolicyTests(unittest.TestCase):
         for workflow in (REPOSITORY / ".github/workflows").glob("*.yml"):
             active_configuration += workflow.read_text()
         self.assertNotIn(retired, active_configuration)
+
+    def test_retired_rocky8_platform_is_not_an_active_target(self) -> None:
+        # Split the retired name so this test does not count itself as an
+        # active configuration reference.
+        retired = "rocky" + "8"
+        self.assertFalse(
+            (REPOSITORY / "vm-images/aws/cloudberry/build" / retired).exists()
+        )
+
+        active_surfaces = [
+            REPOSITORY
+            / "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh",
+            REPOSITORY / "tests/test_packer_template_security.py",
+            REPOSITORY / "README.md",
+            REPOSITORY / "CLAUDE.md",
+            REPOSITORY / ".github/workflows/README.md",
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/common/tests/README.md",
+            *(REPOSITORY / ".github/workflows").glob("*.yml"),
+        ]
+        # Deliberate retirement/history wording is allowed; stale operational
+        # references anywhere else are not.
+        allowed_indicators = (
+            "retired",
+            "archived",
+            "recoverable",
+            "history",
+            "historical",
+        )
+
+        # Catch both "rocky8" and spaced forms like "Rocky 8/9/10".
+        variants = (retired, "rocky 8")
+        for surface in active_surfaces:
+            for line_number, line in enumerate(surface.read_text().splitlines(), 1):
+                lowered = line.lower()
+                if any(variant in lowered for variant in variants) and not any(
+                    indicator in lowered for indicator in allowed_indicators
+                ):
+                    self.fail(
+                        f"stale active reference to {retired!r} at "
+                        f"{surface}:{line_number}: {line!r}"
+                    )
+
+    def test_rocky10_claude_launcher_is_symlink(self) -> None:
+        goss = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/rocky10/tests/goss.yaml"
+        ).read_text()
+        for user in ("gpadmin", "cbadmin"):
+            with self.subTest(user=user):
+                path = f"/home/{user}/.local/bin/claude"
+                block = self._extract_yaml_block(goss, path)
+                self.assertIn("exists: true", block)
+                self.assertIn("filetype: symlink", block)
+
+    @staticmethod
+    def _extract_yaml_block(text: str, key: str) -> str:
+        lines = text.splitlines()
+        for index, line in enumerate(lines):
+            if line.strip().startswith(key + ":"):
+                start = index
+                break
+        else:
+            raise AssertionError(f"key {key!r} not found")
+        end = start + 1
+        while end < len(lines) and (
+            lines[end].startswith(" ") or lines[end].startswith("\t")
+        ):
+            end += 1
+        return "\n".join(lines[start:end])
+
+    def test_rocky10_has_no_nodejs(self) -> None:
+        pkr = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/rocky10/main.pkr.hcl"
+        ).read_text()
+        for consumer in (
+            "system_add_nodejs.sh",
+            "system_add_pi.sh",
+            "system_add_ai_toolchain.sh",
+            "system_add_omnigent.sh",
+        ):
+            with self.subTest(consumer=consumer):
+                self.assertNotIn(consumer, pkr)
+
+        goss = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/rocky10/tests/goss.yaml"
+        ).read_text()
+        self.assertNotIn("nodejs:", goss)
+        self.assertNotIn("node --version", goss)
 
     def test_synxdb_cloud_templates_require_no_cloudsmith_variables(self) -> None:
         templates = sorted(
