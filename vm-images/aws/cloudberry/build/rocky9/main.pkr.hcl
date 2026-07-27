@@ -50,6 +50,7 @@ source "amazon-ebs" "base-cbdb-build-image" {
   secret_key    = var.aws_secret_key
   token         = var.aws_session_token
   region        = var.region
+  temporary_security_group_source_public_ip = true
 
   instance_type = "t3.2xlarge"
 
@@ -64,8 +65,8 @@ source "amazon-ebs" "base-cbdb-build-image" {
 
   ssh_username         = "rocky"
 
+  # Omit ami_description: it would call denied ModifyImageAttribute.
   ami_name = format("cloudberry-packer-%s-%s-%s", var.vm_type, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
-  ami_description = "Apache Cloudberry (Incubating) Build - Rocky Linux 9 Base AMI built via Packer"
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"

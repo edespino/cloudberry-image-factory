@@ -14,22 +14,12 @@ on:
           - 'rocky9'
           - 'rocky10'
           - 'rocky8,rocky9,rocky10'
-      aws_region:
-        description: 'AWS Region'
-        required: false
-        default: 'us-west-2'
-        type: string
-      make_public:
-        description: 'Make AMIs public'
-        required: false
-        default: true
-        type: boolean
   # schedule:
   #   # Run weekly builds on Sundays at 2 AM UTC
   #   - cron: '0 2 * * 0'
 
 env:
-  AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
+  AWS_REGION: us-west-2
 
 jobs:
   setup-matrix:
@@ -100,6 +90,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Run offline repository tests
+        run: python3 -m unittest discover -s tests
+
       - name: Setup Packer
         uses: hashicorp/setup-packer@v3.4.0
         with:
@@ -117,7 +110,7 @@ jobs:
           echo "Initializing Packer plugins for ${{ matrix.build.name }}"
           packer init main.pkr.hcl
           echo "Validating Packer template for ${{ matrix.build.name }}"
-          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" main.pkr.hcl
+          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
 
   build:
     needs: [setup-matrix, validate]
@@ -132,6 +125,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Create private runtime directory
+        shell: bash
+        run: |
+          runtime_dir="$(mktemp -d "${RUNNER_TEMP}/cloudberry-runtime.XXXXXXXX")"
+          install -d -m 0700 -- "${runtime_dir}"
+          echo "XDG_RUNTIME_DIR=${runtime_dir}" >> "${GITHUB_ENV}"
 
       - name: Setup Packer
         uses: hashicorp/setup-packer@v3.4.0
@@ -154,20 +154,12 @@ jobs:
         working-directory: ${{ matrix.build.path }}
         env:
           AWS_REGION: ${{ env.AWS_REGION }}
-          MAKE_PUBLIC: ${{ inputs.make_public || 'true' }}
         run: |
           echo "Building AMI for ${{ matrix.build.name }}"
           echo "Build trigger: ${{ github.event_name }}"
           echo "Region: ${{ env.AWS_REGION }}"
-          echo "Make public: ${{ env.MAKE_PUBLIC }}"
 
           chmod +x ../../scripts/packer-build-and-test.sh
-
-          # Modify the build script behavior if needed
-          if [ "${{ env.MAKE_PUBLIC }}" != "true" ]; then
-            echo "Note: AMI will be built but not made public"
-            # Could modify the script here to skip making AMI public
-          fi
 
           ../../scripts/packer-build-and-test.sh
 
@@ -265,7 +257,7 @@ jobs:
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "**Build Targets:** ${{ inputs.build_targets }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Make Public:** ${{ inputs.make_public }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Visibility:** Private only" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
