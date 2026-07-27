@@ -60,6 +60,7 @@ source "amazon-ebs" "base-build-image" {
   secret_key    = var.aws_secret_key
   token         = var.aws_session_token
   region        = var.region
+  temporary_security_group_source_public_ip = true
 
   instance_type = "t3.2xlarge"
 
@@ -74,8 +75,8 @@ source "amazon-ebs" "base-build-image" {
 
   ssh_username         = "ec2-user"
 
+  # Omit ami_description: it would call denied ModifyImageAttribute.
   ami_name = format("synx-cloud-packer-%s-%s-%s", var.vm_type, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
-  ami_description = "SynxDB Cloud - Amazon Linux 2023 (al2023) Base AMI built via Packer"
 
   launch_block_device_mappings {
     device_name           = "/dev/xvda"

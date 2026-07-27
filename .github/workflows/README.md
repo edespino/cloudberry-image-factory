@@ -37,8 +37,6 @@ Documentation Change → No builds triggered
 
 **Manual Options:**
 - Build targets (all, specific OS, individual AMIs)
-- AWS region selection
-- Public AMI setting
 - Force rebuild option
 
 ### 3. `ami-cleanup-old.yml` - AMI Lifecycle Management
@@ -88,17 +86,14 @@ AWS_ACCESS_KEY_ID     # AWS access key for AMI building
 AWS_SECRET_ACCESS_KEY # AWS secret key for AMI building
 ```
 
-### Optional GitHub Variables
-
-```
-AWS_REGION           # Default AWS region (defaults to us-west-2)
-```
+The build region is fixed to `us-west-2`; workflows do not expose a
+cross-region override.
 
 ### AWS IAM Permissions
 
 Least-privilege policy for the CI user (e.g. `github-actions-packer-user`).
 It covers the Packer amazon-ebs builder, the build-and-test script (test
-instance lifecycle, AMI rename/publish), and the cleanup workflows. No IAM
+instance lifecycle and private AMI result tagging), and the cleanup workflows. No IAM
 actions are required — the Packer templates do not use instance profiles.
 `sts:GetCallerIdentity` needs no permission.
 
@@ -137,9 +132,7 @@ actions are required — the Packer templates do not use instance profiles.
         "ec2:DescribeVolumes",
         "ec2:DescribeVpcs",
         "ec2:DetachVolume",
-        "ec2:ModifyImageAttribute",
         "ec2:ModifyInstanceAttribute",
-        "ec2:ModifySnapshotAttribute",
         "ec2:RegisterImage",
         "ec2:RunInstances",
         "ec2:StopInstances",
@@ -149,16 +142,6 @@ actions are required — the Packer templates do not use instance profiles.
       "Condition": {
         "StringEquals": { "aws:RequestedRegion": "us-west-2" }
       }
-    },
-    {
-      "Sid": "ImageBlockPublicAccessToggle",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:GetImageBlockPublicAccessState",
-        "ec2:DisableImageBlockPublicAccess",
-        "ec2:EnableImageBlockPublicAccess"
-      ],
-      "Resource": "*"
     }
   ]
 }
@@ -166,11 +149,7 @@ actions are required — the Packer templates do not use instance profiles.
 
 Notes:
 - The `aws:RequestedRegion` condition pins mutating access to us-west-2.
-  Remove it only if builds in other regions are actually needed
-  (`ami-build-manual.yml` exposes an `aws_region` input).
-- `ImageBlockPublicAccessToggle` is an account-level grant, needed only
-  because the build script publishes public AMIs. If public AMIs are ever
-  dropped, remove this statement.
+  The build and test script deliberately does not support other regions.
 
 ## Build Process Flow
 
@@ -181,7 +160,7 @@ Notes:
 3. **Parallel Validation** → Validate Packer templates
 4. **Parallel Building** → Build affected AMIs (max 3 concurrent)
 5. **Testing** → Run Goss tests on each AMI
-6. **Publishing** → Make successful AMIs public
+6. **Result Tagging** → Keep successful AMIs private and tag PASSED
 7. **Cleanup** → Remove temporary resources
 8. **Reporting** → Comment on PRs with results
 
@@ -294,7 +273,7 @@ retention_count:
 ### Security Considerations
 1. Rotate AWS credentials regularly
 2. Use least privilege IAM policies
-3. Review public AMI sharing policies
+3. Verify private-only AMI sharing controls
 4. Monitor AWS CloudTrail for access
 
 ## Support

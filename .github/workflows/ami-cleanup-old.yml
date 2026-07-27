@@ -19,14 +19,8 @@ on:
         required: false
         default: '3'
         type: string
-      aws_region:
-        description: 'AWS Region'
-        required: false
-        default: 'us-west-2'
-        type: string
-
 env:
-  AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-west-2' }}
+  AWS_REGION: us-west-2
   RETENTION_COUNT: ${{ inputs.retention_count || '3' }}
   # CRITICAL: Scheduled runs always use dry-run for safety
   # Manual runs respect the input parameter (default: true)

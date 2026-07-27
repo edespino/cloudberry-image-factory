@@ -83,6 +83,7 @@ Thumbs.db
 tags
 
 # Testing Framework Files
+.hermes/
 .pytest_cache/
 __pycache__/
 *.pyc

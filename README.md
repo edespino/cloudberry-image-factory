@@ -57,7 +57,7 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                    ▼                               ▼                   │
 │            Tests PASSED                    Tests FAILED                │
 │            Rename: *-PASSED                Rename: *-FAILED            │
-│            Make Public                     Keep Private                │
+│            Keep Private                    Keep Private                │
 │            Retain (count-based)            Mark for Deletion           │
 └────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -183,7 +183,21 @@ cloudberry-image-factory/
 - **AWS Account** with EC2 and AMI permissions
 - **Packer** 1.8+ installed locally
 - **AWS CLI** configured with appropriate credentials
+- **Python 3**, `jq`, OpenSSH client, `nc`, `curl`, and GNU `timeout`
 - **GitHub repository** with required secrets (for CI/CD)
+
+When this script runs through `access run`, the final command receives a
+private mode-0700 `XDG_RUNTIME_DIR`. When invoked directly, an explicitly set
+`XDG_RUNTIME_DIR` is intentionally rejected unless it is a nonsymlink
+directory owned by the current user with exactly mode 0700. If it is unset,
+`RUNNER_TEMP` (or `TMPDIR`) may be a current-user-owned mode-0755 directory,
+but it must not be group/world writable; the script securely creates and
+removes a cryptographically named mode-0700 per-run child beneath it. Both AMI
+build workflows explicitly export such a private child.
+
+Existing-AMI recovery accepts only available, not-publicly-shared images owned
+by the documented account `703671893074`, in the fixed `us-west-2` region,
+whose name matches the selected build target.
 
 ### Manual Build Process
 
@@ -203,7 +217,7 @@ cd vm-images/aws/cloudberry/build/rocky9
 └─────────────────────────────────────────────────────────────────────────┘
 
 1. Prerequisites Check
-   ├─ Verify: packer, aws, jq, nc, curl installed
+   ├─ Verify: python3, packer, aws, jq, ssh/scp, nc, curl, timeout
    └─ Generate temporary SSH key pair
               │
               ▼
@@ -257,7 +271,7 @@ cd vm-images/aws/cloudberry/build/rocky9
 7a. Success Path     7b. Failure Path  7c. Error Path
     ├─ Rename AMI        ├─ Rename AMI     ├─ Keep AMI name
     │  *-PASSED          │  *-FAILED       └─ Mark for review
-    ├─ Make AMI public   └─ Keep private
+    ├─ Keep AMI private  └─ Keep private
     └─ Exit 0                Exit 1
               │
               ▼
@@ -339,7 +353,7 @@ Changed          Changed                    │
        │                 │
        ├─ Rename         ├─ Rename
        │  *-PASSED       │  *-FAILED
-       ├─ Make public    └─ Keep private
+       ├─ Keep private   └─ Keep private
        └─ Comment PR
 ```
 
