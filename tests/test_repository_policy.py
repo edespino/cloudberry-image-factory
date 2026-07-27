@@ -60,6 +60,17 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn("github.event.pull_request.head.sha", workflow)
         self.assertNotIn("origin/${{ github.base_ref }}...HEAD", workflow)
 
+    def test_pull_requests_validate_without_building_or_cleaning_aws(self) -> None:
+        workflow = (
+            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
+        ).read_text()
+        event_gate = "github.event_name != 'pull_request'"
+        build = workflow.index("\n  build:\n")
+        cleanup = workflow.index("\n  cleanup:\n")
+        summary = workflow.index("\n  summary:\n")
+        self.assertIn(event_gate, workflow[build:cleanup])
+        self.assertIn(event_gate, workflow[cleanup:summary])
+
     def test_template_comments_explain_description_omission_without_version_pin(self) -> None:
         for template in sorted(
             (REPOSITORY / "vm-images/aws/cloudberry/build").glob(

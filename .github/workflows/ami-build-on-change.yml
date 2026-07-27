@@ -223,7 +223,7 @@ jobs:
 
   build:
     needs: [detect-changes, validate]
-    if: needs.detect-changes.outputs.should-run == 'true'
+    if: github.event_name != 'pull_request' && needs.detect-changes.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -320,7 +320,7 @@ jobs:
 
   cleanup:
     needs: [detect-changes, build]
-    if: always() && needs.detect-changes.outputs.should-run == 'true'
+    if: always() && github.event_name != 'pull_request' && needs.detect-changes.outputs.should-run == 'true'
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
