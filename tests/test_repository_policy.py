@@ -51,6 +51,15 @@ class RepositoryPolicyTests(unittest.TestCase):
                 self.assertNotIn("vars.AWS_REGION", workflow)
                 self.assertIn("AWS_REGION: us-west-2", workflow)
 
+    def test_change_detection_fetches_and_diffs_pull_request_shas(self) -> None:
+        workflow = (
+            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
+        ).read_text()
+        self.assertIn("fetch-depth: 0", workflow)
+        self.assertIn("github.event.pull_request.base.sha", workflow)
+        self.assertIn("github.event.pull_request.head.sha", workflow)
+        self.assertNotIn("origin/${{ github.base_ref }}...HEAD", workflow)
+
     def test_template_comments_explain_description_omission_without_version_pin(self) -> None:
         for template in sorted(
             (REPOSITORY / "vm-images/aws/cloudberry/build").glob(

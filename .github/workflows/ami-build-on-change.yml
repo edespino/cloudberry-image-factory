@@ -29,7 +29,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          # Pull-request change detection compares immutable event SHAs. Fetch
+          # full history so both objects and their merge base are available.
+          fetch-depth: 0
 
       - name: Detect changed files and generate build matrix
         id: set-matrix
@@ -60,7 +62,8 @@ jobs:
 
           # Get changed files
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+            changed_files=$(git diff --name-only \
+              "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
           else
             changed_files=$(git diff --name-only HEAD~1 HEAD)
           fi
