@@ -82,7 +82,6 @@ cloudberry-image-factory/
 ├── vm-images/aws/cloudberry/
 │   ├── build/                  # Build configurations
 │   │   ├── common/scripts/     # Shared provisioning scripts
-│   │   ├── rocky8/             # Rocky Linux 8 build
 │   │   ├── rocky9/             # Rocky Linux 9 build
 │   │   ├── rocky10/            # Rocky Linux 10 build
 │   │   ├── al2023-synxdb-cloud/    # SynxDB Cloud on Amazon Linux 2023
@@ -105,7 +104,6 @@ cloudberry-image-factory/
 
 | Build Target | OS Family | Package Manager | Notes |
 |--------------|-----------|-----------------|-------|
-| **rocky8** | Rocky Linux 8 | RPM (dnf) | Stable enterprise Linux |
 | **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
 | **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
 | **al2023-synxdb-cloud** | Amazon Linux 2023 | RPM (dnf) | SynxDB Cloud operations image |
@@ -117,6 +115,8 @@ cloudberry-image-factory/
 > removed after ~9 months without maintenance. They remain recoverable from git history.
 >
 > **Retired (2026-07-27):** `al2023-synxdb-elastic` was removed and remains recoverable from git history.
+>
+> **Retired (2026-07-27):** `rocky8` was removed and remains recoverable from git history.
 
 **Common Features Across All Builds:**
 - Docker Community Edition with 1GB shared memory
@@ -127,8 +127,8 @@ cloudberry-image-factory/
 ## Development Stack
 
 ### Languages & Runtimes
-- **Go**: Latest stable release (rocky8, rocky9, rocky10)
-- **Java**: OpenJDK 8/11 (rocky8, rocky9)
+- **Go**: Latest stable release (rocky9, rocky10)
+- **Java**: OpenJDK 8/11 (rocky9)
 - **Python**: System default (version varies by OS)
 
 ### Build Tools & Libraries
@@ -154,7 +154,7 @@ cloudberry-image-factory/
 - Include user setup, development tools, kernel configs, testing frameworks, MOTD management
 
 **OS-Specific Scripts** (in each build directory)
-- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: Rocky 8/9/10)
+- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: Rocky 9/10)
 - `system_add_synxdb_cloud_dependencies.sh` (SynxDB Cloud variants)
 - `system_set_default_locale.sh` (DEB-based: Ubuntu 24)
 - `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
@@ -165,7 +165,7 @@ cloudberry-image-factory/
 
 ### Build Profiles by OS Family
 
-**Rocky Linux Family** (rocky8, rocky9, rocky10):
+**Rocky Linux Family** (rocky9, rocky10):
 - Full RPM-based toolchain
 - AWS CLI, Go, Java support (varies by version)
 - Starship prompt, kernel tuning
@@ -325,9 +325,9 @@ Changed          Changed                    │
     │  dependency        affected OS        │
     │  matrix                               │
     │                                       │
-    ├─ dbadmin_configure_environment.sh → Rebuild Rocky 8/9/10
-    ├─ system_add_awscli.sh → Rebuild Rocky 8/9/10
-    ├─ system_add_golang.sh → Rebuild Rocky 8/9/10
+    ├─ dbadmin_configure_environment.sh → Rebuild Rocky 9/10
+    ├─ system_add_awscli.sh → Rebuild Rocky 9/10
+    ├─ system_add_golang.sh → Rebuild Rocky 9/10
     └─ rocky9/main.pkr.hcl → Rebuild Rocky 9 only
                 │
                 ▼
@@ -377,7 +377,7 @@ Changed          Changed                    │
        │           │
        │           ▼
        │      Group by Config:
-       │      - rocky8/9/10
+       │      - rocky9/10
        │           │
        │           ▼
        │      For each config:
@@ -520,10 +520,6 @@ The build system understands script dependencies:
 ```bash
 # Rocky Linux 9 (full-featured with all development tools)
 cd vm-images/aws/cloudberry/build/rocky9
-../../scripts/packer-build-and-test.sh
-
-# Rocky Linux 8 (basic development stack)
-cd vm-images/aws/cloudberry/build/rocky8
 ../../scripts/packer-build-and-test.sh
 
 # Rocky Linux 10 (latest Rocky with core tools)

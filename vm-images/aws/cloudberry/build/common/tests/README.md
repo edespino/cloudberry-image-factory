@@ -182,14 +182,12 @@ To add a new test for gpadmin's Git configuration:
 
 **All common test files (golang, users, security, docker):**
 - Amazon Linux 2023 (al2023)
-- Rocky Linux 8 (rocky8)
 - Rocky Linux 9 (rocky9)
 - Ubuntu 22.04 (ubuntu22)
 
 **MOTD common tests (common-motd.yaml):**
 - CentOS Stream 10 (centos10)
 - Debian 12 (debian12)
-- Rocky Linux 8 (rocky8)
 - Rocky Linux 9 (rocky9)
 - Rocky Linux 10 (rocky10)
 - Ubuntu 20.04 (ubuntu20)
@@ -203,4 +201,4 @@ To add a new test for gpadmin's Git configuration:
 
 **Phase 3** (Planned):
 - common-tools.yaml: yq, goss, and other common utilities
-- common-starship.yaml: Starship prompt (Rocky 8 & 9 only)
+- common-starship.yaml: Starship prompt (Rocky 9 only)
