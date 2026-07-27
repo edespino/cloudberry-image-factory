@@ -86,7 +86,6 @@ cloudberry-image-factory/
 │   │   ├── rocky9/             # Rocky Linux 9 build
 │   │   ├── rocky10/            # Rocky Linux 10 build
 │   │   ├── al2023-synxdb-cloud/    # SynxDB Cloud on Amazon Linux 2023
-│   │   ├── al2023-synxdb-elastic/  # SynxDB Elastic on Amazon Linux 2023
 │   │   ├── rocky9-synxdb-cloud/    # SynxDB Cloud on Rocky Linux 9
 │   │   ├── rocky10-synxdb-cloud/   # SynxDB Cloud on Rocky Linux 10
 │   │   └── ubuntu24-synxdb-cloud/  # SynxDB Cloud on Ubuntu 24.04
@@ -110,13 +109,14 @@ cloudberry-image-factory/
 | **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
 | **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
 | **al2023-synxdb-cloud** | Amazon Linux 2023 | RPM (dnf) | SynxDB Cloud operations image |
-| **al2023-synxdb-elastic** | Amazon Linux 2023 | RPM (dnf) | SynxDB Elastic operations image |
 | **rocky9-synxdb-cloud** | Rocky Linux 9 | RPM (dnf) | SynxDB Cloud operations image |
 | **rocky10-synxdb-cloud** | Rocky Linux 10 | RPM (dnf) | SynxDB Cloud developer workstation image |
 | **ubuntu24-synxdb-cloud** | Ubuntu 24.04 LTS | APT | SynxDB Cloud developer workstation image |
 
 > **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
 > removed after ~9 months without maintenance. They remain recoverable from git history.
+>
+> **Retired (2026-07-27):** `al2023-synxdb-elastic` was removed and remains recoverable from git history.
 
 **Common Features Across All Builds:**
 - Docker Community Edition with 1GB shared memory
@@ -155,7 +155,7 @@ cloudberry-image-factory/
 
 **OS-Specific Scripts** (in each build directory)
 - `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: Rocky 8/9/10)
-- `system_add_synxdb_cloud_dependencies.sh` / `system_add_synxdb_elastic_dependencies.sh` (synxdb variants)
+- `system_add_synxdb_cloud_dependencies.sh` (SynxDB Cloud variants)
 - `system_set_default_locale.sh` (DEB-based: Ubuntu 24)
 - `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
 
@@ -171,10 +171,10 @@ cloudberry-image-factory/
 - Starship prompt, kernel tuning
 - SELinux disabled for development
 
-**SynxDB Variants** (al2023-synxdb-cloud, al2023-synxdb-elastic, rocky9-synxdb-cloud, rocky10-synxdb-cloud, ubuntu24-synxdb-cloud):
+**SynxDB Variants** (al2023-synxdb-cloud, rocky9-synxdb-cloud, rocky10-synxdb-cloud, ubuntu24-synxdb-cloud):
 - Operations/workstation profile: kubectl/helm, cloud CLIs, no Cloudberry build toolchain
 - SynxDB-branded AMI naming and MOTD
-- Cloudsmith credentials required (`PKR_VAR_cloudsmith_user` / `PKR_VAR_cloudsmith_token`)
+- No build-time Cloudsmith credentials are required; the DBaaS package provisioner is disabled
 
 ## Getting Started
 
@@ -530,9 +530,9 @@ cd vm-images/aws/cloudberry/build/rocky8
 cd vm-images/aws/cloudberry/build/rocky10
 ../../scripts/packer-build-and-test.sh
 
-# SynxDB Cloud on Rocky Linux 10 (requires Cloudsmith credentials)
+# SynxDB Cloud on Rocky Linux 10
 cd vm-images/aws/cloudberry/build/rocky10-synxdb-cloud
-PKR_VAR_cloudsmith_user=... PKR_VAR_cloudsmith_token=... ../../scripts/packer-build-and-test.sh
+../../scripts/packer-build-and-test.sh
 ```
 
 ### Using Built AMIs

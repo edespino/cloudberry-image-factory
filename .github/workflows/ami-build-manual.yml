@@ -100,12 +100,6 @@ jobs:
 
       - name: Initialize and validate Packer template for ${{ matrix.build.name }}
         working-directory: ${{ matrix.build.path }}
-        env:
-          # Dummy values satisfy the required cloudsmith variables on synxdb
-          # platforms; Packer ignores PKR_VAR_* for templates that do not
-          # declare them, and validation does not contact Cloudsmith.
-          PKR_VAR_cloudsmith_user: ci-validate
-          PKR_VAR_cloudsmith_token: ci-validate
         run: |
           echo "Initializing Packer plugins for ${{ matrix.build.name }}"
           packer init main.pkr.hcl

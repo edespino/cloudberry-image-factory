@@ -1,6 +1,6 @@
 # rocky10-synxdb-cloud - Claude AI Context
 
-SynxDB Cloud-optimized AMI on Rocky Linux 10. Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and Cloudsmith credentials managed via 1Password.
+SynxDB Cloud-optimized AMI on Rocky Linux 10. Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build.
 
 ## How This Differs from Standard rocky10
 
@@ -17,7 +17,7 @@ SynxDB Cloud-optimized AMI on Rocky Linux 10. Minimal operations image (no build
 
 ## Reference Platforms
 
-When refactoring, use `al2023-synxdb-elastic` as the gold standard for credential handling and provisioner usage. Use `al2023-synxdb-cloud` for the cloud-specific provisioner ordering.
+When refactoring, use `al2023-synxdb-cloud` for the cloud-specific provisioner ordering.
 
 ## Provisioner Order (main.pkr.hcl)
 
