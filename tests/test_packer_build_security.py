@@ -332,7 +332,9 @@ exec /usr/bin/{command} "$@"
 
     def test_hostile_fallback_runtime_base_is_rejected_before_aws(self) -> None:
         writable = self.root / "writable-fallback"
-        writable.mkdir(mode=0o777)
+        writable.mkdir()
+        writable.chmod(0o777)
+        self.assertNotEqual(writable.stat().st_mode & 0o022, 0)
         link = self.root / "fallback-link"
         link.symlink_to(writable, target_is_directory=True)
         for base in (writable, link):
