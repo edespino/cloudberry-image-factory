@@ -75,8 +75,6 @@ class PackerTemplateSecurityTests(unittest.TestCase):
             target = template.parent.name
             if target == "al2023-synxdb-cloud":
                 prefix = "synx-cloud-packer-"
-            elif target == "al2023-synxdb-elastic":
-                prefix = "synx-elastic-packer-"
             elif target.endswith("-synxdb-cloud"):
                 prefix = "synxdb-cloud-packer-"
             else:

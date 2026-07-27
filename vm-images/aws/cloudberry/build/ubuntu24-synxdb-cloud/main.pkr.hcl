@@ -45,16 +45,6 @@ variable "region" {
   default = ""
 }
 
-variable "cloudsmith_user" {
-  type      = string
-  sensitive = true
-}
-
-variable "cloudsmith_token" {
-  type      = string
-  sensitive = true
-}
-
 source "amazon-ebs" "base-build-image" {
   access_key    = var.aws_access_key
   secret_key    = var.aws_secret_key
@@ -271,16 +261,6 @@ build {
   provisioner "shell" {
     script = "../common/scripts/system_add_direnv.sh"
   }
-
-  # # Install SynxDB DBaaS package (disabled)
-  # provisioner "shell" {
-  #   script = "../common/scripts/system_add_synxdb_dbaas.sh"
-  #   environment_vars = [
-  #     "CLOUDSMITH_USER=${var.cloudsmith_user}",
-  #     "CLOUDSMITH_TOKEN=${var.cloudsmith_token}",
-  #     "INSTALL_USER=cbadmin"
-  #   ]
-  # }
 
   provisioner "shell" {
     script = "../common/scripts/system_add_motd_manager.sh"

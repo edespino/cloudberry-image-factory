@@ -1,6 +1,6 @@
 # ubuntu24-synxdb-cloud - Claude AI Context
 
-SynxDB Cloud-optimized AMI on Ubuntu 24.04 (Noble). Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and Cloudsmith credentials managed via 1Password. DEB/apt port of `rocky10-synxdb-cloud`.
+SynxDB Cloud-optimized AMI on Ubuntu 24.04 (Noble). Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build. DEB/apt port of `rocky10-synxdb-cloud`.
 
 ## How This Differs from Standard ubuntu22
 

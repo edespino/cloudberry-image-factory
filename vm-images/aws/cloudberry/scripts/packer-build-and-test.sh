@@ -162,9 +162,6 @@ case "${OS_NAME}" in
   al2023-synxdb-cloud)
     AMI_NAME_PREFIX="synx-cloud-packer-${VM_TYPE}-${OS_NAME}-"
     ;;
-  al2023-synxdb-elastic)
-    AMI_NAME_PREFIX="synx-elastic-packer-${VM_TYPE}-${OS_NAME}-"
-    ;;
   *-synxdb-cloud)
     AMI_NAME_PREFIX="synxdb-cloud-packer-${VM_TYPE}-${OS_NAME}-"
     ;;
