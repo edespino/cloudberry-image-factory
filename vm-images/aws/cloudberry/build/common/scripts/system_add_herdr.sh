@@ -4,6 +4,12 @@
 # Source: https://github.com/ogulcancelik/herdr
 # Dynamically detects architecture, installs the single static binary from
 # the latest GitHub release (no checksums published upstream)
+#
+# Versioning policy: latest upstream release at build time, nothing pinned.
+# Tradeoff: the image is not byte-reproducible across build days; the
+# resolved release tag and `herdr --version` output are logged below so the
+# baked version is recoverable from the build output, and the platform goss
+# tests assert the version command runs.
 
 set -euo pipefail
 

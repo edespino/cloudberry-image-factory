@@ -12,6 +12,7 @@ on:
           - 'all'
           - 'rocky9'
           - 'rocky10'
+          - 'ubuntu24-synxdb-cloud'
           - 'rocky9,rocky10'
   # schedule:
   #   # Run weekly builds on Sundays at 2 AM UTC
@@ -31,7 +32,7 @@ jobs:
         id: set-matrix
         run: |
           # Available builds
-          all_builds=("rocky9" "rocky10")
+          all_builds=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
 
           # Determine which builds to run
           if [ "${{ github.event_name }}" == "schedule" ]; then
