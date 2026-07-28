@@ -1,235 +1,295 @@
 # Design: Family-Aware Restructure + Agentic Image Family
 
-Date: 2026-07-28
+Date: 2026-07-28 (revised same day against origin/main d8908be — see "Revision
+history" at the end)
 Repo: cloudberry-image-factory
-Status: Approved design, pending implementation plan
+Status: Approved design, pending implementation plan (v2)
 
 ## Problem
 
 1. `vm-images/aws/cloudberry/` mixes two product families: plain Cloudberry
-   build targets (rocky8/9/10) and SynxDB Cloud targets (`*-synxdb-cloud`).
-2. The build/test harness (`scripts/packer-build-and-test.sh`,
-   `run-goss-tests.sh`) lives inside the `cloudberry` tree and cannot be
+   build targets (rocky9/10) and SynxDB Cloud targets (`*-synxdb-cloud`).
+2. The build/test harness lives inside the `cloudberry` tree and cannot be
    shared cleanly by a new peer family.
 3. A new **agentic** family is being introduced: dedicated images carrying
    the AI/agent tooling that today is baked into the synxdb-cloud images
-   via ~9 common provision scripts.
+   via common provision scripts.
 4. Accumulated maintainability problems:
    - `vm_type` in the harness resolves to the literal string `build`
      (`basename $(dirname $CWD)`), which is why AMIs are named
-     `cloudberry-packer-build-*`.
-   - CI can only build rocky8/9/10; no synxdb-cloud target is buildable or
-     auto-triggered. The on-change workflow's hand-maintained dependency map
-     covers 19 of 58 common scripts.
+     `<prefix>-packer-build-*`; the AMI name prefix policy is a hand-coded
+     case statement duplicated across the harness, a template test, and the
+     cleanup workflow.
+   - CI's `COMMON_SCRIPT_DEPS` dependency map is hand-maintained and must be
+     edited for every provisioner/target pairing; synxdb-cloud targets are
+     not buildable via the manual workflow.
    - The cleanup workflow's `cloudberry-packer-build-*` filter never matches
-     synxdb AMIs, so they are never cleaned up.
+     synxdb AMIs, so they are never cleaned up. Its SG/key-pair filters also
+     do not match the names the harness actually creates (pre-existing bug).
    - `run-goss-tests.sh` is hardcoded to rocky9, incompatible with the
      current gossfile include layout, and referenced nowhere.
-   - Build artifacts are committed: 8x `packer-manifest.json`,
-     17x `goss-test-results-*.xml`.
-   - Stale docs (CLAUDE.md claims "21 scripts"; actual: 58).
 
-## Decisions (confirmed with user)
+## Ground truth this design builds on (origin/main, 2026-07-28)
+
+- 6 base targets: cloudberry {rocky9, rocky10}; synxdb-cloud
+  {al2023, rocky9, rocky10, ubuntu24}. rocky8 and al2023-synxdb-elastic are
+  already retired upstream (git history).
+- The harness (`packer-build-and-test.sh`, 683 lines) was security-hardened
+  by commit 8ccac08: **private-only builds** (all make-public code removed
+  and policy-tested), keys confined to a mode-0700 runtime dir, run-nonce
+  resource tagging with client tokens, bounded retrying cleanup,
+  `--existing-ami` recovery mode, and two required sibling helpers
+  (`private-runtime-key.py`, `validate-ami-metadata.py`).
+- A Python test suite (`tests/`, run as `python3 -m unittest discover -s
+  tests` in the validate job of both build workflows) guards the harness
+  (~30 behavioral tests against fake AWS shims), the templates (security +
+  naming-policy tests), and repository policy (private-only docs, retired
+  platforms, CI structure). Many of these tests hard-code paths, target
+  names, and AMI naming patterns.
+- PRs are validation-only in CI; pushes to main build.
+- No committed build artifacts; .gitignore already covers *.pem,
+  packer-manifest.json, goss-test-results*.xml.
+- PR #5 (merging first, before implementation) refreshes the AI toolchain in
+  ubuntu24-synxdb-cloud, upgrades its goss checks to real `--version`
+  executions, and extends `COMMON_SCRIPT_DEPS` + policy tests around it.
+
+## Decisions (confirmed with user; revisions marked)
 
 - Target repo: cloudberry-image-factory only. The dev-env-launcher is a
   follow-up consumer, not part of this work.
 - Three peer families: `cloudberry`, `synxdb-cloud`, `agentic`.
 - Agentic images are **dedicated AI-tooling images**. The base families stop
   installing AI tooling.
-- Agentic builds **chain from family AMIs** (Packer source = latest PASSED
+- Agentic builds **chain from family AMIs** (Packer source = latest tested
   family AMI) as the standard pattern. Exception approved for the first
   target: `agentic/build/ubuntu26` builds standalone from the stock Ubuntu
   26.04 AMI because no ubuntu26 base target exists.
-- Initial agentic target: **ubuntu26 only**. No rocky agentic target now.
-- `al2023-synxdb-elastic` is **archived** (deleted from the tree; git
-  history retains it).
-- Compatibility: everything can change, including AMI name patterns and
-  workflow inputs. dev-env-launcher AMI filters get updated afterward.
-- Approach chosen: family layout + shared harness, **per-target
-  `main.pkr.hcl` kept** (no HCL templating).
-- Multi-cloud expandability: GCP and Azure images may be introduced later.
-  Cloud-agnostic content (provision scripts, goss fragments, build
-  harness) is hoisted above the cloud level in this pass; cloud-specific
-  content (Packer HCL, families' build dirs, cloud API steps) stays under
-  `vm-images/<cloud>/` or in per-cloud harness libraries.
+- Initial agentic target: **ubuntu26 only**.
+- Compatibility: repo layout, workflow inputs, and AMI name patterns can
+  change; dev-env-launcher AMI filters get updated afterward.
+- Approach: family layout + shared harness, **per-target `main.pkr.hcl`
+  kept** (no HCL templating).
 - Provision scripts stay **flat** in `vm-images/common/scripts/` — no
   agentic subdirectory. The "AI tooling ships only in agentic images"
-  boundary lives in the HCL provisioner lists and documentation, not the
-  tree.
-- The build harness is **cloud-independent**: it infers cloud, family,
-  and OS from the directory structure it is run in.
-- **Goss runs as a Packer provisioner** during the build (the
-  kubernetes-sigs/image-builder pattern), replacing the separate
-  test-instance launch/SSH/SCP flow. A goss failure aborts the build, so
-  every published image is a passing image.
+  boundary lives in HCL provisioner lists, tests, and documentation.
+- Multi-cloud expandability: GCP and Azure may come later. Cloud-agnostic
+  content (provision scripts, goss fragments) is hoisted above the cloud
+  level now; `vm-images/gcp/` and `vm-images/azure/` are reserved.
+- **REVISED — harness:** the hardened post-build test-instance flow and its
+  ~30-test suite are KEPT. goss-as-provisioner (previously adopted) is
+  **reverted** — it would have deleted the just-hardened, policy-tested
+  flow. The harness is ADAPTED to the new layout, not rewritten. Full
+  cloud-neutrality of the harness is **deferred**: it remains AWS-specific;
+  a future cloud brings its own harness. What changes now: path-derived
+  cloud/family/os identity and family-derived AMI naming.
+- **REVISED — publishing:** images are private-only, per upstream policy
+  (enforced by tests in code and docs). No publish/make-public capability
+  anywhere in this design.
+- **REVISED — PASSED/FAILED:** AMI Name-tag suffixing (`-PASSED`/`-FAILED`)
+  stays (part of the hardened flow). Chained agentic targets therefore
+  select `*-PASSED` source AMIs.
 
 ## Section 1: Repository layout
 
 ```
 vm-images/
 ├── scripts/
-│   ├── packer-build-and-test.sh   # cloud-neutral orchestrator (moved from
-│   │                              #   aws/cloudberry/scripts/)
-│   └── lib/
-│       └── aws.sh                 # AWS-specific steps (keypair, SG, EC2,
-│                                  #   AMI tagging); gcp.sh/azure.sh later
+│   ├── packer-build-and-test.sh   # hardened AWS harness (moved, adapted)
+│   ├── private-runtime-key.py     # required sibling helper (moved with it)
+│   └── validate-ami-metadata.py   # required sibling helper (moved with it)
 ├── common/
-│   ├── scripts/                   # all ~58 shared provisioners, flat
-│   │                              #   (incl. the 9 AI-tooling scripts)
+│   ├── scripts/                   # all shared provisioners, flat
+│   │                              #   (incl. the AI-tooling set)
 │   └── tests/                     # shared goss fragments
 ├── aws/
 │   ├── cloudberry/
-│   │   └── build/{rocky8,rocky9,rocky10}/          # main.pkr.hcl, scripts/, tests/
+│   │   └── build/{rocky9,rocky10}/                 # main.pkr.hcl, scripts/, tests/
 │   ├── synxdb-cloud/
 │   │   └── build/{al2023,rocky9,rocky10,ubuntu24}/ # '-synxdb-cloud' suffix dropped
 │   └── agentic/
 │       └── build/
 │           └── ubuntu26/          # first target; standalone from stock Ubuntu 26.04
-├── gcp/                           # future: family dirs + scripts/lib/gcp.sh
+├── gcp/                           # future (own harness when it arrives)
 └── azure/                         # future
 ```
 
 Placement rule: a script or goss fragment goes under `vm-images/common/`
-if it would run unchanged on another cloud's image; anything invoking
-cloud APIs or cloud-specific metadata belongs in a harness library
-(`vm-images/scripts/lib/<cloud>.sh`) or under `vm-images/<cloud>/`.
+if it would run unchanged on another cloud's image; cloud-specific logic
+stays in the (currently AWS-only) harness under `vm-images/scripts/` or
+under `vm-images/<cloud>/`.
 
 - Per-target HCL provisioner refs change from `../common/scripts/` to
   `../../../../common/scripts/` (target → build → family → aws → vm-images).
-- Agentic HCLs reference the AI-tooling set the same way as any other
-  common script: `../../../../common/scripts/<name>.sh`.
-- On-instance goss layout (`~/<os>/tests` + `~/common/tests`) is unchanged,
-  so `tests/goss.yaml` include lines are untouched.
-- Dead files deleted during the move: the unreferenced
-  `system_add_cbdb_build_rpm_dependencies.sh` copies in the two al2023
-  synxdb dirs.
+- The three harness files move TOGETHER (the script hard-fails if its
+  helpers are not siblings).
+- On-instance goss layout (`~/<os>/tests` + `~/common/tests`) is unchanged;
+  `tests/goss.yaml` include lines are untouched.
 
-## Section 2: Build harness
+## Section 2: Build harness (adapt, do not rewrite)
 
-`packer-build-and-test.sh` moves to `vm-images/scripts/` and becomes
-cloud-neutral:
+`packer-build-and-test.sh` + its two Python helpers move to
+`vm-images/scripts/`. The hardened behavior (private runtime key handling,
+run-nonce tagging, bounded cleanup, `--existing-ami` mode, private-only,
+test-instance goss flow, PASSED/FAILED tagging) is preserved. Changes are
+limited to identity and paths:
 
-1. Stays CWD-driven; run from inside a build target dir. No new required
-   flags.
-2. Config inferred from the directory structure:
-   `cwd = vm-images/<cloud>/<family>/build/<os>` yields `cloud=<cloud>`,
-   `family=<family>`, `os=<os>`. Errors out if the CWD does not match that
-   shape or `main.pkr.hcl` is missing.
-3. **Goss testing moves inside the Packer build**: the final provisioning
-   steps upload the target's `tests/` and `common/tests/` (preserving the
-   `~/<os>/tests` + `~/common/tests` layout so `goss.yaml` includes are
-   untouched), run goss, and download the junit results to the target dir.
-   A goss failure fails `packer build` — no image is produced. This
-   removes the harness's test-instance launch, SSH-wait, SCP, and
-   PASSED/FAILED renaming logic entirely.
-4. Remaining cloud-specific steps (credential checks, image
-   tagging/publishing, make-public toggle) live in
-   `vm-images/scripts/lib/<cloud>.sh`, sourced by the orchestrator based
-   on the inferred cloud. Only `aws.sh` is implemented in this pass; an
-   unknown cloud is a hard error naming the missing library.
-5. Image naming: `<family>-packer-<os>-<timestamp>` (drops the accidental
-   `build` segment); applies uniformly across clouds. No `-PASSED`
-   suffix — a published image implies tests passed.
-6. `common/tests` located relative to the script's own location
-   (`vm-images/scripts/../common/tests`), not guessed from CWD.
-7. The SSH-user case block is no longer needed for testing (Packer owns
-   the connection); kept only if other steps require it.
-8. `run-goss-tests.sh` deleted.
-9. ROADMAP's planned `smoke-test.sh` will live in this shared `scripts/`
-   dir when built (not part of this work).
+1. Identity derived from the directory structure:
+   `cwd = vm-images/<cloud>/<family>/build/<os>` yields CLOUD, FAMILY,
+   OS_NAME. Errors out if the CWD does not match that shape, if
+   `main.pkr.hcl` is missing, or if CLOUD is not `aws` (clear message that
+   only an AWS harness exists today).
+2. AMI naming: the hand-coded prefix case statement
+   (`synx-cloud-packer-` / `synxdb-cloud-packer-` / `cloudberry-packer-`)
+   is replaced by `<family>-packer-<os>-<timestamp>`. This drops the
+   accidental `build` segment and the special `synx-cloud-` prefix for
+   al2023 (becomes `synxdb-cloud-packer-al2023-*`). PASSED/FAILED Name-tag
+   suffixing stays on top of this base name.
+3. `common/tests` located via the script's own location
+   (`vm-images/scripts/../common/tests`) instead of `${CURRENT_DIR}/../
+   common/tests`.
+4. Everything else — required commands, region fixed to us-west-2, expected
+   AMI owner, key-pair/SG/instance lifecycle, cleanup semantics, flags —
+   unchanged.
+5. `run-goss-tests.sh` deleted.
+6. The Python test suites are updated in lockstep (Section 4a).
 
 ## Section 3: Agentic family
 
 1. Standard pattern: an agentic target's `source_ami_filter` selects the
-   latest AMI of its base target (all published AMIs are passing, per the
-   goss-as-provisioner model), with `base_family`/`base_os` recorded as
-   HCL vars in the target's `main.pkr.hcl`. The harness fails with a
-   clear error if the source filter matches nothing.
+   latest `*-PASSED` AMI of its base target, with `base_family`/`base_os`
+   recorded as HCL vars. The build fails clearly if the filter matches
+   nothing.
 2. First target `ubuntu26` is the approved exception: builds from the stock
-   canonical Ubuntu 26.04 AMI and composes shared provisioners + the AI
-   tooling itself.
-3. The ~9 AI-tooling scripts stay flat in `vm-images/common/scripts/`
-   alongside the rest (cloud-agnostic; reusable by a future gcp/azure
-   agentic family). After the split, only agentic HCLs may reference them
-   — enforced by review and documentation.
+   canonical Ubuntu 26.04 AMI (filter discovered from AWS at implementation
+   time, never guessed) and composes shared provisioners + the AI tooling
+   itself. Content is ported from ubuntu24-synxdb-cloud **after PR #5
+   merges**, inheriting its refreshed toolchain and version-check goss
+   assertions.
+3. The AI-tooling scripts stay flat in `vm-images/common/scripts/`; after
+   the split, only agentic HCLs may reference them — enforced by a policy
+   test (Section 4a), review, and documentation.
 4. Base families stop installing AI tooling: those provisioner lines are
-   removed from the synxdb-cloud HCLs (rocky10 and ubuntu24 use them
-   today); their goss AI-tool assertions move to agentic tests.
-5. AMI naming: `agentic-packer-<os>-<timestamp>` (falls out of Section 2).
-6. Agentic goss: own `tests/goss.yaml` with AI-tooling assertions plus
-   common fragment includes; base-image functionality is not re-asserted.
+   removed from base-family HCLs; their goss AI-tool assertions move to the
+   agentic target's tests.
+5. AMI naming: `agentic-packer-ubuntu26-<timestamp>` (falls out of
+   Section 2).
 
 ## Section 4: CI workflows
 
 `ami-build-on-change.yml`
-- `paths` filter: `vm-images/**` (common/ changes must trigger AWS builds).
-- Matrix computed dynamically:
+- `paths` filter: `vm-images/**` plus `tests/**` and
+  `.github/workflows/**` (today, changes under `tests/` or `.github/` never
+  run the suite — fixed as part of this work; doc-only changes stay
+  excluded).
+- Matrix computed dynamically (replaces `COMMON_SCRIPT_DEPS`):
   - change in `<cloud>/<family>/build/<target>/**` → that target;
-  - change in `common/scripts/**/X.sh` → grep all `main.pkr.hcl` files for
-    `X.sh` → affected targets (replaces the hand-maintained dep map);
-  - change in `scripts/lib/<cloud>.sh` → all of that cloud's targets;
-  - change in the orchestrator or `common/tests/` → all targets.
+  - change in `vm-images/common/scripts/X.sh` → targets whose
+    `main.pkr.hcl` references `X.sh` (computed by grep, not a map);
+  - change in `vm-images/scripts/**` or `vm-images/common/tests/**` → all
+    targets.
+- Preserved invariants (policy-tested): PRs remain validation-only
+  (build/cleanup jobs and their credential steps gated on
+  `github.event_name != 'pull_request'`); PR change detection keeps using
+  `github.event.pull_request.{base,head}.sha` with `fetch-depth: 0`;
+  offline unittest step runs before any build step; `AWS_REGION: us-west-2`
+  fixed in every workflow.
 - Every family becomes CI-buildable.
 
 `ami-build-manual.yml`
-- `build_targets`: free-form `<family>/<target>` list or `all`; matrix
-  discovered from the directory tree.
-- Validate step no longer overrides `vm_type`.
-- `max-parallel: 2` kept.
+- `build_targets`: free-form `<family>/<os>` list or `all`; matrix
+  discovered from the directory tree. `max-parallel: 2` kept. No region or
+  publish inputs (upstream already removed them).
 
 `ami-cleanup-old.yml`
 - Cleans per family: `<family>-packer-*` for each family dir found in the
-  tree.
+  tree (fixes synxdb AMIs never being cleaned up).
+- The leftover SG/key-pair cleanup filters in the build workflows are fixed
+  to match the names the harness actually creates (pre-existing mismatch).
 
 Agentic in CI: builds on changes under `agentic/**` and via manual
 dispatch. No automatic rebuild-when-base-AMI-updates trigger in this pass.
 
+## Section 4a: Python test suites (first-class migration surface)
+
+`tests/` is updated in lockstep with every structural change:
+
+- `test_packer_build_security.py`: the synthetic-tree fixture and `_metadata`
+  fixture encode the old two-level layout, `VM_TYPE=build`, and old AMI
+  names — updated to the new `<cloud>/<family>/build/<os>` shape and
+  `<family>-packer-<os>` naming. The 30 behavioral tests otherwise keep
+  their assertions (the behavior they test is preserved).
+- `test_packer_template_security.py`: `BUILD_ROOT` glob widens to
+  `vm-images/aws/*/build/*/main.pkr.hcl`; the AMI-prefix policy table
+  becomes the single `<family>-packer-` rule derived from the directory
+  name.
+- `test_repository_policy.py`: every hard-coded path (harness invocation
+  depth, surface lists, per-target goss paths) is updated; tests asserting
+  the `COMMON_SCRIPT_DEPS` structure are rewritten to assert the dynamic
+  matrix mechanism instead; `test_rocky10_claude_launcher_is_symlink` and
+  any other base-family AI assertions are removed/moved with Task "strip AI
+  tooling"; a NEW policy test enforces the agentic boundary (no base-family
+  HCL references an AI-tooling script).
+- The suite must pass (`python3 -m unittest discover -s tests`) at the end
+  of every implementation task that touches its subjects.
+
 ## Section 5: Hygiene and documentation
 
 Repo hygiene
-- Delete committed artifacts (8x `packer-manifest.json`,
-  17x `goss-test-results-*.xml`); gitignore those patterns and `*.pem`.
-- Delete `al2023-synxdb-elastic`, dead script copies, `run-goss-tests.sh`.
+- Delete `run-goss-tests.sh` (verified functionally unreferenced).
+- (Artifacts/elastic/rocky8: already handled upstream — nothing to do.)
 
-Documentation
-- `CLAUDE.md`: new layout, fix stale "21 scripts", keep provisioner-order
-  checklist, add "new family" and "new target" checklists.
-- `README.md`: new tree and invocation examples
-  (`../../../scripts/packer-build-and-test.sh`).
-- `ROADMAP.md`: path updates (`smoke-test.sh` → shared `scripts/`).
-- `.github/workflows/README.md`: updated.
-- Per-target CLAUDE.md files (synxdb-cloud rocky9/rocky10/ubuntu24): paths
-  updated; AI-tooling references move to agentic docs.
+Documentation (all under the policy tests' wording constraints: no
+"make public" phrasing; retired-platform mentions only with
+retired/archived/recoverable/history context)
+- `CLAUDE.md`: new layout, platform table, harness path, correct script
+  count, provisioner-order checklist kept, "new family" / "new target"
+  checklists added.
+- `README.md`: new tree, invocation examples
+  (`../../../../scripts/packer-build-and-test.sh`), new AMI naming.
+- `ROADMAP.md`: path updates (`smoke-test.sh` → `vm-images/scripts/`).
+- `.github/workflows/README.md`: dynamic matrix description, `family/os`
+  dispatch format.
+- `vm-images/common/tests/README.md`: path updates; also fix the stale
+  archived-platform list already present.
+- Per-target CLAUDE.md files updated; new one for `agentic/build/ubuntu26`.
 
 ## Out of scope / follow-ups
 
-- GCP and Azure image families: the layout reserves `vm-images/gcp/` and
-  `vm-images/azure/`; each future cloud adds a harness library
-  (`vm-images/scripts/lib/<cloud>.sh`) and its family dirs. No GCP/Azure
-  content is built in this pass.
-
-- dev-env-launcher `config/os-config-*.yaml` AMI filters updated to the new
-  `<family>-packer-<os>-*` naming once the first new AMIs are published.
+- dev-env-launcher `config/os-config-*.yaml` AMI filters → new
+  `<family>-packer-<os>-*` naming, once first new AMIs exist.
 - `smoke-test.sh` (ROADMAP item).
 - Automatic agentic rebuild when a base AMI updates.
-- HCL templating (Approach B — explicitly rejected for readability).
+- HCL templating (rejected).
+- Harness cloud-neutrality (deferred; revisit when a second cloud is real).
+- goss-as-provisioner (reverted; revisit only with a plan that preserves
+  the hardened flow's guarantees).
 
 ## Error handling
 
-- Harness: hard error when CWD shape is wrong, `main.pkr.hcl` missing, or
-  (chained targets) the base-AMI filter matches nothing.
-- CI: `fail-fast: false` retained so one target's failure doesn't cancel
-  siblings; a goss failure aborts the Packer build (no image produced) and
-  fails the job.
+- Harness: hard error on wrong CWD shape, missing `main.pkr.hcl`, non-aws
+  cloud segment, or missing sibling helpers (existing check).
+- Chained agentic targets: build fails clearly when the base-AMI filter
+  matches nothing.
+- CI: `fail-fast: false` retained; goss failure on the test instance tags
+  the AMI `-FAILED` and fails the job (unchanged hardened behavior).
 
 ## Testing
 
-- Harness: run a full build (goss inside) for one target per family
-  (cloudberry/rocky9, synxdb-cloud/rocky10, agentic/ubuntu26) after the
-  restructure; confirm AMI names, downloaded junit results, and that an
-  intentionally failing goss assertion aborts the build with no AMI.
-- Workflows: exercise `workflow_dispatch` for a single `<family>/<target>`;
-  verify the dynamic on-change matrix with a doc-only change (no builds),
-  a single-target change (one build), and a common-script change (grep-
-  derived set).
-- Cleanup: dry-run mode against each family's pattern before enabling.
+- `python3 -m unittest discover -s tests` green after every task.
+- Live builds (operator-gated): one target per family (cloudberry/rocky9,
+  synxdb-cloud/rocky10, agentic/ubuntu26); confirm AMI names, PASSED
+  tagging, goss results retrieved; confirm the synxdb-cloud image contains
+  no AI tooling.
+- Matrix logic tested locally against synthetic changed-file lists before
+  wiring into the workflow.
+
+## Revision history
+
+- v1 (2026-07-28): initial approved design (included goss-as-provisioner,
+  cloud-neutral harness rewrite, publish toggle).
+- v2 (2026-07-28): re-baselined against origin/main d8908be after
+  discovering 8 upstream commits (hardened private-only harness + Python
+  test suites, rocky8/elastic retirements) and open PR #5. Reverted
+  goss-as-provisioner; harness is adapted not rewritten; private-only
+  everywhere; PASSED/FAILED tagging retained; test-suite migration added
+  as a first-class section; target inventory corrected to 6.
