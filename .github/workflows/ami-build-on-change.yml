@@ -4,14 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'vm-images/aws/cloudberry/build/**'
-      - 'vm-images/aws/cloudberry/scripts/**'
+      - 'vm-images/**'
       - '!**/*.md'
   pull_request:
     branches: [main]
     paths:
-      - 'vm-images/aws/cloudberry/build/**'
-      - 'vm-images/aws/cloudberry/scripts/**'
+      - 'vm-images/**'
       - '!**/*.md'
   workflow_dispatch:  # Keep manual option too
 
@@ -39,58 +37,58 @@ jobs:
         run: |
           # Define dependency mapping for common scripts
           declare -A COMMON_SCRIPT_DEPS=(
-            ["dbadmin_configure_environment.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_awscli.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["dbadmin_configure_environment.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_awscli.sh"]="rocky9,rocky10,ubuntu24"
             ["system_add_dbadmin_ulimits.sh"]="rocky9,rocky10"
             ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky9"
-            ["system_add_claude.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_motd_manager.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_docker.sh"]="rocky9,ubuntu24-synxdb-cloud"
-            ["system_add_gh.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_golang.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_goss.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_claude.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_motd_manager.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_docker.sh"]="rocky9,ubuntu24"
+            ["system_add_gh.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_golang.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_goss.sh"]="rocky9,rocky10,ubuntu24"
             ["system_add_kernel_configs.sh"]="rocky9,rocky10"
-            ["system_add_swap.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_yq.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_adduser_dbadmin.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_swap.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_add_yq.sh"]="rocky9,rocky10,ubuntu24"
+            ["system_adduser_dbadmin.sh"]="rocky9,rocky10,ubuntu24"
             ["system_config_java_home.sh"]="rocky9"
-            ["system_config_starship_prompt.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_config_starship_prompt.sh"]="rocky9,rocky10,ubuntu24"
             ["system_configure_dnf.sh"]="rocky9,rocky10"
             ["system_disable_selinux.sh"]="rocky9,rocky10"
-            ["system_set_timezone.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            # Shared scripts consumed only by ubuntu24-synxdb-cloud today
-            ["system_add_1password_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_age.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_ai_toolchain.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_ansible.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_autoenv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_azure_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_beads.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_bun.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_cloudsmith_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_direnv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_dolt.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_dysk.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_gcloud_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_git_profiles.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_gitleaks.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_helm_kubectl.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_herdr.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_hwatch.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_k9s.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_kind.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_nodejs.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_omnigent.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_omnistrate_ctl.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_packer.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_sops.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_terraform.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_tofu.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_uv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_zellij.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_zoxide.sh"]="ubuntu24-synxdb-cloud"
-            ["system_configure_claude.sh"]="ubuntu24-synxdb-cloud"
-            ["system_configure_ssh_agent_tmux.sh"]="ubuntu24-synxdb-cloud"
+            ["system_set_timezone.sh"]="rocky9,rocky10,ubuntu24"
+            # Shared scripts consumed only by ubuntu24 today
+            ["system_add_1password_cli.sh"]="ubuntu24"
+            ["system_add_age.sh"]="ubuntu24"
+            ["system_add_ai_toolchain.sh"]="ubuntu24"
+            ["system_add_ansible.sh"]="ubuntu24"
+            ["system_add_autoenv.sh"]="ubuntu24"
+            ["system_add_azure_cli.sh"]="ubuntu24"
+            ["system_add_beads.sh"]="ubuntu24"
+            ["system_add_bun.sh"]="ubuntu24"
+            ["system_add_cloudsmith_cli.sh"]="ubuntu24"
+            ["system_add_direnv.sh"]="ubuntu24"
+            ["system_add_dolt.sh"]="ubuntu24"
+            ["system_add_dysk.sh"]="ubuntu24"
+            ["system_add_gcloud_cli.sh"]="ubuntu24"
+            ["system_add_git_profiles.sh"]="ubuntu24"
+            ["system_add_gitleaks.sh"]="ubuntu24"
+            ["system_add_helm_kubectl.sh"]="ubuntu24"
+            ["system_add_herdr.sh"]="ubuntu24"
+            ["system_add_hwatch.sh"]="ubuntu24"
+            ["system_add_k9s.sh"]="ubuntu24"
+            ["system_add_kind.sh"]="ubuntu24"
+            ["system_add_nodejs.sh"]="ubuntu24"
+            ["system_add_omnigent.sh"]="ubuntu24"
+            ["system_add_omnistrate_ctl.sh"]="ubuntu24"
+            ["system_add_packer.sh"]="ubuntu24"
+            ["system_add_sops.sh"]="ubuntu24"
+            ["system_add_terraform.sh"]="ubuntu24"
+            ["system_add_tofu.sh"]="ubuntu24"
+            ["system_add_uv.sh"]="ubuntu24"
+            ["system_add_zellij.sh"]="ubuntu24"
+            ["system_add_zoxide.sh"]="ubuntu24"
+            ["system_configure_claude.sh"]="ubuntu24"
+            ["system_configure_ssh_agent_tmux.sh"]="ubuntu24"
           )
 
           # Get changed files
@@ -122,7 +120,7 @@ jobs:
 
             case "$file" in
               # Common scripts
-              "vm-images/aws/cloudberry/build/common/scripts/"*.sh)
+              "vm-images/common/scripts/"*.sh)
                 script_name=$(basename "$file")
                 echo "Common script changed: $script_name"
                 if [[ -n "${COMMON_SCRIPT_DEPS[$script_name]}" ]]; then
@@ -136,46 +134,37 @@ jobs:
 
               # Platform-specific scripts (exact platform dirs only, so
               # synxdb variants do not trigger base-platform rebuilds)
-              "vm-images/aws/cloudberry/build/rocky9/scripts/"*.sh)
-                echo "rocky9-specific script changed"
-                builds_to_run+=("rocky9")
-                ;;
-
-              "vm-images/aws/cloudberry/build/rocky10/scripts/"*.sh)
-                echo "rocky10-specific script changed"
-                builds_to_run+=("rocky10")
-                ;;
-
-              "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/scripts/"*.sh)
-                echo "ubuntu24-synxdb-cloud-specific script changed"
-                builds_to_run+=("ubuntu24-synxdb-cloud")
+              "vm-images/aws/*/build/*/scripts/"*.sh)
+                os=$(echo "$file" | cut -d'/' -f5)
+                echo "$os-specific script changed"
+                builds_to_run+=("$os")
                 ;;
 
               # Specific build HCL files
-              "vm-images/aws/cloudberry/build/"*"/main.pkr.hcl")
+              "vm-images/aws/"*"/build/"*"/main.pkr.hcl")
                 build_name=$(echo "$file" | cut -d'/' -f5)
                 echo "Packer HCL changed for: $build_name"
                 builds_to_run+=("$build_name")
                 ;;
 
               # Specific build test files
-              "vm-images/aws/cloudberry/build/"*"/tests/goss.yaml")
+              "vm-images/aws/"*"/build/"*"/tests/goss.yaml")
                 build_name=$(echo "$file" | cut -d'/' -f5)
                 echo "Goss test changed for: $build_name"
                 builds_to_run+=("$build_name")
                 ;;
 
               # Common test files (used by all platforms)
-              "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
+              "vm-images/common/tests/"*.yaml)
                 test_file=$(basename "$file")
                 echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
+                builds_to_run+=("rocky9" "rocky10" "ubuntu24")
                 ;;
 
               # Main build script affects all
-              "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
+              "vm-images/scripts/"*)
                 echo "Main build script changed - rebuilding all"
-                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
+                builds_to_run+=("rocky9" "rocky10" "ubuntu24")
                 ;;
 
               *)
@@ -188,7 +177,11 @@ jobs:
           # and create matrix
           unique_builds=()
           while IFS= read -r build; do
-            if [[ -n "$build" ]] && [ -d "vm-images/aws/cloudberry/build/$build" ]; then
+            case "$build" in
+              ubuntu24) build_family="synxdb-cloud" ;;
+              *) build_family="cloudberry" ;;
+            esac
+            if [[ -n "$build" ]] && [ -d "vm-images/aws/${build_family}/build/$build" ]; then
               unique_builds+=("$build")
             elif [[ -n "$build" ]]; then
               echo "Skipping build with missing directory: $build"
@@ -209,7 +202,11 @@ jobs:
               if [ $i -gt 0 ]; then
                 matrix_json+=","
               fi
-              matrix_json+="{\"name\":\"${unique_builds[$i]}\",\"os-family\":\"$(echo ${unique_builds[$i]} | grep -o '^[a-z]*')\",\"path\":\"vm-images/aws/cloudberry/build/${unique_builds[$i]}\"}"
+              case "${unique_builds[$i]}" in
+                ubuntu24) build_family="synxdb-cloud" ;;
+                *) build_family="cloudberry" ;;
+              esac
+              matrix_json+="{\"family\":\"${build_family}\",\"name\":\"${unique_builds[$i]}\",\"os-family\":\"$(echo ${unique_builds[$i]} | grep -o '^[a-z]*')\",\"path\":\"vm-images/aws/${build_family}/build/${unique_builds[$i]}\"}"
             done
             matrix_json+="]}"
 
@@ -246,7 +243,7 @@ jobs:
           echo "Initializing Packer plugins for ${{ matrix.build.name }}"
           packer init main.pkr.hcl
           echo "Validating Packer template for ${{ matrix.build.name }}"
-          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
+          packer validate -var "family=${{ matrix.build.family }}" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
 
   build:
     needs: [detect-changes, validate]
@@ -293,8 +290,8 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
         run: |
           echo "Building AMI for ${{ matrix.build.name }}"
-          chmod +x ../../scripts/packer-build-and-test.sh
-          ../../scripts/packer-build-and-test.sh
+          chmod +x ../../../../scripts/packer-build-and-test.sh
+          ../../../../scripts/packer-build-and-test.sh
 
       - name: Upload build artifacts
         if: always()

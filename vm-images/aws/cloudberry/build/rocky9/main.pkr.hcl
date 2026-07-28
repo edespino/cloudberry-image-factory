@@ -7,8 +7,8 @@ packer {
   }
 }
 
-variable "vm_type" {
-  type    = string
+variable "family" {
+  type = string
 }
 
 variable "os_name" {
@@ -66,7 +66,7 @@ source "amazon-ebs" "base-cbdb-build-image" {
   ssh_username         = "rocky"
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
-  ami_name = format("cloudberry-packer-%s-%s-%s", var.vm_type, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
+  ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -81,7 +81,7 @@ build {
 
   # Configure DNF for resilient package operations (must run first)
   provisioner "shell" {
-    script = "../common/scripts/system_configure_dnf.sh"
+    script = "../../../../common/scripts/system_configure_dnf.sh"
   }
 
   provisioner "shell" {
@@ -90,14 +90,14 @@ build {
 
   # Create gpadmin user first
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    script = "../../../../common/scripts/system_add_dbadmin_ulimits.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -105,62 +105,62 @@ build {
 
   # Create cbadmin user second
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_dbadmin_ulimits.sh"
+    script = "../../../../common/scripts/system_add_dbadmin_ulimits.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_yq.sh"
+    script = "../../../../common/scripts/system_add_yq.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_awscli.sh"
+    script = "../../../../common/scripts/system_add_awscli.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_set_timezone.sh"
+    script = "../../../../common/scripts/system_set_timezone.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_golang.sh"
+    script = "../../../../common/scripts/system_add_golang.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_cbdb_xerces_c_build_dependency.sh"
+    script = "../../../../common/scripts/system_add_cbdb_xerces_c_build_dependency.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_config_java_home.sh"
+    script = "../../../../common/scripts/system_config_java_home.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_config_starship_prompt.sh"
+    script = "../../../../common/scripts/system_config_starship_prompt.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_disable_selinux.sh"
+    script = "../../../../common/scripts/system_disable_selinux.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_kernel_configs.sh"
+    script = "../../../../common/scripts/system_add_kernel_configs.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_swap.sh"
+    script = "../../../../common/scripts/system_add_swap.sh"
   }
 
   # Configure gpadmin environment
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -168,19 +168,19 @@ build {
 
   # Configure cbadmin environment
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_motd_manager.sh"
+    script = "../../../../common/scripts/system_add_motd_manager.sh"
   }
 
   # Install Claude CLI for gpadmin
   provisioner "shell" {
-    script = "../common/scripts/system_add_claude.sh"
+    script = "../../../../common/scripts/system_add_claude.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -188,22 +188,22 @@ build {
 
   # Install Claude CLI for cbadmin
   provisioner "shell" {
-    script = "../common/scripts/system_add_claude.sh"
+    script = "../../../../common/scripts/system_add_claude.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_gh.sh"
+    script = "../../../../common/scripts/system_add_gh.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_goss.sh"
+    script = "../../../../common/scripts/system_add_goss.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_docker.sh"
+    script = "../../../../common/scripts/system_add_docker.sh"
   }
 
   post-processors {

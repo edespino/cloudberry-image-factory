@@ -7,8 +7,8 @@ packer {
   }
 }
 
-variable "vm_type" {
-  type    = string
+variable "family" {
+  type = string
 }
 
 variable "os_name" {
@@ -66,7 +66,7 @@ source "amazon-ebs" "base-build-image" {
   ssh_username         = "ubuntu"
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
-  ami_name = format("synxdb-cloud-packer-%s-%s-%s", var.vm_type, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
+  ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -109,7 +109,7 @@ build {
 
   # Create gpadmin user first
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -117,43 +117,43 @@ build {
 
   # Create cbadmin user second
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_yq.sh"
+    script = "../../../../common/scripts/system_add_yq.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_awscli.sh"
+    script = "../../../../common/scripts/system_add_awscli.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_azure_cli.sh"
+    script = "../../../../common/scripts/system_add_azure_cli.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_gcloud_cli.sh"
+    script = "../../../../common/scripts/system_add_gcloud_cli.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_set_timezone.sh"
+    script = "../../../../common/scripts/system_set_timezone.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_config_starship_prompt.sh"
+    script = "../../../../common/scripts/system_config_starship_prompt.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_swap.sh"
+    script = "../../../../common/scripts/system_add_swap.sh"
   }
 
   # Configure gpadmin environment
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -161,7 +161,7 @@ build {
 
   # Configure cbadmin environment
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -169,78 +169,78 @@ build {
 
   # Configure ubuntu environment
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=ubuntu"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_gh.sh"
+    script = "../../../../common/scripts/system_add_gh.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_helm_kubectl.sh"
+    script = "../../../../common/scripts/system_add_helm_kubectl.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_omnistrate_ctl.sh"
+    script = "../../../../common/scripts/system_add_omnistrate_ctl.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_k9s.sh"
+    script = "../../../../common/scripts/system_add_k9s.sh"
   }
 
   # Install kind (Kubernetes IN Docker)
   provisioner "shell" {
-    script = "../common/scripts/system_add_kind.sh"
+    script = "../../../../common/scripts/system_add_kind.sh"
   }
 
   # Install Terraform
   provisioner "shell" {
-    script = "../common/scripts/system_add_terraform.sh"
+    script = "../../../../common/scripts/system_add_terraform.sh"
   }
 
   # Install OpenTofu
   provisioner "shell" {
-    script = "../common/scripts/system_add_tofu.sh"
+    script = "../../../../common/scripts/system_add_tofu.sh"
   }
 
   # Install Packer (HashiCorp APT repo)
   provisioner "shell" {
-    script = "../common/scripts/system_add_packer.sh"
+    script = "../../../../common/scripts/system_add_packer.sh"
   }
 
   # Install age (file encryption)
   provisioner "shell" {
-    script = "../common/scripts/system_add_age.sh"
+    script = "../../../../common/scripts/system_add_age.sh"
   }
 
   # Install sops (secrets management)
   provisioner "shell" {
-    script = "../common/scripts/system_add_sops.sh"
+    script = "../../../../common/scripts/system_add_sops.sh"
   }
 
   # Install ansible-core + community.sops collection
   provisioner "shell" {
-    script = "../common/scripts/system_add_ansible.sh"
+    script = "../../../../common/scripts/system_add_ansible.sh"
   }
 
   # Install uv (required by omnigent)
   provisioner "shell" {
-    script = "../common/scripts/system_add_uv.sh"
+    script = "../../../../common/scripts/system_add_uv.sh"
   }
 
   # Install Node.js 22 LTS (required by omnigent's claude/codex/pi harnesses)
   provisioner "shell" {
-    script = "../common/scripts/system_add_nodejs.sh"
+    script = "../../../../common/scripts/system_add_nodejs.sh"
   }
 
   # Install the AI agent toolchain for ubuntu (single consolidated process:
   # claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes
   # — all per-user so each tool can self-update)
   provisioner "shell" {
-    script = "../common/scripts/system_add_ai_toolchain.sh"
+    script = "../../../../common/scripts/system_add_ai_toolchain.sh"
     environment_vars = [
       "DB_USERNAME=ubuntu"
     ]
@@ -248,22 +248,22 @@ build {
 
   # Install Omnigent for ubuntu
   provisioner "shell" {
-    script = "../common/scripts/system_add_omnigent.sh"
+    script = "../../../../common/scripts/system_add_omnigent.sh"
     environment_vars = [
       "DB_USERNAME=ubuntu"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_1password_cli.sh"
+    script = "../../../../common/scripts/system_add_1password_cli.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_direnv.sh"
+    script = "../../../../common/scripts/system_add_direnv.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_motd_manager.sh"
+    script = "../../../../common/scripts/system_add_motd_manager.sh"
     environment_vars = [
       "MOTD_TEMPLATE=synx"
     ]
@@ -271,7 +271,7 @@ build {
 
   # Install Claude CLI for gpadmin
   provisioner "shell" {
-    script = "../common/scripts/system_add_claude.sh"
+    script = "../../../../common/scripts/system_add_claude.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -279,7 +279,7 @@ build {
 
   # Install Claude CLI for cbadmin
   provisioner "shell" {
-    script = "../common/scripts/system_add_claude.sh"
+    script = "../../../../common/scripts/system_add_claude.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -290,79 +290,79 @@ build {
 
   # Install gitleaks + auto-enable pre-commit hook via init.templatedir
   provisioner "shell" {
-    script = "../common/scripts/system_add_gitleaks.sh"
+    script = "../../../../common/scripts/system_add_gitleaks.sh"
   }
 
   # NOTE: opencode for ubuntu comes from system_add_ai_toolchain.sh above.
 
   # Install Cloudsmith CLI (pip --user, installs to /home/ubuntu/.local/bin/cloudsmith)
   provisioner "shell" {
-    script = "../common/scripts/system_add_cloudsmith_cli.sh"
+    script = "../../../../common/scripts/system_add_cloudsmith_cli.sh"
   }
 
   # Install autoenv for .env file support (system-wide)
   provisioner "shell" {
-    script = "../common/scripts/system_add_autoenv.sh"
+    script = "../../../../common/scripts/system_add_autoenv.sh"
   }
 
   # Install git-profile selector command
   provisioner "shell" {
-    script = "../common/scripts/system_add_git_profiles.sh"
+    script = "../../../../common/scripts/system_add_git_profiles.sh"
   }
 
   # Install zellij terminal multiplexer
   provisioner "shell" {
-    script = "../common/scripts/system_add_zellij.sh"
+    script = "../../../../common/scripts/system_add_zellij.sh"
   }
 
   # Install herdr (agent multiplexer)
   provisioner "shell" {
-    script = "../common/scripts/system_add_herdr.sh"
+    script = "../../../../common/scripts/system_add_herdr.sh"
   }
 
   # Install hwatch (modern watch alternative)
   provisioner "shell" {
-    script = "../common/scripts/system_add_hwatch.sh"
+    script = "../../../../common/scripts/system_add_hwatch.sh"
   }
 
   # Install dysk (better df alternative)
   provisioner "shell" {
-    script = "../common/scripts/system_add_dysk.sh"
+    script = "../../../../common/scripts/system_add_dysk.sh"
   }
 
   # Install zoxide (smarter cd command)
   provisioner "shell" {
-    script = "../common/scripts/system_add_zoxide.sh"
+    script = "../../../../common/scripts/system_add_zoxide.sh"
   }
 
   # Install Go
   provisioner "shell" {
-    script = "../common/scripts/system_add_golang.sh"
+    script = "../../../../common/scripts/system_add_golang.sh"
   }
 
   # Install Dolt
   provisioner "shell" {
-    script = "../common/scripts/system_add_dolt.sh"
+    script = "../../../../common/scripts/system_add_dolt.sh"
   }
 
   # Install beads/bd
   provisioner "shell" {
-    script = "../common/scripts/system_add_beads.sh"
+    script = "../../../../common/scripts/system_add_beads.sh"
   }
 
   # Install Bun JavaScript runtime
   provisioner "shell" {
-    script = "../common/scripts/system_add_bun.sh"
+    script = "../../../../common/scripts/system_add_bun.sh"
   }
 
   # Configure SSH agent forwarding persistence for tmux
   provisioner "shell" {
-    script = "../common/scripts/system_configure_ssh_agent_tmux.sh"
+    script = "../../../../common/scripts/system_configure_ssh_agent_tmux.sh"
   }
 
   # Configure Claude Code settings for gpadmin
   provisioner "shell" {
-    script = "../common/scripts/system_configure_claude.sh"
+    script = "../../../../common/scripts/system_configure_claude.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -370,7 +370,7 @@ build {
 
   # Configure Claude Code settings for cbadmin
   provisioner "shell" {
-    script = "../common/scripts/system_configure_claude.sh"
+    script = "../../../../common/scripts/system_configure_claude.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -378,18 +378,18 @@ build {
 
   # Configure Claude Code settings for ubuntu
   provisioner "shell" {
-    script = "../common/scripts/system_configure_claude.sh"
+    script = "../../../../common/scripts/system_configure_claude.sh"
     environment_vars = [
       "DB_USERNAME=ubuntu"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_goss.sh"
+    script = "../../../../common/scripts/system_add_goss.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_docker.sh"
+    script = "../../../../common/scripts/system_add_docker.sh"
   }
 
   post-processors {

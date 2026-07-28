@@ -17,7 +17,7 @@ class RepositoryPolicyTests(unittest.TestCase):
                 test_position = workflow.find(
                     "python3 -m unittest discover -s tests"
                 )
-                build_position = workflow.rfind("../../scripts/packer-build-and-test.sh")
+                build_position = workflow.rfind("../../../../scripts/packer-build-and-test.sh")
                 self.assertGreaterEqual(test_position, 0)
                 self.assertGreater(build_position, test_position)
                 self.assertIn("install -d -m 0700", workflow)
@@ -89,9 +89,12 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertFalse(
             (REPOSITORY / "vm-images/aws/cloudberry/build" / retired).exists()
         )
+        self.assertFalse(
+            (REPOSITORY / "vm-images/aws/synxdb-cloud/build" / retired).exists()
+        )
         active_configuration = (
             REPOSITORY
-            / "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh"
+            / "vm-images/scripts/packer-build-and-test.sh"
         ).read_text()
         active_configuration += (
             REPOSITORY / "tests/test_packer_template_security.py"
@@ -107,16 +110,19 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertFalse(
             (REPOSITORY / "vm-images/aws/cloudberry/build" / retired).exists()
         )
+        self.assertFalse(
+            (REPOSITORY / "vm-images/aws/synxdb-cloud/build" / retired).exists()
+        )
 
         active_surfaces = [
             REPOSITORY
-            / "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh",
+            / "vm-images/scripts/packer-build-and-test.sh",
             REPOSITORY / "tests/test_packer_template_security.py",
             REPOSITORY / "README.md",
             REPOSITORY / "CLAUDE.md",
             REPOSITORY / ".github/workflows/README.md",
             REPOSITORY
-            / "vm-images/aws/cloudberry/build/common/tests/README.md",
+            / "vm-images/common/tests/README.md",
             *(REPOSITORY / ".github/workflows").glob("*.yml"),
         ]
         # Deliberate retirement/history wording is allowed; stale operational
@@ -193,8 +199,8 @@ class RepositoryPolicyTests(unittest.TestCase):
 
     def test_synxdb_cloud_templates_require_no_cloudsmith_variables(self) -> None:
         templates = sorted(
-            (REPOSITORY / "vm-images/aws/cloudberry/build").glob(
-                "*-synxdb-cloud/main.pkr.hcl"
+            (REPOSITORY / "vm-images/aws/synxdb-cloud/build").glob(
+                "*/main.pkr.hcl"
             )
         )
         self.assertGreater(len(templates), 0)
@@ -215,10 +221,10 @@ class RepositoryPolicyTests(unittest.TestCase):
     def test_ubuntu24_synxdb_cloud_rebuilds_when_shared_scripts_change(self) -> None:
         pkr = (
             REPOSITORY
-            / "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/main.pkr.hcl"
+            / "vm-images/aws/synxdb-cloud/build/ubuntu24/main.pkr.hcl"
         ).read_text()
         shared_scripts = sorted(
-            set(re.findall(r"\.\./common/scripts/([a-z0-9_]+\.sh)", pkr))
+            set(re.findall(r"\.\./\.\./\.\./\.\./common/scripts/([a-z0-9_]+\.sh)", pkr))
         )
         self.assertTrue(shared_scripts)
         workflow = (
@@ -233,13 +239,13 @@ class RepositoryPolicyTests(unittest.TestCase):
                     mapping, f"{script} missing from COMMON_SCRIPT_DEPS"
                 )
                 self.assertIn(
-                    "ubuntu24-synxdb-cloud", mapping.group(1).split(",")
+                    "ubuntu24", mapping.group(1).split(",")
                 )
 
     def test_ubuntu24_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (
             REPOSITORY
-            / "vm-images/aws/cloudberry/build/common/scripts"
+            / "vm-images/common/scripts"
             / "system_add_ai_toolchain.sh"
         ).read_text()
         # The installer hard-fails unless every binary in this loop exists;
@@ -251,7 +257,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertTrue(suffixes)
         goss = (
             REPOSITORY
-            / "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/tests"
+            / "vm-images/aws/synxdb-cloud/build/ubuntu24/tests"
             / "goss.yaml"
         ).read_text()
         for suffix in suffixes:
@@ -263,9 +269,7 @@ class RepositoryPolicyTests(unittest.TestCase):
 
     def test_template_comments_explain_description_omission_without_version_pin(self) -> None:
         for template in sorted(
-            (REPOSITORY / "vm-images/aws/cloudberry/build").glob(
-                "*/main.pkr.hcl"
-            )
+            REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")
         ):
             content = template.read_text()
             with self.subTest(template=template.parent.name):
@@ -279,7 +283,7 @@ class RepositoryPolicyTests(unittest.TestCase):
     def test_metadata_helper_documents_not_publicly_shared_policy(self) -> None:
         helper = (
             REPOSITORY
-            / "vm-images/aws/cloudberry/scripts/validate-ami-metadata.py"
+            / "vm-images/scripts/validate-ami-metadata.py"
         ).read_text()
         self.assertIn("not-publicly-shared", helper.splitlines()[1])
 

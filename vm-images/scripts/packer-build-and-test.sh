@@ -121,9 +121,20 @@ if [ ! -f "$HCL_FILE" ]; then
   exit 1
 fi
 
-# Derive OS_NAME and VM_TYPE from the HCL file's location
-VM_TYPE=$(basename "$(dirname "$CURRENT_DIR")")  # VM_TYPE is the parent directory name
-OS_NAME=$(basename "$CURRENT_DIR")  # OS_NAME is the current directory name
+# Derive CLOUD, FAMILY, and OS_NAME from the directory structure:
+#   vm-images/<cloud>/<family>/build/<os>
+OS_NAME=$(basename "$CURRENT_DIR")
+FAMILY=$(basename "$(dirname "$(dirname "$CURRENT_DIR")")")
+CLOUD=$(basename "$(dirname "$(dirname "$(dirname "$CURRENT_DIR")")")")
+if [ "$(basename "$(dirname "$CURRENT_DIR")")" != "build" ] || \
+   [ "$(basename "$(dirname "$(dirname "$(dirname "$(dirname "$CURRENT_DIR")")")")")" != "vm-images" ]; then
+  echo "Error: run from vm-images/<cloud>/<family>/build/<os>/ (got: ${CURRENT_DIR})" >&2
+  exit 1
+fi
+if [ "${CLOUD}" != "aws" ]; then
+  echo "Error: no harness exists for cloud '${CLOUD}' (only aws is supported)." >&2
+  exit 1
+fi
 # Determine the correct SSH user based on the OS
 case "$OS_NAME" in
     rocky*|rhel*)
@@ -158,31 +169,21 @@ RUN_ID="${TIMESTAMP}-${RUN_NONCE}"
 RUN_TAG_KEY="CloudberryImageFactoryRun"
 CLIENT_TOKEN="cloudberry-${RUN_ID}"
 
-case "${OS_NAME}" in
-  al2023-synxdb-cloud)
-    AMI_NAME_PREFIX="synx-cloud-packer-${VM_TYPE}-${OS_NAME}-"
-    ;;
-  *-synxdb-cloud)
-    AMI_NAME_PREFIX="synxdb-cloud-packer-${VM_TYPE}-${OS_NAME}-"
-    ;;
-  *)
-    AMI_NAME_PREFIX="cloudberry-packer-${VM_TYPE}-${OS_NAME}-"
-    ;;
-esac
+AMI_NAME_PREFIX="${FAMILY}-packer-${OS_NAME}-"
 if [ -n "${EXISTING_AMI}" ] && [[ ! "${EXISTING_AMI}" =~ ^ami-[0-9a-f]{8,17}$ ]]; then
   echo "Error: existing AMI ID has invalid syntax." >&2
   exit 2
 fi
 
 # Variables for AWS resources
-export PKR_VAR_KEY_NAME="key-${VM_TYPE}-${OS_NAME}-${RUN_ID}"  # Name for the temporary key pair
+export PKR_VAR_KEY_NAME="key-${FAMILY}-${OS_NAME}-${RUN_ID}"  # Name for the temporary key pair
 export PKR_VAR_PRIVATE_KEY_FILE=""
 PRIVATE_KEY_DIR=""
 PRIVATE_RUNTIME_BASE=""
 FALLBACK_RUNTIME_CREATED=false
 PRIVATE_KEY_FILENAME="${PKR_VAR_KEY_NAME}.pem"
 AWS_KEY_PAIR_CREATION_ATTEMPTED=false
-SECURITY_GROUP_NAME="${VM_TYPE}-${OS_NAME}-${RUN_ID}-sg"
+SECURITY_GROUP_NAME="${FAMILY}-${OS_NAME}-${RUN_ID}-sg"
 SECURITY_GROUP_ID=""
 SECURITY_GROUP_CREATION_ATTEMPTED=false
 SECURITY_GROUP_DISCOVERY_EXHAUSTED=false
@@ -481,7 +482,7 @@ if [ -z "${EXISTING_AMI}" ]; then
   # Step 3: Validate the Packer template
   echo "Validating Packer template..."
   if ! packer validate \
-    -var "vm_type=${VM_TYPE}" \
+    -var "family=${FAMILY}" \
     -var "os_name=${OS_NAME}" \
     -var "region=${REGION}" \
     "${HCL_FILE}"; then
@@ -492,7 +493,7 @@ if [ -z "${EXISTING_AMI}" ]; then
   # Step 4: Build the AMI using the Packer template
   echo "Building the Packer template..."
   packer build \
-    -var "vm_type=${VM_TYPE}" \
+    -var "family=${FAMILY}" \
     -var "os_name=${OS_NAME}" \
     -var "region=${REGION}" \
     "${HCL_FILE}"
@@ -540,7 +541,7 @@ SECURITY_GROUP_CREATION_ATTEMPTED=true
 if ! SECURITY_GROUP_ID="$(
   aws ec2 create-security-group \
     --group-name "${SECURITY_GROUP_NAME}" \
-    --description "Security group for ${OS_NAME} ${VM_TYPE}" \
+    --description "Security group for ${OS_NAME} ${FAMILY}" \
     --tag-specifications \
       "ResourceType=security-group,Tags=[{Key=${RUN_TAG_KEY},Value=${RUN_ID}}]" \
     --region "${REGION}" --query "GroupId" --output "text"
@@ -636,13 +637,13 @@ ssh -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
     "mkdir -p ~/${OS_NAME}/tests ~/common/tests"
 
 # Copy common test files
-if [ -d "${CURRENT_DIR}/../common/tests" ]; then
+if [ -d "${SCRIPT_DIR}/../common/tests" ]; then
     echo "Copying common test files..."
     scp -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
         -o "StrictHostKeyChecking=no" \
         -o "UserKnownHostsFile=/dev/null" \
         -o "LogLevel=ERROR" \
-        "${CURRENT_DIR}/../common/tests/"*.yaml \
+        "${SCRIPT_DIR}/../common/tests/"*.yaml \
         "${OS_USER}@${HOSTNAME}:~/common/tests/"
 fi
 

@@ -7,8 +7,8 @@ packer {
   }
 }
 
-variable "vm_type" {
-  type    = string
+variable "family" {
+  type = string
 }
 
 variable "os_name" {
@@ -66,7 +66,7 @@ source "amazon-ebs" "base-build-image" {
   ssh_username         = "ec2-user"
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
-  ami_name = format("synx-cloud-packer-%s-%s-%s", var.vm_type, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
+  ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
 
   launch_block_device_mappings {
     device_name           = "/dev/xvda"
@@ -81,7 +81,7 @@ build {
 
   # Configure DNF for resilient package operations (must run first)
   provisioner "shell" {
-    script = "../common/scripts/system_configure_dnf.sh"
+    script = "../../../../common/scripts/system_configure_dnf.sh"
   }
 
   # Install platform-specific dependencies
@@ -91,12 +91,12 @@ build {
 
   # System configuration
   provisioner "shell" {
-    script = "../common/scripts/system_set_timezone.sh"
+    script = "../../../../common/scripts/system_set_timezone.sh"
   }
 
   # Create gpadmin user
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
@@ -104,7 +104,7 @@ build {
 
   # Create cbadmin user
   provisioner "shell" {
-    script = "../common/scripts/system_adduser_dbadmin.sh"
+    script = "../../../../common/scripts/system_adduser_dbadmin.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -112,31 +112,31 @@ build {
 
   # Install operational tools
   provisioner "shell" {
-    script = "../common/scripts/system_add_docker.sh"
+    script = "../../../../common/scripts/system_add_docker.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_helm_kubectl.sh"
+    script = "../../../../common/scripts/system_add_helm_kubectl.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_add_gh.sh"
+    script = "../../../../common/scripts/system_add_gh.sh"
   }
 
   provisioner "shell" {
-    script = "../common/scripts/system_config_starship_prompt.sh"
+    script = "../../../../common/scripts/system_config_starship_prompt.sh"
   }
 
   # Configure user environments
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=gpadmin"
     ]
   }
 
   provisioner "shell" {
-    script = "../common/scripts/dbadmin_configure_environment.sh"
+    script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -144,7 +144,7 @@ build {
 
   # Configure MOTD with Synx template
   provisioner "shell" {
-    script = "../common/scripts/system_add_motd_manager.sh"
+    script = "../../../../common/scripts/system_add_motd_manager.sh"
     environment_vars = [
       "MOTD_TEMPLATE=synx"
     ]
@@ -152,7 +152,7 @@ build {
 
   # Install Goss testing framework (must be last)
   provisioner "shell" {
-    script = "../common/scripts/system_add_goss.sh"
+    script = "../../../../common/scripts/system_add_goss.sh"
   }
 
   post-processors {

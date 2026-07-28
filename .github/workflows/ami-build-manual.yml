@@ -12,7 +12,7 @@ on:
           - 'all'
           - 'rocky9'
           - 'rocky10'
-          - 'ubuntu24-synxdb-cloud'
+          - 'ubuntu24'
           - 'rocky9,rocky10'
   # schedule:
   #   # Run weekly builds on Sundays at 2 AM UTC
@@ -32,7 +32,7 @@ jobs:
         id: set-matrix
         run: |
           # Available builds
-          all_builds=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
+          all_builds=("rocky9" "rocky10" "ubuntu24")
 
           # Determine which builds to run
           if [ "${{ github.event_name }}" == "schedule" ]; then
@@ -72,7 +72,11 @@ jobs:
             fi
 
             os_family=$(echo "$build_name" | grep -o '^[a-z]*')
-            matrix_json+="{\"name\":\"$build_name\",\"os-family\":\"$os_family\",\"path\":\"vm-images/aws/cloudberry/build/$build_name\"}"
+            case "$build_name" in
+              ubuntu24) build_family="synxdb-cloud" ;;
+              *) build_family="cloudberry" ;;
+            esac
+            matrix_json+="{\"family\":\"$build_family\",\"name\":\"$build_name\",\"os-family\":\"$os_family\",\"path\":\"vm-images/aws/$build_family/build/$build_name\"}"
           done
           matrix_json+="]}"
 
@@ -104,7 +108,7 @@ jobs:
           echo "Initializing Packer plugins for ${{ matrix.build.name }}"
           packer init main.pkr.hcl
           echo "Validating Packer template for ${{ matrix.build.name }}"
-          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
+          packer validate -var "family=${{ matrix.build.family }}" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
 
   build:
     needs: [setup-matrix, validate]
@@ -153,9 +157,9 @@ jobs:
           echo "Build trigger: ${{ github.event_name }}"
           echo "Region: ${{ env.AWS_REGION }}"
 
-          chmod +x ../../scripts/packer-build-and-test.sh
+          chmod +x ../../../../scripts/packer-build-and-test.sh
 
-          ../../scripts/packer-build-and-test.sh
+          ../../../../scripts/packer-build-and-test.sh
 
       - name: Upload build artifacts
         if: always()
