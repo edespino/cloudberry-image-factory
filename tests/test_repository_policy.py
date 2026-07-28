@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 import yaml
 
@@ -210,6 +211,55 @@ class RepositoryPolicyTests(unittest.TestCase):
             with self.subTest(workflow=name):
                 self.assertNotIn("PKR_VAR_cloudsmith_user", workflow)
                 self.assertNotIn("PKR_VAR_cloudsmith_token", workflow)
+
+    def test_ubuntu24_synxdb_cloud_rebuilds_when_shared_scripts_change(self) -> None:
+        pkr = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/main.pkr.hcl"
+        ).read_text()
+        shared_scripts = sorted(
+            set(re.findall(r"\.\./common/scripts/([a-z0-9_]+\.sh)", pkr))
+        )
+        self.assertTrue(shared_scripts)
+        workflow = (
+            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
+        ).read_text()
+        for script in shared_scripts:
+            with self.subTest(script=script):
+                mapping = re.search(
+                    r'\["' + re.escape(script) + r'"\]="([^"]*)"', workflow
+                )
+                self.assertIsNotNone(
+                    mapping, f"{script} missing from COMMON_SCRIPT_DEPS"
+                )
+                self.assertIn(
+                    "ubuntu24-synxdb-cloud", mapping.group(1).split(",")
+                )
+
+    def test_ubuntu24_goss_covers_ai_toolchain_executables(self) -> None:
+        toolchain = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/common/scripts"
+            / "system_add_ai_toolchain.sh"
+        ).read_text()
+        # The installer hard-fails unless every binary in this loop exists;
+        # goss must verify each of them (and its version command) too.
+        verification_loop = toolchain.split("for BIN in", 1)[1].split("do", 1)[0]
+        suffixes = sorted(
+            set(re.findall(r'"\$\{USER_HOME\}/([^"]+)"', verification_loop))
+        )
+        self.assertTrue(suffixes)
+        goss = (
+            REPOSITORY
+            / "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/tests"
+            / "goss.yaml"
+        ).read_text()
+        for suffix in suffixes:
+            path = f"/home/ubuntu/{suffix}"
+            with self.subTest(executable=path):
+                self.assertIn(path, goss)
+        # herdr installs system-wide via its own provisioner
+        self.assertIn("/usr/local/bin/herdr", goss)
 
     def test_template_comments_explain_description_omission_without_version_pin(self) -> None:
         for template in sorted(

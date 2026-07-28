@@ -39,25 +39,58 @@ jobs:
         run: |
           # Define dependency mapping for common scripts
           declare -A COMMON_SCRIPT_DEPS=(
-            ["dbadmin_configure_environment.sh"]="rocky9,rocky10"
-            ["system_add_awscli.sh"]="rocky9,rocky10"
+            ["dbadmin_configure_environment.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_awscli.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
             ["system_add_dbadmin_ulimits.sh"]="rocky9,rocky10"
             ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky9"
-            ["system_add_claude.sh"]="rocky9,rocky10"
-            ["system_add_motd_manager.sh"]="rocky9,rocky10"
-            ["system_add_docker.sh"]="rocky9"
-            ["system_add_gh.sh"]="rocky9,rocky10"
-            ["system_add_golang.sh"]="rocky9,rocky10"
-            ["system_add_goss.sh"]="rocky9,rocky10"
+            ["system_add_claude.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_motd_manager.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_docker.sh"]="rocky9,ubuntu24-synxdb-cloud"
+            ["system_add_gh.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_golang.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_goss.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
             ["system_add_kernel_configs.sh"]="rocky9,rocky10"
-            ["system_add_swap.sh"]="rocky9,rocky10"
-            ["system_add_yq.sh"]="rocky9,rocky10"
-            ["system_adduser_dbadmin.sh"]="rocky9,rocky10"
+            ["system_add_swap.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_add_yq.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            ["system_adduser_dbadmin.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
             ["system_config_java_home.sh"]="rocky9"
-            ["system_config_starship_prompt.sh"]="rocky9,rocky10"
+            ["system_config_starship_prompt.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
             ["system_configure_dnf.sh"]="rocky9,rocky10"
             ["system_disable_selinux.sh"]="rocky9,rocky10"
-            ["system_set_timezone.sh"]="rocky9,rocky10"
+            ["system_set_timezone.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
+            # Shared scripts consumed only by ubuntu24-synxdb-cloud today
+            ["system_add_1password_cli.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_age.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_ai_toolchain.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_ansible.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_autoenv.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_azure_cli.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_beads.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_bun.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_cloudsmith_cli.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_direnv.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_dolt.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_dysk.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_gcloud_cli.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_git_profiles.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_gitleaks.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_helm_kubectl.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_herdr.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_hwatch.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_k9s.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_kind.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_nodejs.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_omnigent.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_omnistrate_ctl.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_packer.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_sops.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_terraform.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_tofu.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_uv.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_zellij.sh"]="ubuntu24-synxdb-cloud"
+            ["system_add_zoxide.sh"]="ubuntu24-synxdb-cloud"
+            ["system_configure_claude.sh"]="ubuntu24-synxdb-cloud"
+            ["system_configure_ssh_agent_tmux.sh"]="ubuntu24-synxdb-cloud"
           )
 
           # Get changed files
@@ -113,6 +146,11 @@ jobs:
                 builds_to_run+=("rocky10")
                 ;;
 
+              "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/scripts/"*.sh)
+                echo "ubuntu24-synxdb-cloud-specific script changed"
+                builds_to_run+=("ubuntu24-synxdb-cloud")
+                ;;
+
               # Specific build HCL files
               "vm-images/aws/cloudberry/build/"*"/main.pkr.hcl")
                 build_name=$(echo "$file" | cut -d'/' -f5)
@@ -131,13 +169,13 @@ jobs:
               "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
                 test_file=$(basename "$file")
                 echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                builds_to_run+=("rocky9" "rocky10")
+                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
                 ;;
 
               # Main build script affects all
               "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
                 echo "Main build script changed - rebuilding all"
-                builds_to_run+=("rocky9" "rocky10")
+                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
                 ;;
 
               *)

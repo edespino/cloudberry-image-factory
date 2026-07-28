@@ -24,6 +24,16 @@
 #
 # Auth/config for every tool is a runtime concern (each has its own login
 # flow); nothing credential-related is baked.
+#
+# Versioning policy: every tool installs its latest stable release at build
+# time via the vendor's official channel (native installer, GitHub latest
+# release, or registry default) — nothing is version-pinned here. Tradeoff:
+# two builds on different days may bake different versions, so the image is
+# not byte-reproducible. Instead of silently pinning stale versions, the
+# resolved versions are captured in the build output (see the report at the
+# end of this script) and each tool's version command is asserted by the
+# platform goss tests, so what was baked is always recoverable from the
+# build/test artifacts.
 
 set -euo pipefail
 
@@ -140,5 +150,36 @@ if [ "${FAILED}" -ne 0 ]; then
   echo "ERROR: One or more AI toolchain binaries missing for user '${DB_USERNAME}'."
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Resolved-version report — best-effort, never fails the build
+# ---------------------------------------------------------------------------
+# Captures the exact versions this build resolved (see "Versioning policy"
+# above). Each command runs with stdin closed and a timeout: some agent CLIs
+# block or fail without a TTY in the packer provisioner session (agy is
+# bubbletea-based: "error opening TTY: could not open TTY: open /dev/tty:
+# no such device or address"), so a missing entry here is tolerated — the
+# executable check above is the hard gate.
+echo "=== Resolved AI toolchain versions for '${DB_USERNAME}' (build-time snapshot) ==="
+report_version() {
+  local name="$1"
+  shift
+  local output
+  if output=$(run_as_user timeout 30 "$@" < /dev/null 2>&1); then
+    echo "VERSION ${name}: $(printf '%s\n' "${output}" | head -1)"
+  else
+    echo "VERSION ${name}: version command unavailable non-interactively (binary verified executable above)"
+  fi
+}
+report_version claude       "${USER_HOME}/.local/bin/claude" --version
+report_version pi           "${USER_HOME}/.local/bin/pi" --version
+report_version codex        "${USER_HOME}/.local/bin/codex" --version
+report_version copilot      "${USER_HOME}/.local/bin/copilot" --version
+report_version gemini       "${USER_HOME}/.local/bin/gemini" --version
+report_version cursor-agent "${USER_HOME}/.local/bin/cursor-agent" --version
+report_version kimi         "${USER_HOME}/.kimi-code/bin/kimi" --version
+report_version opencode     "${USER_HOME}/.opencode/bin/opencode" --version
+report_version hermes       "${USER_HOME}/.local/bin/hermes" --version
+report_version agy          "${USER_HOME}/.local/bin/agy" --version
 
 echo "system_add_ai_toolchain.sh execution completed."

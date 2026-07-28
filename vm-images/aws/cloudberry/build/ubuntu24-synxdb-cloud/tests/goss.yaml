@@ -208,6 +208,10 @@ file:
     exists: true
     filetype: symlink
 
+  # Claude Code (per-user native installer, latest stable at build time)
+  /home/ubuntu/.local/bin/claude:
+    exists: true
+
   # Hermes Agent (per-user install, command link into ~/.hermes venv)
   /home/ubuntu/.local/bin/hermes:
     exists: true
@@ -508,42 +512,68 @@ command:
     stdout: ["bubblewrap"]
     timeout: 5000
 
-  # PI coding agent functionality check (verify binary is executable;
-  # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
-  "test -x /home/ubuntu/.local/bin/pi":
-    exit-status: 0
-    timeout: 5000
+  # AI toolchain version checks. Each tool installs its latest stable release
+  # at build time (nothing is pinned — see system_add_ai_toolchain.sh), so
+  # these assert the version command runs and exits 0 for the ubuntu user
+  # without matching specific version strings; the exact resolved versions
+  # are captured in the packer build log and this goss run's output. goss
+  # executes as root, so commands drop to the ubuntu user via sudo with HOME
+  # set; PATH includes /usr/local/bin because the npm-based tools (pi,
+  # copilot, gemini) use `env node` shebangs; stdin is closed because some
+  # agent CLIs block reading it.
 
-  # Hermes Agent functionality check (verify binary is executable;
-  # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
-  "test -x /home/ubuntu/.local/bin/hermes":
+  # Claude Code version check (output is "<semver> (Claude Code)")
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/claude --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    stdout: ["Claude Code"]
+    timeout: 30000
 
-  # AI toolchain functionality checks (executable-only, same rationale)
-  "test -x /home/ubuntu/.local/bin/codex":
+  # PI coding agent version check (Earendil Works distribution)
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/pi --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
-  "test -x /home/ubuntu/.local/bin/copilot":
+  # Hermes Agent version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/hermes --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
-  "test -x /home/ubuntu/.local/bin/gemini":
+  # OpenAI Codex CLI version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/codex --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
-  "test -x /home/ubuntu/.local/bin/cursor-agent":
+  # GitHub Copilot CLI version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/copilot --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
-  "test -x /home/ubuntu/.kimi-code/bin/kimi":
+  # Google Gemini CLI version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/gemini --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
+  # Cursor Agent version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cursor-agent --version < /dev/null":
+    exit-status: 0
+    timeout: 30000
+
+  # Kimi Code CLI version check (current native CLI, not the legacy Python kimi-cli)
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.kimi-code/bin/kimi --version < /dev/null":
+    exit-status: 0
+    timeout: 30000
+
+  # Google Antigravity CLI — executable-only. `agy --version` needs a TTY
+  # (bubbletea: "error opening TTY: could not open TTY: open /dev/tty: no
+  # such device or address"), so no version command can run under goss.
   "test -x /home/ubuntu/.local/bin/agy":
     exit-status: 0
     timeout: 5000
+
+  # herdr version check (runs system-wide from /usr/local/bin)
+  "/usr/local/bin/herdr --version < /dev/null":
+    exit-status: 0
+    timeout: 10000
 
   # age functionality check
   "/usr/local/bin/age --version":
@@ -643,10 +673,10 @@ command:
     exit-status: 0
     timeout: 5000
 
-  # OpenCode CLI functionality check (verify binary is executable)
-  "test -x /home/ubuntu/.opencode/bin/opencode":
+  # OpenCode CLI version check (as ubuntu user; see AI toolchain note above)
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.opencode/bin/opencode --version < /dev/null":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
   # Cloudsmith CLI functionality check (verify binary is executable;
   # --version output is broken in current cloudsmith-cli, so skip it)
