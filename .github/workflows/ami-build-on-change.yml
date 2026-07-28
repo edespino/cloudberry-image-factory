@@ -134,7 +134,7 @@ jobs:
 
               # Platform-specific scripts (exact platform dirs only, so
               # synxdb variants do not trigger base-platform rebuilds)
-              "vm-images/aws/*/build/*/scripts/"*.sh)
+              "vm-images/aws/"*"/build/"*"/scripts/"*.sh)
                 os=$(echo "$file" | cut -d'/' -f5)
                 echo "$os-specific script changed"
                 builds_to_run+=("$os")
