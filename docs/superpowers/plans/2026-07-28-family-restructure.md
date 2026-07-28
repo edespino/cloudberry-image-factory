@@ -20,7 +20,13 @@
 - Provision scripts stay FLAT in `vm-images/common/scripts/`.
 - The 9 AI-tooling scripts: `system_add_claude.sh`, `system_configure_claude.sh`, `system_add_opencode.sh`, `system_add_omnigent.sh`, `system_add_pi.sh`, `system_add_gastown.sh`, `system_add_beads.sh`, `system_add_herdr.sh`, `system_add_ai_toolchain.sh`. After Task 4, only agentic HCLs reference them.
 - On-instance goss layout (`~/<os>/tests` + `~/common/tests`) unchanged; never edit `gossfile:` include lines in `tests/goss.yaml` files.
-- **`python3 -m unittest discover -s tests` must pass at the end of every task** (run from the worktree root).
+- **The Python suite must pass at the end of every task.** `tests/test_packer_build_security.py` is Linux-only (its shims hard-code `/usr/bin/timeout`, `/usr/bin/rm`) — it can NEVER pass natively on this macOS machine. Canonical local gate (run both, from the worktree root; wherever a task step says `python3 -m unittest discover -s tests`, run this instead):
+  ```bash
+  python3 -m unittest tests.test_repository_policy tests.test_packer_template_security
+  docker run --rm -v "$PWD":/repo -w /repo python:3.12-slim bash -c \
+    "ln -sf /usr/local/bin/python3 /usr/bin/python3 && python3 -m unittest tests.test_packer_build_security"
+  ```
+  Both verified green on the pristine base before Task 1.
 - Never invent AWS values; discovery commands are given where needed.
 - Work on branch `restructure/family-layout` off `main` (8741ff0+docs). Commit after every task. Do not push.
 - Repo root: `/Users/eespino/workspace/cloudberry-image-factory`; work in the worktree the controller names. Paths below are worktree-relative.
