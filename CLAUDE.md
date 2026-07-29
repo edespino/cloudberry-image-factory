@@ -27,18 +27,87 @@ This file provides context and guidelines for Claude AI when working on this pro
 
 ## Project Overview
 
-This is a Packer-based infrastructure project for building development-optimized Amazon Machine Images (AMIs) for Apache Cloudberry (Incubating) on AWS. It supports multiple OS platforms with automated testing and CI/CD workflows.
+This is a Packer-based infrastructure project for building development-optimized, private-only Amazon Machine Images (AMIs) on AWS. It is organized by **family** — a family is a product line (`cloudberry`, `synxdb-cloud`, `agentic`) that builds AMIs across one or more OS targets, with automated Goss testing and dynamic CI/CD workflows.
 
-## Adding New OS Platforms - Critical Checklist
+## Repository Layout
 
-When adding a new OS platform to this project, follow this checklist to avoid common mistakes:
+```
+vm-images/
+├── scripts/                          # Harness trio (shared by every family)
+│   ├── packer-build-and-test.sh      # Build, test, PASSED/FAILED tag, cleanup
+│   ├── private-runtime-key.py        # Temporary SSH key handling
+│   └── validate-ami-metadata.py      # Confirms AMI is not-publicly-shared
+├── common/
+│   ├── scripts/                      # Shared provisioners (58 scripts)
+│   └── tests/                        # Shared Goss fragments (gossfile includes)
+└── aws/
+    ├── cloudberry/build/{rocky9,rocky10}/
+    ├── synxdb-cloud/build/{al2023,rocky9,rocky10,ubuntu24}/
+    └── agentic/build/{ubuntu26}/
+        # Each build directory contains:
+        #   main.pkr.hcl   - Packer configuration
+        #   scripts/       - OS-specific scripts
+        #   tests/goss.yaml - Validation tests
+```
+
+Identity (`FAMILY`, `OS_NAME`) is derived by `packer-build-and-test.sh` directly
+from the path it is run from: `vm-images/<cloud>/<family>/build/<os>`. There is
+no registry file to update when adding a target — the path *is* the
+configuration.
+
+## Current Platforms (7 targets)
+
+| Family | OS Target | Package Manager | Notes |
+|--------|-----------|-----------------|-------|
+| cloudberry | rocky9 | RPM (dnf) | Full-featured, primary |
+| cloudberry | rocky10 | RPM (dnf) | Latest Rocky |
+| synxdb-cloud | al2023 | RPM (dnf) | SynxDB Cloud ops image |
+| synxdb-cloud | rocky9 | RPM (dnf) | SynxDB Cloud ops image |
+| synxdb-cloud | rocky10 | RPM (dnf) | SynxDB Cloud workstation image |
+| synxdb-cloud | ubuntu24 | APT | SynxDB Cloud workstation image |
+| agentic | ubuntu26 | APT | Standalone from stock Ubuntu 26.04; AI tooling |
+
+Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
+Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8.
+
+**AI tooling is agentic-only.** Scripts such as `system_add_claude.sh`,
+`system_add_ai_toolchain.sh`, `system_add_omnigent.sh`, `system_add_herdr.sh`,
+and `system_add_beads.sh` must never be referenced by a `cloudberry` or
+`synxdb-cloud` template — a repository policy test enforces this boundary.
+
+## Build Harness
+
+Run from inside a target directory:
+
+```bash
+cd vm-images/aws/<family>/build/<os>
+../../../../scripts/packer-build-and-test.sh
+```
+
+AMIs are named `<family>-packer-<os>-<timestamp>`, then renamed with a
+`-PASSED` or `-FAILED` suffix once Goss testing completes. All builds are
+private-only (never publicly shared).
+
+## Adding a New Family
+
+A new family needs no workflow edits — the CI build matrix is computed
+dynamically from the directory layout (see `.github/scripts/compute-build-matrix.sh`).
+
+1. Create `vm-images/aws/<family>/build/<os>/` with `main.pkr.hcl`, `scripts/`, `tests/goss.yaml`.
+2. Decide whether the family ships AI tooling. Only `agentic` may.
+3. Update the Current Platforms table above and the Repository Structure/Supported Builds sections in `README.md`.
+4. Build and test locally before pushing: `../../../../scripts/packer-build-and-test.sh`.
+
+## Adding a New Target to an Existing Family
+
+Follow this checklist to avoid common mistakes:
 
 ### 1. Directory Structure
 ```
-vm-images/aws/cloudberry/build/{osname}/
+vm-images/aws/<family>/build/{osname}/
 ├── main.pkr.hcl
 ├── scripts/
-│   └── system_add_cbdb_build_{rpm|deb}_dependencies.sh
+│   └── system_add_cbdb_build_{rpm|deb}_dependencies.sh   # (or family-appropriate OS deps script)
 └── tests/
     └── goss.yaml
 ```
@@ -90,19 +159,18 @@ gossfile:
 
 ### 5. GitHub Actions Workflows
 
-**Files to update:**
+**No workflow edits needed.** The build matrix is computed dynamically by
+`.github/scripts/compute-build-matrix.sh` from the directory layout:
 
-1. `.github/workflows/ami-build-manual.yml`:
-   - Add OS to `build_targets` options
-   - Add OS to `all_builds` array
-
-2. `.github/workflows/ami-build-on-change.yml`:
-   - Add OS to each common script dependency mapping
-   - Add OS-specific script detection case
-   - Add OS to common test and build script sections
-
-3. `.github/workflows/ami-cleanup-old.yml`:
-   - No changes needed (auto-handles all AMIs)
+- A change under `vm-images/aws/<family>/build/<os>/**` selects that one target.
+- A change to `vm-images/common/scripts/X.sh` selects every target whose
+  `main.pkr.hcl` references `X.sh` (grep-matched, not a hardcoded map).
+- A change under `vm-images/scripts/**` or `vm-images/common/tests/**`
+  selects every target.
+- Manual dispatch (`ami-build-manual.yml`) takes `all` or a comma-separated
+  `family/os` list, e.g. `cloudberry/rocky9,agentic/ubuntu26`.
+- `ami-cleanup-old.yml` needs no changes — cleanup runs per-family against
+  the `<family>-packer-*` naming pattern.
 
 ### 6. Documentation
 
@@ -118,9 +186,8 @@ Before committing, verify:
 - [ ] AMI filter and owner ID correct
 - [ ] SSH username matches AMI default user
 - [ ] All scripts executable (`chmod +x`)
-- [ ] Workflow dependency mappings updated
-- [ ] README.md updated
-- [ ] Local build test passes: `packer validate` and `packer-build-and-test.sh`
+- [ ] README.md updated (Repository Structure + Supported Builds table)
+- [ ] Local build test passes: `packer validate` and `../../../../scripts/packer-build-and-test.sh`
 
 ## Platform-Specific Notes
 
@@ -137,20 +204,6 @@ Before committing, verify:
 - May need `system_set_default_locale.sh`
 - Default user: `ubuntu` (Ubuntu), `admin` (Debian)
 
-## Current Platforms
-
-| Platform | Package Manager | Default User | Notes |
-|----------|----------------|--------------|-------|
-| rocky9 | RPM (dnf) | rocky | Full-featured, primary |
-| rocky10 | RPM (dnf) | rocky | Latest Rocky |
-| al2023-synxdb-cloud | RPM (dnf) | ec2-user | SynxDB Cloud ops image |
-| rocky9-synxdb-cloud | RPM (dnf) | rocky | SynxDB Cloud ops image |
-| rocky10-synxdb-cloud | RPM (dnf) | rocky | SynxDB Cloud workstation image |
-| ubuntu24-synxdb-cloud | APT | ubuntu | SynxDB Cloud workstation image |
-
-Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
-Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8.
-
 ## Common Errors and Solutions
 
 ### "goss: command not found"
@@ -165,9 +218,9 @@ Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8
 **Cause:** Goss tests failed or couldn't run
 **Solution:** Check test results XML, verify all tested packages/tools are installed
 
-### Workflow doesn't trigger for OS changes
-**Cause:** OS not added to workflow dependency mappings
-**Solution:** Update `.github/workflows/ami-build-on-change.yml` COMMON_SCRIPT_DEPS
+### Workflow doesn't trigger for a script/target change
+**Cause:** Rare — the matrix is computed dynamically from the directory layout and HCL references, not a hardcoded map.
+**Solution:** Check `.github/scripts/compute-build-matrix.sh`; verify the changed script's basename appears in the target's `main.pkr.hcl`.
 
 ## Important Patterns
 
@@ -185,11 +238,12 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 
 ## Key Files
 
-- `vm-images/aws/cloudberry/build/common/scripts/` - Shared provisioners (21 scripts)
-- `vm-images/aws/cloudberry/scripts/packer-build-and-test.sh` - Main build orchestrator
+- `vm-images/common/scripts/` - Shared provisioners (58 scripts)
+- `vm-images/scripts/packer-build-and-test.sh` - Main build orchestrator (harness trio)
+- `.github/scripts/compute-build-matrix.sh` - Dynamic CI build matrix
 - `.github/workflows/` - CI/CD automation
-- Each platform's `main.pkr.hcl` - Build definition
-- Each platform's `tests/goss.yaml` - Validation tests
+- Each target's `main.pkr.hcl` - Build definition
+- Each target's `tests/goss.yaml` - Validation tests
 
 ## Development Workflow
 

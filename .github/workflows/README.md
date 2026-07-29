@@ -1,6 +1,6 @@
 # GitHub Workflows for Cloudberry AMI Factory
 
-This directory contains GitHub Actions workflows that automate the building, testing, and management of Cloudberry Database AMIs.
+This directory contains GitHub Actions workflows that automate the building, testing, and management of AMIs across all families (`cloudberry`, `synxdb-cloud`, `agentic`) in this repository.
 
 ## Workflows Overview
 
@@ -15,12 +15,12 @@ This directory contains GitHub Actions workflows that automate the building, tes
 - **PR Comments**: Adds build results to pull request comments
 - **Automatic Cleanup**: Cleans up temporary AWS resources
 
-**Change Detection Logic:**
+**Change Detection Logic** (implemented by `.github/scripts/compute-build-matrix.sh`):
 ```
-Common Script Change → Rebuild all dependent AMIs
-OS-Specific Script → Rebuild all AMIs in that OS family
-Build-Specific File → Rebuild only that specific AMI
-Documentation Change → No builds triggered
+vm-images/common/scripts/X.sh change  → Rebuild every target whose main.pkr.hcl references X.sh
+vm-images/scripts/** or vm-images/common/tests/** change → Rebuild all targets
+vm-images/aws/<family>/build/<os>/** change → Rebuild only that target
+Documentation-only change → No builds triggered
 ```
 
 ### 2. `ami-build-manual.yml` - Manual and Scheduled Builds
@@ -36,8 +36,7 @@ Documentation Change → No builds triggered
 - **Artifact Retention**: Keeps build artifacts for 90 days
 
 **Manual Options:**
-- Build targets (all, specific OS, individual AMIs)
-- Force rebuild option
+- `build_targets`: `all` or a comma-separated `family/os` list (e.g. `cloudberry/rocky9,agentic/ubuntu26`)
 
 ### 3. `ami-cleanup-old.yml` - AMI Lifecycle Management
 
@@ -46,33 +45,39 @@ Documentation Change → No builds triggered
 - **Manual:** `workflow_dispatch` with full parameter control
 
 **Features:**
-- **Count-Based Retention**: Keep N newest AMIs per configuration (default: 3)
-- **Per-Configuration Logic**: Separate retention for rocky9, rocky10, etc.
+- **Per-Family Discovery**: AMIs are found per family using the `<family>-packer-*` naming pattern (`cloudberry-packer-*`, `synxdb-cloud-packer-*`, `agentic-packer-*`)
+- **Count-Based Retention**: Keep N newest AMIs per family/os configuration (default: 3)
 - **Dry Run Mode**: Preview deletions without actual cleanup (default: enabled)
 - **Snapshot Cleanup**: Automatically removes associated EBS snapshots
 - **No Age Limit**: AMIs never deleted based on age alone (ensures availability)
 - **Orphan Detection**: Identifies orphaned snapshots for manual review
 
 **Retention Policy:**
-With `retention_count: 3` (default), the workflow keeps the 3 newest AMIs for each configuration:
-- rocky9: Keep 3 newest
-- rocky10: Keep 3 newest
-- etc.
+With `retention_count: 3` (default), the workflow keeps the 3 newest AMIs for
+each family/os configuration, e.g.:
+- cloudberry/rocky9: Keep 3 newest
+- cloudberry/rocky10: Keep 3 newest
+- synxdb-cloud/ubuntu24: Keep 3 newest
+- agentic/ubuntu26: Keep 3 newest
 
-This ensures you always have N working AMIs per OS, regardless of their age.
+This ensures you always have N working AMIs per target, regardless of their age.
 
-## Dependency Matrix
+## Dynamic Build Matrix
 
-The workflows understand the following build dependencies:
+There is no hardcoded dependency map. `.github/scripts/compute-build-matrix.sh`
+computes the build matrix from the changed-file list on every run:
 
-| Common Script | Affected Builds |
-|---------------|-----------------|
-| `dbadmin_configure_environment.sh` | rocky9, rocky10 |
-| `system_add_goss.sh` | rocky9, rocky10 |
-| `system_add_awscli.sh` | rocky9, rocky10 |
-| `system_add_golang.sh` | rocky9, rocky10 |
-| `system_disable_selinux.sh` | rocky9, rocky10 |
-| ... | (see workflow file for complete matrix) |
+| Changed path | Targets selected |
+|--------------|-------------------|
+| `vm-images/aws/<family>/build/<os>/**` | That one target |
+| `vm-images/common/scripts/X.sh` | Every target whose `main.pkr.hcl` references `X.sh` (found by `grep`, not a lookup table) |
+| `vm-images/scripts/**` or `vm-images/common/tests/**` | All targets (shared harness/tests affect every build) |
+| Anything else (docs, other paths) | No targets — no build triggered |
+
+Manual dispatch (`ami-build-manual.yml`) does not use the script above; it
+accepts `all` or a comma-separated `family/os` list (e.g.
+`cloudberry/rocky9,agentic/ubuntu26`) and builds the matrix directly from that
+input.
 
 ## Setup Requirements
 
@@ -173,9 +178,9 @@ Notes:
 
 ### Cleanup Process
 
-1. **Discovery** → Find all Cloudberry AMIs (cloudberry-packer-build-*)
-2. **Grouping** → Group AMIs by configuration (rocky9, rocky10, etc.)
-3. **Analysis** → For each configuration, identify oldest AMIs beyond retention count
+1. **Discovery** → For each family, find its AMIs (`<family>-packer-*`)
+2. **Grouping** → Group each family's AMIs by os (rocky9, rocky10, etc.)
+3. **Analysis** → For each family/os, identify oldest AMIs beyond retention count
 4. **Safety Checks** → Verify AMI ownership and naming patterns
 5. **Deregistration** → Remove old AMIs from AWS (if not dry-run)
 6. **Snapshot Cleanup** → Delete associated EBS snapshots
@@ -193,7 +198,7 @@ Notes:
 ### AMI Management
 - **Automated Cleanup**: Monthly dry-run reports (manual trigger for actual deletion)
 - **Count-Based Retention**: Keep N newest AMIs per configuration (default: 3)
-- **Predictable Costs**: Maximum of N × 6 configurations (e.g., 3 × 6 = 18 AMIs max)
+- **Predictable Costs**: Maximum of N × 7 targets (e.g., 3 × 7 = 21 AMIs max)
 - **Snapshot Management**: Automatic cleanup of associated storage costs
 - **Build Tagging**: Cost allocation through resource tagging
 - **No Age-Based Deletion**: AMIs kept regardless of age (ensures availability)
@@ -226,19 +231,18 @@ Notes:
 
 ## Customization
 
-### Modifying Build Matrix
-Edit the dependency mapping in `ami-build-on-change.yml`:
-
-```yaml
-declare -A COMMON_SCRIPT_DEPS=(
-  ["your-script.sh"]="build1,build2,build3"
-)
-```
+### Modifying Build Matrix Behavior
+There is no dependency map to edit — the matrix is derived from
+`.github/scripts/compute-build-matrix.sh`. To change what a script change
+affects, change which templates reference that script, or edit the
+rules in `compute-build-matrix.sh` itself.
 
 ### Adding New AMI Builds
-1. Create new build directory under `vm-images/aws/cloudberry/build/`
-2. Add to dependency matrix in workflows
-3. Update this documentation
+1. Create a new build directory under `vm-images/aws/<family>/build/<os>/`
+   (new family) or `vm-images/aws/<existing-family>/build/<os>/` (new OS)
+2. No workflow edits needed — the dynamic matrix picks it up automatically
+3. Update this documentation and the root `README.md`/`CLAUDE.md` if the
+   target set changes
 
 ### Changing Retention Policies
 Modify default values in `ami-cleanup-old.yml`:

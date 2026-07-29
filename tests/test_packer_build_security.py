@@ -12,7 +12,7 @@ import shutil
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-SCRIPT = REPOSITORY / "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh"
+SCRIPT = REPOSITORY / "vm-images/scripts/packer-build-and-test.sh"
 
 
 class PackerBuildSecurityTests(unittest.TestCase):
@@ -20,13 +20,16 @@ class PackerBuildSecurityTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        self.target = self.root / "build/rocky9-synxdb-cloud"
+        self.target = self.root / "vm-images/aws/synxdb-cloud/build/rocky9"
         self.target.mkdir(parents=True)
         (self.target / "main.pkr.hcl").write_text("# fake\n")
         (self.target / "tests").mkdir()
         (self.target / "tests/goss.yaml").write_text("file: {}\n")
-        (self.root / "build/common/tests").mkdir(parents=True)
-        (self.root / "build/common/tests/common.yaml").write_text("file: {}\n")
+        (self.root / "vm-images/common/tests").mkdir(parents=True)
+        (self.root / "vm-images/common/tests/common.yaml").write_text("file: {}\n")
+        self.scripts_dir = self.root / "vm-images/scripts"
+        shutil.copytree(SCRIPT.parent, self.scripts_dir)
+        self.script = self.scripts_dir / SCRIPT.name
         self.runtime = self.root / "runtime"
         self.runtime.mkdir(mode=0o700)
         self.bin = self.root / "bin"
@@ -207,9 +210,10 @@ exec /usr/bin/{command} "$@"
         include_runtime: bool = True,
         extra_env: dict[str, str] | None = None,
         path: Path | None = None,
-        script: Path = SCRIPT,
+        script: Path | None = None,
         timeout: float = 20,
     ) -> subprocess.CompletedProcess[str]:
+        script = script if script is not None else self.script
         environment = {
             "PATH": str(path) if path is not None else f"{self.bin}:/usr/bin:/bin",
             "FAKE_AWS_LOG": str(self.aws_log),
@@ -267,7 +271,7 @@ exec /usr/bin/{command} "$@"
             "State": "available",
             "Public": False,
             "Name": (
-                "synxdb-cloud-packer-build-rocky9-synxdb-cloud-"
+                "synxdb-cloud-packer-rocky9-"
                 "20260727-120000-PASSED"
             ),
         }
@@ -596,7 +600,7 @@ exec /usr/bin/{command} "$@"
             self.aws_log.unlink(missing_ok=True)
             metadata = self._metadata(
                 Name=(
-                    "synxdb-cloud-packer-build-rocky9-synxdb-cloud-"
+                    "synxdb-cloud-packer-rocky9-"
                     f"20260727-120000-{existing}"
                 )
             )

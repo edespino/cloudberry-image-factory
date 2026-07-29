@@ -6,7 +6,6 @@ import unittest
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-BUILD_ROOT = REPOSITORY / "vm-images/aws/cloudberry/build"
 SOURCE_HEADER = re.compile(r'\bsource\s+"amazon-ebs"\s+"[^"]+"\s*\{')
 PUBLIC_IP_SETTING = re.compile(
     r"(?m)^\s*temporary_security_group_source_public_ip\s*=\s*([^\s#]+)"
@@ -48,7 +47,7 @@ def amazon_ebs_blocks(content: str) -> list[str]:
 
 class PackerTemplateSecurityTests(unittest.TestCase):
     def test_all_amazon_ebs_sources_restrict_temporary_sg_to_public_ip(self) -> None:
-        templates = sorted(BUILD_ROOT.glob("*/main.pkr.hcl"))
+        templates = sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"))
         self.assertTrue(templates)
         for template in templates:
             blocks = amazon_ebs_blocks(template.read_text())
@@ -71,21 +70,18 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                     )
 
     def test_template_ami_name_prefix_matches_target_policy(self) -> None:
-        for template in sorted(BUILD_ROOT.glob("*/main.pkr.hcl")):
-            target = template.parent.name
-            if target == "al2023-synxdb-cloud":
-                prefix = "synx-cloud-packer-"
-            elif target.endswith("-synxdb-cloud"):
-                prefix = "synxdb-cloud-packer-"
-            else:
-                prefix = "cloudberry-packer-"
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            family = template.parents[2].name
             for position, block in enumerate(
                 amazon_ebs_blocks(template.read_text())
             ):
-                with self.subTest(template=template, source=position):
+                with self.subTest(template=template, family=family, source=position):
                     assignments = AMI_NAME.findall(block)
                     self.assertEqual(len(assignments), 1)
-                    self.assertIn(f'"{prefix}', assignments[0])
+                    self.assertIn(
+                        'format("%s-packer-%s-%s", var.family, var.os_name',
+                        assignments[0],
+                    )
 
 
 if __name__ == "__main__":

@@ -4,14 +4,16 @@ on:
   push:
     branches: [main]
     paths:
-      - 'vm-images/aws/cloudberry/build/**'
-      - 'vm-images/aws/cloudberry/scripts/**'
+      - 'vm-images/**'
+      - 'tests/**'
+      - '.github/**'
       - '!**/*.md'
   pull_request:
     branches: [main]
     paths:
-      - 'vm-images/aws/cloudberry/build/**'
-      - 'vm-images/aws/cloudberry/scripts/**'
+      - 'vm-images/**'
+      - 'tests/**'
+      - '.github/**'
       - '!**/*.md'
   workflow_dispatch:  # Keep manual option too
 
@@ -33,193 +35,29 @@ jobs:
           # full history so both objects and their merge base are available.
           fetch-depth: 0
 
-      - name: Detect changed files and generate build matrix
+      - name: Compute build matrix
         id: set-matrix
         shell: bash
         run: |
-          # Define dependency mapping for common scripts
-          declare -A COMMON_SCRIPT_DEPS=(
-            ["dbadmin_configure_environment.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_awscli.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_dbadmin_ulimits.sh"]="rocky9,rocky10"
-            ["system_add_cbdb_xerces_c_build_dependency.sh"]="rocky9"
-            ["system_add_claude.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_motd_manager.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_docker.sh"]="rocky9,ubuntu24-synxdb-cloud"
-            ["system_add_gh.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_golang.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_goss.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_kernel_configs.sh"]="rocky9,rocky10"
-            ["system_add_swap.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_add_yq.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_adduser_dbadmin.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_config_java_home.sh"]="rocky9"
-            ["system_config_starship_prompt.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            ["system_configure_dnf.sh"]="rocky9,rocky10"
-            ["system_disable_selinux.sh"]="rocky9,rocky10"
-            ["system_set_timezone.sh"]="rocky9,rocky10,ubuntu24-synxdb-cloud"
-            # Shared scripts consumed only by ubuntu24-synxdb-cloud today
-            ["system_add_1password_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_age.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_ai_toolchain.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_ansible.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_autoenv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_azure_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_beads.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_bun.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_cloudsmith_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_direnv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_dolt.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_dysk.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_gcloud_cli.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_git_profiles.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_gitleaks.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_helm_kubectl.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_herdr.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_hwatch.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_k9s.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_kind.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_nodejs.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_omnigent.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_omnistrate_ctl.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_packer.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_sops.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_terraform.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_tofu.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_uv.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_zellij.sh"]="ubuntu24-synxdb-cloud"
-            ["system_add_zoxide.sh"]="ubuntu24-synxdb-cloud"
-            ["system_configure_claude.sh"]="ubuntu24-synxdb-cloud"
-            ["system_configure_ssh_agent_tmux.sh"]="ubuntu24-synxdb-cloud"
-          )
-
-          # Get changed files
+          set -euo pipefail
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            changed_files=$(git diff --name-only \
-              "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+            changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
           else
-            changed_files=$(git diff --name-only HEAD~1 HEAD)
+            changed=$(git diff --name-only HEAD~1 HEAD)
           fi
-
-          echo "Changed files:"
-          echo "$changed_files"
-
-          builds_to_run=()
-
-          # Process each changed file
-          while IFS= read -r file; do
-            if [[ -z "$file" ]]; then
-              continue
-            fi
-
-            # Deleted files cannot affect a build (removed platforms/scripts)
-            if [ ! -f "$file" ]; then
-              echo "Skipping deleted file: $file"
-              continue
-            fi
-
-            echo "Processing file: $file"
-
-            case "$file" in
-              # Common scripts
-              "vm-images/aws/cloudberry/build/common/scripts/"*.sh)
-                script_name=$(basename "$file")
-                echo "Common script changed: $script_name"
-                if [[ -n "${COMMON_SCRIPT_DEPS[$script_name]}" ]]; then
-                  IFS=',' read -ra DEPS <<< "${COMMON_SCRIPT_DEPS[$script_name]}"
-                  builds_to_run+=("${DEPS[@]}")
-                  echo "Added builds for $script_name: ${DEPS[*]}"
-                else
-                  echo "No builds depend on $script_name"
-                fi
-                ;;
-
-              # Platform-specific scripts (exact platform dirs only, so
-              # synxdb variants do not trigger base-platform rebuilds)
-              "vm-images/aws/cloudberry/build/rocky9/scripts/"*.sh)
-                echo "rocky9-specific script changed"
-                builds_to_run+=("rocky9")
-                ;;
-
-              "vm-images/aws/cloudberry/build/rocky10/scripts/"*.sh)
-                echo "rocky10-specific script changed"
-                builds_to_run+=("rocky10")
-                ;;
-
-              "vm-images/aws/cloudberry/build/ubuntu24-synxdb-cloud/scripts/"*.sh)
-                echo "ubuntu24-synxdb-cloud-specific script changed"
-                builds_to_run+=("ubuntu24-synxdb-cloud")
-                ;;
-
-              # Specific build HCL files
-              "vm-images/aws/cloudberry/build/"*"/main.pkr.hcl")
-                build_name=$(echo "$file" | cut -d'/' -f5)
-                echo "Packer HCL changed for: $build_name"
-                builds_to_run+=("$build_name")
-                ;;
-
-              # Specific build test files
-              "vm-images/aws/cloudberry/build/"*"/tests/goss.yaml")
-                build_name=$(echo "$file" | cut -d'/' -f5)
-                echo "Goss test changed for: $build_name"
-                builds_to_run+=("$build_name")
-                ;;
-
-              # Common test files (used by all platforms)
-              "vm-images/aws/cloudberry/build/common/tests/"*.yaml)
-                test_file=$(basename "$file")
-                echo "Common test file changed: $test_file - rebuilding all platforms that use common tests"
-                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
-                ;;
-
-              # Main build script affects all
-              "vm-images/aws/cloudberry/scripts/packer-build-and-test.sh")
-                echo "Main build script changed - rebuilding all"
-                builds_to_run+=("rocky9" "rocky10" "ubuntu24-synxdb-cloud")
-                ;;
-
-              *)
-                echo "Ignoring file: $file"
-                ;;
-            esac
-          done <<< "$changed_files"
-
-          # Remove duplicates, drop builds whose directory no longer exists,
-          # and create matrix
-          unique_builds=()
-          while IFS= read -r build; do
-            if [[ -n "$build" ]] && [ -d "vm-images/aws/cloudberry/build/$build" ]; then
-              unique_builds+=("$build")
-            elif [[ -n "$build" ]]; then
-              echo "Skipping build with missing directory: $build"
-            fi
-          done < <(printf '%s\n' "${builds_to_run[@]}" | sort -u)
-
-          echo "Unique builds to run: ${unique_builds[*]}"
-
-          if [ ${#unique_builds[@]} -eq 0 ]; then
-            echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "matrix={\"build\":[]}" >> $GITHUB_OUTPUT
+          echo "$changed"
+          matrix=$(echo "$changed" | .github/scripts/compute-build-matrix.sh)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$(echo "$matrix" | jq '.build | length')" -gt 0 ]; then
+            echo "should-run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "should-run=true" >> $GITHUB_OUTPUT
-
-            # Create JSON matrix
-            matrix_json="{\"build\":["
-            for i in "${!unique_builds[@]}"; do
-              if [ $i -gt 0 ]; then
-                matrix_json+=","
-              fi
-              matrix_json+="{\"name\":\"${unique_builds[$i]}\",\"os-family\":\"$(echo ${unique_builds[$i]} | grep -o '^[a-z]*')\",\"path\":\"vm-images/aws/cloudberry/build/${unique_builds[$i]}\"}"
-            done
-            matrix_json+="]}"
-
-            echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
+            echo "should-run=false" >> "$GITHUB_OUTPUT"
           fi
-
-          # Also output changed files for debugging
-          echo "changed-files<<EOF" >> $GITHUB_OUTPUT
-          echo "$changed_files" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          {
+            echo "changed-files<<EOF"
+            echo "$changed"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   validate:
     needs: detect-changes
@@ -246,7 +84,7 @@ jobs:
           echo "Initializing Packer plugins for ${{ matrix.build.name }}"
           packer init main.pkr.hcl
           echo "Validating Packer template for ${{ matrix.build.name }}"
-          packer validate -var "vm_type=cloudberry" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
+          packer validate -var "family=${{ matrix.build.family }}" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
 
   build:
     needs: [detect-changes, validate]
@@ -293,14 +131,14 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
         run: |
           echo "Building AMI for ${{ matrix.build.name }}"
-          chmod +x ../../scripts/packer-build-and-test.sh
-          ../../scripts/packer-build-and-test.sh
+          chmod +x ../../../../scripts/packer-build-and-test.sh
+          ../../../../scripts/packer-build-and-test.sh
 
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: build-artifacts-${{ matrix.build.name }}
+          name: build-artifacts-${{ matrix.build.family }}-${{ matrix.build.name }}
           path: |
             ${{ matrix.build.path }}/packer-manifest.json
             ${{ matrix.build.path }}/goss-test-results-*.xml
@@ -326,7 +164,7 @@ jobs:
           script: |
             const amiId = '${{ steps.ami-info.outputs.ami-id }}';
             const amiName = '${{ steps.ami-info.outputs.ami-name }}';
-            const buildName = '${{ matrix.build.name }}';
+            const buildName = '${{ matrix.build.family }}/${{ matrix.build.name }}';
 
             if (amiId && amiName) {
               const comment = `✅ **AMI Build Successful for ${buildName}**
@@ -367,13 +205,13 @@ jobs:
 
           # Clean up security groups (older than 1 hour)
           aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=cloudberry-${{ matrix.build.name }}-*-sg" \
+            --filters "Name=group-name,Values=${{ matrix.build.family }}-${{ matrix.build.name }}-*-sg" \
             --query "SecurityGroups[?CreationTime<'$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S.000Z)'].GroupId" \
             --output text | xargs -r -n1 aws ec2 delete-security-group --group-id || true
 
           # Clean up key pairs (older than 1 hour)
           aws ec2 describe-key-pairs \
-            --filters "Name=key-name,Values=key-cloudberry-${{ matrix.build.name }}-*" \
+            --filters "Name=key-name,Values=key-${{ matrix.build.family }}-${{ matrix.build.name }}-*" \
             --query "KeyPairs[].KeyName" \
             --output text | xargs -r -n1 aws ec2 delete-key-pair --key-name || true
 
@@ -392,6 +230,6 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Builds Triggered:**" >> $GITHUB_STEP_SUMMARY
-          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.build[].name' | while read build; do
+          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.build[] | "\(.family)/\(.name)"' | while read build; do
             echo "- $build" >> $GITHUB_STEP_SUMMARY
           done

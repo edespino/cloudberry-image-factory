@@ -45,7 +45,7 @@ variable "region" {
   default = ""
 }
 
-source "amazon-ebs" "base-cbdb-build-image" {
+source "amazon-ebs" "base-build-image" {
   access_key    = var.aws_access_key
   secret_key    = var.aws_secret_key
   token         = var.aws_session_token
@@ -70,14 +70,14 @@ source "amazon-ebs" "base-cbdb-build-image" {
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
-    volume_size          = 24
-    volume_type          = "gp2"
+    volume_size           = 24
+    volume_type           = "gp2"
     delete_on_termination = true
   }
 }
 
 build {
-  sources = ["source.amazon-ebs.base-cbdb-build-image"]
+  sources = ["source.amazon-ebs.base-build-image"]
 
   # Configure DNF for resilient package operations (must run first)
   provisioner "shell" {
@@ -85,7 +85,14 @@ build {
   }
 
   provisioner "shell" {
-    script = "scripts/system_add_cbdb_build_rpm_dependencies.sh"
+    script = "scripts/system_add_synxdb_cloud_dependencies.sh"
+  }
+
+  # Install Python dependencies system-wide (omnistrate-cli-tools + synxdb-cli)
+  provisioner "shell" {
+    inline = [
+      "sudo python3 -m pip install 'rich>=13.0.0' 'click>=8.0.0' 'pyyaml>=6.0.0' 'pydantic>=2.0.0' 'pydantic-settings>=2.0.0' 'boto3>=1.28.0' 'readchar>=4.0.0' 'typer>=0.9.0' 'httpx>=0.25.0'"
+    ]
   }
 
   # Create gpadmin user first
@@ -96,23 +103,9 @@ build {
     ]
   }
 
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_dbadmin_ulimits.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
   # Create cbadmin user second
   provisioner "shell" {
     script = "../../../../common/scripts/system_adduser_dbadmin.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_dbadmin_ulimits.sh"
     environment_vars = [
       "DB_USERNAME=cbadmin"
     ]
@@ -131,27 +124,7 @@ build {
   }
 
   provisioner "shell" {
-    script = "../../../../common/scripts/system_add_golang.sh"
-  }
-
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_cbdb_xerces_c_build_dependency.sh"
-  }
-
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_config_java_home.sh"
-  }
-
-  provisioner "shell" {
     script = "../../../../common/scripts/system_config_starship_prompt.sh"
-  }
-
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_disable_selinux.sh"
-  }
-
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_kernel_configs.sh"
   }
 
   provisioner "shell" {
@@ -175,11 +148,22 @@ build {
   }
 
   provisioner "shell" {
-    script = "../../../../common/scripts/system_add_motd_manager.sh"
+    script = "../../../../common/scripts/system_add_gh.sh"
   }
 
   provisioner "shell" {
-    script = "../../../../common/scripts/system_add_gh.sh"
+    script = "../../../../common/scripts/system_add_helm_kubectl.sh"
+  }
+
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_add_omnistrate_ctl.sh"
+  }
+
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_add_motd_manager.sh"
+    environment_vars = [
+      "MOTD_TEMPLATE=synx"
+    ]
   }
 
   provisioner "shell" {

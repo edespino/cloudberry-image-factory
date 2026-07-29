@@ -30,6 +30,9 @@ jobs:
   cleanup-amis:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -37,7 +40,16 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Find and cleanup old Cloudberry AMIs
+      - name: Discover families
+        id: families
+        shell: bash
+        run: |
+          families=$(for d in vm-images/aws/*/; do basename "$d"; done | paste -sd, -)
+          echo "families=$families" >> "$GITHUB_OUTPUT"
+
+      - name: Find and cleanup old AMIs per family
+        env:
+          FAMILIES: ${{ steps.families.outputs.families }}
         run: |
           echo "Starting AMI cleanup process"
           echo "Region: ${{ env.AWS_REGION }}"
@@ -49,48 +61,6 @@ jobs:
           account_id=$(aws sts get-caller-identity --query Account --output text)
           echo "Account ID: $account_id"
 
-          # Find all Cloudberry AMIs owned by us
-          echo "Searching for Cloudberry AMIs..."
-          all_amis=$(aws ec2 describe-images \
-            --owners $account_id \
-            --filters \
-              "Name=name,Values=cloudberry-packer-build-*" \
-              "Name=state,Values=available" \
-            --query "Images[*].{ImageId:ImageId,Name:Name,CreationDate:CreationDate}" \
-            --output json)
-
-          total_count=$(echo "$all_amis" | jq length)
-          echo "Found $total_count total Cloudberry AMIs"
-
-          if [ "$total_count" -eq 0 ]; then
-            echo "No Cloudberry AMIs found"
-            echo "## AMI Cleanup Summary" >> $GITHUB_STEP_SUMMARY
-            echo "**No AMIs found** matching pattern cloudberry-packer-build-*" >> $GITHUB_STEP_SUMMARY
-            exit 0
-          fi
-
-          # Separate FAILED AMIs from regular AMIs
-          failed_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED"))]')
-          failed_count=$(echo "$failed_amis" | jq length)
-
-          # Get non-FAILED AMIs for normal retention processing
-          success_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED") | not)]')
-
-          echo "Found $failed_count FAILED AMIs (will be marked for deletion)"
-          if [ "$failed_count" -gt 0 ]; then
-            echo "$failed_amis" | jq -r '.[] | "  🔴 FAILED: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
-          fi
-
-          # Extract unique configurations (e.g., rocky9, rocky10)
-          # AMI name format: cloudberry-packer-build-{config}-{timestamp}
-          configs=$(echo "$success_amis" | jq -r '.[].Name' | sed 's/cloudberry-packer-build-\([^-]*\)-.*/\1/' | sort -u)
-
-          echo "Found configurations: $(echo $configs | tr '\n' ' ')"
-
-          # Build list of AMIs to delete (start with all FAILED AMIs)
-          amis_to_delete="$failed_amis"
-
-          # Add to GitHub summary
           echo "## AMI Cleanup Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
@@ -98,65 +68,116 @@ jobs:
           echo "**Dry Run:** ${{ env.DRY_RUN }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Add FAILED AMIs section if any exist
-          if [ "$failed_count" -gt 0 ]; then
-            echo "### 🔴 FAILED AMIs (Always Deleted)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Found **$failed_count** FAILED AMIs that will be deleted regardless of retention policy:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "$failed_amis" | jq -r '.[] | "- 🔴 **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
+          # Accumulate AMIs to delete across all families
+          amis_to_delete="[]"
 
-          echo "### Analysis by Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Process each configuration
-          for config in $configs; do
+          IFS=',' read -ra families <<< "$FAMILIES"
+          for family in "${families[@]}"; do
+            pattern="${family}-packer-*"
             echo "---"
-            echo "Processing configuration: $config"
+            echo "Family: $family (pattern: $pattern)"
+            echo "### Family: $family" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
 
-            # Get all AMIs for this configuration, sorted by creation date (newest first)
-            # Note: Using success_amis (excludes FAILED AMIs)
-            config_amis=$(echo "$success_amis" | jq -r --arg cfg "$config" \
-              '[.[] | select(.Name | startswith("cloudberry-packer-build-\($cfg)-"))] |
-               sort_by(.CreationDate) | reverse')
+            # Find all AMIs for this family owned by us
+            all_amis=$(aws ec2 describe-images \
+              --owners "$account_id" \
+              --filters \
+                "Name=name,Values=${pattern}" \
+                "Name=state,Values=available" \
+              --query "Images[*].{ImageId:ImageId,Name:Name,CreationDate:CreationDate}" \
+              --output json)
 
-            config_count=$(echo "$config_amis" | jq length)
-            echo "  Found $config_count AMIs for $config"
+            total_count=$(echo "$all_amis" | jq length)
+            echo "Found $total_count total AMIs for $family"
 
-            # Determine how many to keep and how many to delete
-            keep_count=${{ env.RETENTION_COUNT }}
-            if [ "$config_count" -le "$keep_count" ]; then
-              echo "  Keeping all $config_count AMIs (at or below retention limit)"
-              echo "$config_amis" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
-              echo "**$config**: $config_count AMIs (keeping all)" >> $GITHUB_STEP_SUMMARY
-              echo "$config_amis" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
-            else
-              delete_count=$((config_count - keep_count))
-              echo "  Keeping $keep_count newest AMIs, marking $delete_count for deletion"
-
-              # Get AMIs to keep (first N)
-              config_keep=$(echo "$config_amis" | jq --arg keep "$keep_count" '[limit($keep | tonumber; .[])]')
-              echo "$config_keep" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
-
-              # Get AMIs to delete (skip the first N, take the rest)
-              config_delete=$(echo "$config_amis" | jq --arg skip "$keep_count" '[.[] | select(. != null)] | .[$skip | tonumber:]')
-              echo "$config_delete" | jq -r '.[] | "    ❌ DELETE: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
-
-              # Add to GitHub summary
-              echo "**$config**: $config_count AMIs (keeping $keep_count, deleting $delete_count)" >> $GITHUB_STEP_SUMMARY
+            if [ "$total_count" -eq 0 ]; then
+              echo "No AMIs found for $family"
+              echo "**No AMIs found** matching pattern ${pattern}" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "Keep:" >> $GITHUB_STEP_SUMMARY
-              echo "$config_keep" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "Delete:" >> $GITHUB_STEP_SUMMARY
-              echo "$config_delete" | jq -r '.[] | "- ❌ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-
-              # Add to global delete list
-              amis_to_delete=$(echo "$amis_to_delete" "$config_delete" | jq -s 'add')
+              continue
             fi
+
+            # Separate FAILED AMIs from regular AMIs
+            failed_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED"))]')
+            failed_count=$(echo "$failed_amis" | jq length)
+
+            # Get non-FAILED AMIs for normal retention processing
+            success_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED") | not)]')
+
+            echo "Found $failed_count FAILED AMIs for $family (will be marked for deletion)"
+            if [ "$failed_count" -gt 0 ]; then
+              echo "$failed_amis" | jq -r '.[] | "  🔴 FAILED: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+            fi
+
+            amis_to_delete=$(echo "$amis_to_delete" "$failed_amis" | jq -s 'add')
+
+            # Add FAILED AMIs section if any exist
+            if [ "$failed_count" -gt 0 ]; then
+              echo "#### 🔴 FAILED AMIs (Always Deleted)" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Found **$failed_count** FAILED AMIs that will be deleted regardless of retention policy:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "$failed_amis" | jq -r '.[] | "- 🔴 **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            # Extract unique configurations (e.g., rocky9, rocky10)
+            # AMI name format: <family>-packer-<config>-YYYYMMDD-HHmmss
+            configs=$(echo "$success_amis" | jq -r '.[].Name' | sed "s/^${family}-packer-\(.*\)-[0-9]\{8\}-[0-9]\{6\}.*/\1/" | sort -u)
+
+            echo "Found configurations for $family: $(echo $configs | tr '\n' ' ')"
+
+            echo "#### Analysis by Configuration" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Process each configuration
+            for config in $configs; do
+              echo "Processing configuration: $family/$config"
+
+              # Get all AMIs for this configuration, sorted by creation date (newest first)
+              # Note: Using success_amis (excludes FAILED AMIs)
+              config_amis=$(echo "$success_amis" | jq -r --arg cfg "$config" --arg fam "$family" \
+                '[.[] | select(.Name | startswith("\($fam)-packer-\($cfg)-"))] |
+                 sort_by(.CreationDate) | reverse')
+
+              config_count=$(echo "$config_amis" | jq length)
+              echo "  Found $config_count AMIs for $family/$config"
+
+              # Determine how many to keep and how many to delete
+              keep_count=${{ env.RETENTION_COUNT }}
+              if [ "$config_count" -le "$keep_count" ]; then
+                echo "  Keeping all $config_count AMIs (at or below retention limit)"
+                echo "$config_amis" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+                echo "**$config**: $config_count AMIs (keeping all)" >> $GITHUB_STEP_SUMMARY
+                echo "$config_amis" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name) (Created: \(.CreationDate))"' >> $GITHUB_STEP_SUMMARY
+              else
+                delete_count=$((config_count - keep_count))
+                echo "  Keeping $keep_count newest AMIs, marking $delete_count for deletion"
+
+                # Get AMIs to keep (first N)
+                config_keep=$(echo "$config_amis" | jq --arg keep "$keep_count" '[limit($keep | tonumber; .[])]')
+                echo "$config_keep" | jq -r '.[] | "    ✅ KEEP: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+
+                # Get AMIs to delete (skip the first N, take the rest)
+                config_delete=$(echo "$config_amis" | jq --arg skip "$keep_count" '[.[] | select(. != null)] | .[$skip | tonumber:]')
+                echo "$config_delete" | jq -r '.[] | "    ❌ DELETE: \(.ImageId) - \(.Name) (Created: \(.CreationDate))"'
+
+                # Add to GitHub summary
+                echo "**$config**: $config_count AMIs (keeping $keep_count, deleting $delete_count)" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "Keep:" >> $GITHUB_STEP_SUMMARY
+                echo "$config_keep" | jq -r '.[] | "- ✅ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "Delete:" >> $GITHUB_STEP_SUMMARY
+                echo "$config_delete" | jq -r '.[] | "- ❌ **\(.ImageId)**: \(.Name)"' >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+
+                # Add to global delete list
+                amis_to_delete=$(echo "$amis_to_delete" "$config_delete" | jq -s 'add')
+              fi
+            done
+            echo "" >> $GITHUB_STEP_SUMMARY
           done
 
           # Count total AMIs to delete
@@ -237,6 +258,8 @@ jobs:
 
       - name: Cleanup orphaned snapshots
         if: env.DRY_RUN != 'true'
+        env:
+          FAMILIES: ${{ steps.families.outputs.families }}
         run: |
           echo "Looking for orphaned snapshots from deleted AMIs..."
 
@@ -245,25 +268,29 @@ jobs:
 
           account_id=$(aws sts get-caller-identity --query Account --output text)
 
-          # Find snapshots with Cloudberry-related descriptions
-          orphaned_snapshots=$(aws ec2 describe-snapshots \
-            --owner-ids $account_id \
-            --filters \
-              "Name=description,Values=*cloudberry-packer-build-*" \
-              "Name=status,Values=completed" \
-            --query "Snapshots[*].{SnapshotId:SnapshotId,Description:Description,StartTime:StartTime}" \
-            --output json)
+          orphaned_snapshots="[]"
+          IFS=',' read -ra families <<< "$FAMILIES"
+          for family in "${families[@]}"; do
+            family_snapshots=$(aws ec2 describe-snapshots \
+              --owner-ids "$account_id" \
+              --filters \
+                "Name=description,Values=*${family}-packer-*" \
+                "Name=status,Values=completed" \
+              --query "Snapshots[*].{SnapshotId:SnapshotId,Description:Description,StartTime:StartTime}" \
+              --output json)
+            orphaned_snapshots=$(echo "$orphaned_snapshots" "$family_snapshots" | jq -s 'add')
+          done
 
           snapshot_count=$(echo "$orphaned_snapshots" | jq length)
-          echo "Found $snapshot_count Cloudberry snapshots"
+          echo "Found $snapshot_count snapshots"
 
           if [ "$snapshot_count" -gt 0 ]; then
-            echo "Cloudberry snapshots found:"
+            echo "Snapshots found:"
             echo "$orphaned_snapshots" | jq -r '.[] | "- \(.SnapshotId): \(.Description) (Created: \(.StartTime))"'
 
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Orphaned Snapshots:**" >> $GITHUB_STEP_SUMMARY
-            echo "Found $snapshot_count Cloudberry snapshots" >> $GITHUB_STEP_SUMMARY
+            echo "Found $snapshot_count snapshots" >> $GITHUB_STEP_SUMMARY
 
             # Note: Being conservative here - snapshots should have been deleted with AMIs
             # If these exist, they may be orphaned from failed deletions
@@ -271,7 +298,7 @@ jobs:
             echo "Manual review recommended to verify they are truly orphaned" >> $GITHUB_STEP_SUMMARY
             echo "$orphaned_snapshots" | jq -r '.[] | "- `\(.SnapshotId)`: \(.Description)"' >> $GITHUB_STEP_SUMMARY
           else
-            echo "No orphaned Cloudberry snapshots found"
+            echo "No orphaned snapshots found"
           fi
 
       - name: Generate cleanup report
