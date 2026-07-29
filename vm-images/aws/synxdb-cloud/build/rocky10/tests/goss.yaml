@@ -14,6 +14,7 @@ gossfile:
 package:
   # Version control and development tools
   git: {installed: true}
+  glow: {installed: true}
   vim-common: {installed: true}
   wget: {installed: true}
   curl: {installed: true}
@@ -339,6 +340,12 @@ file:
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
+  # glow (markdown viewer) functionality check
+  "/usr/bin/glow --version":
+    exit-status: 0
+    stdout: ["glow"]
+    timeout: 5000
+
   # yq functionality check
   "/usr/local/bin/yq --version":
     exit-status: 0

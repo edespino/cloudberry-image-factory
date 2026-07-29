@@ -16,6 +16,7 @@ gossfile:
 package:
   # Version control and development tools
   git: {installed: true}
+  glow: {installed: true}
   vim-common: {installed: true}
   tmux: {installed: true}
   wget: {installed: true}
@@ -160,6 +161,12 @@ command:
   "java -version":
     exit-status: 0
     stderr: ["openjdk version"]
+    timeout: 5000
+
+  # glow (markdown viewer) functionality check
+  "/usr/bin/glow --version":
+    exit-status: 0
+    stdout: ["glow"]
     timeout: 5000
 
   # yq functionality check

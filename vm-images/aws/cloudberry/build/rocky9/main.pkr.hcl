@@ -182,6 +182,11 @@ build {
     script = "../../../../common/scripts/system_add_gh.sh"
   }
 
+  # Install glow (terminal markdown viewer, Charm repo)
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_add_glow.sh"
+  }
+
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_goss.sh"
   }
