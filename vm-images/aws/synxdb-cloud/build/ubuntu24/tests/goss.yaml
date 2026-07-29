@@ -526,8 +526,9 @@ command:
     exit-status: 0
     timeout: 5000
 
-  # Cloudsmith CLI: must run under PYTHONNOUSERSITE=1 (access-env / access run)
-  "sudo -n -u ubuntu env HOME=/home/ubuntu PYTHONNOUSERSITE=1 PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cloudsmith --version":
+  # Cloudsmith CLI: must run under PYTHONNOUSERSITE=1 (access-env / access run).
+  # Goss already runs as the ubuntu user, so no sudo wrapper is needed.
+  "env HOME=/home/ubuntu PYTHONNOUSERSITE=1 PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cloudsmith --version":
     exit-status: 0
     timeout: 30000
 
