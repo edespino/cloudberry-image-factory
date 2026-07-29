@@ -48,7 +48,7 @@ sudo ln -sf /usr/bin/batcat /usr/local/bin/bat
 sudo apt-get install -y python3 python3-pip python3-venv
 
 # Install network and system tools
-# bubblewrap (bwrap): required by omnigent to launch the Claude CLI in a sandbox
+# bubblewrap (bwrap): general sandboxing utility
 # lsb-release: required by common provisioners that add APT repos via `lsb_release -cs`
 # `which` is provided by debianutils (preinstalled essential package) — no package to install
 sudo apt-get install -y \

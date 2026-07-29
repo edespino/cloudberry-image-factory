@@ -46,7 +46,7 @@ echo "Installing kernel-modules-extra for kernel ${NEW_KERNEL}"
 sudo dnf install -y -d0 "kernel-modules-extra-${NEW_KERNEL}"
 
 # Install network and system tools
-# bubblewrap (bwrap): required by omnigent to launch the Claude CLI in a sandbox
+# bubblewrap (bwrap): general sandboxing utility
 sudo dnf install -y -d0 \
      bind-utils \
      bubblewrap \

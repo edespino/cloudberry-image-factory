@@ -169,13 +169,13 @@ file:
     mode: "0755"
     filetype: file
 
-  # uv installation (required by omnigent)
+  # uv installation
   /usr/local/bin/uv:
     exists: true
     mode: "0755"
     filetype: file
 
-  # Node.js installation (required by omnigent harnesses)
+  # Node.js installation
   /usr/local/bin/node:
     exists: true
     filetype: file
@@ -396,7 +396,7 @@ command:
     stdout: ["uv"]
     timeout: 5000
 
-  # Node.js functionality check (must be 22.x for omnigent harnesses)
+  # Node.js functionality check (must be 22.x)
   "/usr/local/bin/node --version":
     exit-status: 0
     stdout: ["v22."]
@@ -408,7 +408,7 @@ command:
     exit-status: 0
     timeout: 10000
 
-  # bubblewrap (required by omnigent to sandbox the Claude CLI)
+  # bubblewrap (general sandboxing utility)
   "/usr/bin/bwrap --version":
     exit-status: 0
     stdout: ["bubblewrap"]

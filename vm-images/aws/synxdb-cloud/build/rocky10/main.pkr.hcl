@@ -239,12 +239,12 @@ build {
     script = "../../../../common/scripts/system_add_ansible.sh"
   }
 
-  # Install uv (required by omnigent)
+  # Install uv (general Python tooling)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_uv.sh"
   }
 
-  # Install Node.js 22 LTS (required by omnigent's claude/codex/pi harnesses)
+  # Install Node.js 22 LTS (general JS tooling; npm-installed CLIs)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_nodejs.sh"
   }
