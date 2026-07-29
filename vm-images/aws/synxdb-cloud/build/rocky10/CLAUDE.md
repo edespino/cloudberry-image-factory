@@ -31,6 +31,7 @@ When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner o
 9. `system_add_swap.sh`
 10. `dbadmin_configure_environment.sh` x2 - gpadmin, cbadmin
 11. `system_add_gh.sh` - GitHub CLI
+11b. `system_add_glow.sh` - glow (terminal markdown viewer, Charm repo)
 12. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
 13. `system_add_omnistrate_ctl.sh` - Omnistrate CLI (latest release, platform-detected)
 14. ~~`system_add_synxdb_dbaas.sh`~~ - DBaaS offline package (disabled, commented out)

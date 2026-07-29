@@ -14,6 +14,7 @@ gossfile:
 package:
   # Basic utilities (from system_add_synxdb_cloud_dependencies.sh)
   git: {installed: true}
+  glow: {installed: true}
   vim-common: {installed: true}
   tmux: {installed: true}
   wget: {installed: true}
@@ -74,6 +75,12 @@ file:
 
 # Command execution tests
 command:
+  # glow (markdown viewer) functionality check
+  "/usr/bin/glow --version":
+    exit-status: 0
+    stdout: ["glow"]
+    timeout: 5000
+
   # Goss check (from system_add_goss.sh)
   "/usr/local/bin/goss --version":
     exit-status: 0
