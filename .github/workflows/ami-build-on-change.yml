@@ -39,6 +39,7 @@ jobs:
         id: set-matrix
         shell: bash
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
           else
@@ -137,7 +138,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: build-artifacts-${{ matrix.build.name }}
+          name: build-artifacts-${{ matrix.build.family }}-${{ matrix.build.name }}
           path: |
             ${{ matrix.build.path }}/packer-manifest.json
             ${{ matrix.build.path }}/goss-test-results-*.xml
@@ -163,7 +164,7 @@ jobs:
           script: |
             const amiId = '${{ steps.ami-info.outputs.ami-id }}';
             const amiName = '${{ steps.ami-info.outputs.ami-name }}';
-            const buildName = '${{ matrix.build.name }}';
+            const buildName = '${{ matrix.build.family }}/${{ matrix.build.name }}';
 
             if (amiId && amiName) {
               const comment = `✅ **AMI Build Successful for ${buildName}**
@@ -229,6 +230,6 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Builds Triggered:**" >> $GITHUB_STEP_SUMMARY
-          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.build[].name' | while read build; do
+          echo '${{ needs.detect-changes.outputs.matrix }}' | jq -r '.build[] | "\(.family)/\(.name)"' | while read build; do
             echo "- $build" >> $GITHUB_STEP_SUMMARY
           done

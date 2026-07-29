@@ -28,15 +28,19 @@ jobs:
       - name: Setup build matrix
         id: set-matrix
         shell: bash
+        env:
+          BUILD_TARGETS: ${{ github.event.inputs.build_targets }}
         run: |
-          if [ "${{ github.event.inputs.build_targets }}" = "all" ]; then
+          set -euo pipefail
+          if [ "$BUILD_TARGETS" = "all" ]; then
             entries=$(for d in vm-images/aws/*/build/*/; do
               [ -f "${d}main.pkr.hcl" ] || continue
               fam=$(basename "$(dirname "$(dirname "$d")")"); os=$(basename "$d")
               echo "{\"family\":\"$fam\",\"name\":\"$os\",\"path\":\"${d%/}\"}"
             done | paste -sd, -)
           else
-            entries=$(echo "${{ github.event.inputs.build_targets }}" | tr ',' '\n' | while IFS=/ read -r fam os; do
+            entries=$(echo "$BUILD_TARGETS" | tr -d '[:blank:]' | tr ',' '\n' | while IFS=/ read -r fam os; do
+              [ -z "$fam$os" ] && continue
               d="vm-images/aws/$fam/build/$os"
               if [ ! -f "$d/main.pkr.hcl" ]; then echo "Unknown target: $fam/$os" >&2; exit 1; fi
               echo "{\"family\":\"$fam\",\"name\":\"$os\",\"path\":\"$d\"}"
@@ -132,7 +136,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: build-artifacts-${{ matrix.build.name }}-${{ github.run_number }}
+          name: build-artifacts-${{ matrix.build.family }}-${{ matrix.build.name }}-${{ github.run_number }}
           path: |
             ${{ matrix.build.path }}/packer-manifest.json
             ${{ matrix.build.path }}/goss-test-results-*.xml
