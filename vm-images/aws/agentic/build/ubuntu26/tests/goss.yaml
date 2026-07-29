@@ -644,10 +644,11 @@ command:
     exit-status: 0
     timeout: 5000
 
-  # tmux functionality check (from the noble archive, not built from source)
+  # tmux functionality check (distro archive package; version tracks the
+  # resolute archive, so assert only that a tmux 3.x answers)
   "/usr/bin/tmux -V":
     exit-status: 0
-    stdout: ["tmux 3.4"]
+    stdout: ["tmux 3"]
     timeout: 5000
 
   # Go functionality check
