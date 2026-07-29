@@ -375,7 +375,7 @@ file:
   /home/ubuntu/.local/bin/cloudsmith:
     exists: true
     owner: ubuntu
-    filetype: file
+    filetype: symlink
 
   # SSH agent tmux persistence
   /etc/profile.d/ssh-agent-tmux.sh:
