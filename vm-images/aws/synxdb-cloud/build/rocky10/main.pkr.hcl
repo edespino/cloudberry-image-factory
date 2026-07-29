@@ -249,22 +249,6 @@ build {
     script = "../../../../common/scripts/system_add_nodejs.sh"
   }
 
-  # Install PI coding agent (pi) for rocky (per-user so `pi update` works)
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_pi.sh"
-    environment_vars = [
-      "DB_USERNAME=rocky"
-    ]
-  }
-
-  # Install Omnigent for rocky
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_omnigent.sh"
-    environment_vars = [
-      "DB_USERNAME=rocky"
-    ]
-  }
-
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_1password_cli.sh"
   }
@@ -280,38 +264,9 @@ build {
     ]
   }
 
-  # Install Claude CLI for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Install Claude CLI for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  # Install Claude CLI for rocky
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=rocky"
-    ]
-  }
-
   # Install gitleaks + auto-enable pre-commit hook via init.templatedir
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_gitleaks.sh"
-  }
-
-  # Install OpenCode CLI (installs for rocky, the Packer SSH user)
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_opencode.sh"
   }
 
   # Install Cloudsmith CLI (pip --user, installs to /home/rocky/.local/bin/cloudsmith)
@@ -359,19 +314,9 @@ build {
     script = "../../../../common/scripts/system_add_dolt.sh"
   }
 
-  # Install beads/bd (required for gastown)
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_beads.sh"
-  }
-
   # Install Bun JavaScript runtime
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_bun.sh"
-  }
-
-  # Install gastown (gt) multi-agent workspace manager
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_gastown.sh"
   }
 
   # Install Emacs (built from source)
@@ -382,30 +327,6 @@ build {
   # Configure SSH agent forwarding persistence for tmux
   provisioner "shell" {
     script = "../../../../common/scripts/system_configure_ssh_agent_tmux.sh"
-  }
-
-  # Configure Claude Code settings for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Configure Claude Code settings for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  # Configure Claude Code settings for rocky
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=rocky"
-    ]
   }
 
   provisioner "shell" {

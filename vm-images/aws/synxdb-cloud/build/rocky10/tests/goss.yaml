@@ -183,11 +183,6 @@ file:
     exists: true
     filetype: symlink
 
-  # PI coding agent (per-user npm install, symlink into node_modules)
-  /home/rocky/.local/bin/pi:
-    exists: true
-    filetype: symlink
-
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
@@ -213,11 +208,6 @@ file:
   /usr/share/ansible/collections/ansible_collections/community/sops:
     exists: true
     filetype: directory
-
-  # Omnigent (rocky user, uv tool install symlinks into its tools venv)
-  /home/rocky/.local/bin/omnigent:
-    exists: true
-    filetype: symlink
 
   # direnv installation
   /usr/local/bin/direnv:
@@ -300,28 +290,10 @@ file:
     mode: "0755"
     filetype: file
 
-  # beads (bd) installation
-  /usr/local/bin/bd:
-    exists: true
-    mode: "0755"
-    filetype: file
-
   # Bun installation
   /usr/local/bin/bun:
     exists: true
     mode: "0755"
-    filetype: file
-
-  # gastown (gt) installation
-  /usr/local/bin/gt:
-    exists: true
-    mode: "0755"
-    filetype: file
-
-  # OpenCode CLI (rocky user)
-  /home/rocky/.opencode/bin/opencode:
-    exists: true
-    owner: rocky
     filetype: file
 
   # Cloudsmith CLI (rocky user, pip --user install)
@@ -337,12 +309,6 @@ file:
     filetype: file
     contents:
       - "ssh_auth_sock"
-
-  # Claude Code config (rocky user)
-  /home/rocky/.claude/CLAUDE.md:
-    exists: true
-    owner: rocky
-    filetype: file
 
   # Python venv
   /home/rocky/.venv/bin/python3:
@@ -442,22 +408,10 @@ command:
     exit-status: 0
     timeout: 10000
 
-  # Omnigent functionality check (verify binary is executable;
-  # bare invocation launches an interactive session, so skip running it)
-  "test -x /home/rocky/.local/bin/omnigent":
-    exit-status: 0
-    timeout: 5000
-
   # bubblewrap (required by omnigent to sandbox the Claude CLI)
   "/usr/bin/bwrap --version":
     exit-status: 0
     stdout: ["bubblewrap"]
-    timeout: 5000
-
-  # PI coding agent functionality check (verify binary is executable;
-  # bare/--version behavior of agent CLIs can hang, so just check it's runnable)
-  "test -x /home/rocky/.local/bin/pi":
-    exit-status: 0
     timeout: 5000
 
   # age functionality check
@@ -559,25 +513,8 @@ command:
     stdout: ["dolt version"]
     timeout: 30000
 
-  # beads (bd) functionality check (verify binary is executable;
-  # --version can hang in some shells)
-  "test -x /usr/local/bin/bd":
-    exit-status: 0
-    timeout: 5000
-
   # Bun functionality check
   "/usr/local/bin/bun --version":
-    exit-status: 0
-    timeout: 5000
-
-  # gastown (gt) functionality check
-  # First invocation can initialize config/state, so allow extra time (like dolt)
-  "/usr/local/bin/gt --version":
-    exit-status: 0
-    timeout: 30000
-
-  # OpenCode CLI functionality check (verify binary is executable)
-  "test -x /home/rocky/.opencode/bin/opencode":
     exit-status: 0
     timeout: 5000
 

@@ -166,30 +166,6 @@ build {
     ]
   }
 
-  # Install Claude CLI for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Install Claude CLI for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  # Install Claude CLI for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=rocky"
-    ]
-  }
-
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_goss.sh"
   }

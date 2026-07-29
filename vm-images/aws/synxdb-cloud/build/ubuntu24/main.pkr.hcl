@@ -236,24 +236,6 @@ build {
     script = "../../../../common/scripts/system_add_nodejs.sh"
   }
 
-  # Install the AI agent toolchain for ubuntu (single consolidated process:
-  # claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes
-  # — all per-user so each tool can self-update)
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_ai_toolchain.sh"
-    environment_vars = [
-      "DB_USERNAME=ubuntu"
-    ]
-  }
-
-  # Install Omnigent for ubuntu
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_omnigent.sh"
-    environment_vars = [
-      "DB_USERNAME=ubuntu"
-    ]
-  }
-
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_1password_cli.sh"
   }
@@ -269,31 +251,10 @@ build {
     ]
   }
 
-  # Install Claude CLI for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Install Claude CLI for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  # NOTE: claude for ubuntu comes from system_add_ai_toolchain.sh above;
-  # gpadmin/cbadmin keep the standalone claude install.
-
   # Install gitleaks + auto-enable pre-commit hook via init.templatedir
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_gitleaks.sh"
   }
-
-  # NOTE: opencode for ubuntu comes from system_add_ai_toolchain.sh above.
 
   # Install Cloudsmith CLI (pip --user, installs to /home/ubuntu/.local/bin/cloudsmith)
   provisioner "shell" {
@@ -313,11 +274,6 @@ build {
   # Install zellij terminal multiplexer
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_zellij.sh"
-  }
-
-  # Install herdr (agent multiplexer)
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_herdr.sh"
   }
 
   # Install hwatch (modern watch alternative)
@@ -345,11 +301,6 @@ build {
     script = "../../../../common/scripts/system_add_dolt.sh"
   }
 
-  # Install beads/bd
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_beads.sh"
-  }
-
   # Install Bun JavaScript runtime
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_bun.sh"
@@ -358,30 +309,6 @@ build {
   # Configure SSH agent forwarding persistence for tmux
   provisioner "shell" {
     script = "../../../../common/scripts/system_configure_ssh_agent_tmux.sh"
-  }
-
-  # Configure Claude Code settings for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Configure Claude Code settings for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
-  # Configure Claude Code settings for ubuntu
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_configure_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=ubuntu"
-    ]
   }
 
   provisioner "shell" {

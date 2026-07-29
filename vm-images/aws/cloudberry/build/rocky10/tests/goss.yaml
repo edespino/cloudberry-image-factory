@@ -71,18 +71,6 @@ file:
     mode: "0755"
     filetype: file
 
-  # Claude CLI (native installer creates a symlink at ~/.local/bin/claude per user)
-  /home/gpadmin/.local/bin/claude:
-    exists: true
-    owner: gpadmin
-    group: gpadmin
-    filetype: symlink
-  /home/cbadmin/.local/bin/claude:
-    exists: true
-    owner: cbadmin
-    group: cbadmin
-    filetype: symlink
-
   # SELinux configuration
   /etc/selinux/config:
     exists: true

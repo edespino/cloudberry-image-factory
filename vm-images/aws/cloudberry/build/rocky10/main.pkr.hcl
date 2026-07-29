@@ -170,22 +170,6 @@ build {
     script = "../../../../common/scripts/system_add_motd_manager.sh"
   }
 
-  # Install Claude CLI for gpadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=gpadmin"
-    ]
-  }
-
-  # Install Claude CLI for cbadmin
-  provisioner "shell" {
-    script = "../../../../common/scripts/system_add_claude.sh"
-    environment_vars = [
-      "DB_USERNAME=cbadmin"
-    ]
-  }
-
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_gh.sh"
   }

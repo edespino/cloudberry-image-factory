@@ -148,34 +148,6 @@ class RepositoryPolicyTests(unittest.TestCase):
                         f"{surface}:{line_number}: {line!r}"
                     )
 
-    def test_rocky10_claude_launcher_is_symlink(self) -> None:
-        goss = (
-            REPOSITORY
-            / "vm-images/aws/cloudberry/build/rocky10/tests/goss.yaml"
-        ).read_text()
-        for user in ("gpadmin", "cbadmin"):
-            with self.subTest(user=user):
-                path = f"/home/{user}/.local/bin/claude"
-                block = self._extract_yaml_block(goss, path)
-                self.assertIn("exists: true", block)
-                self.assertIn("filetype: symlink", block)
-
-    @staticmethod
-    def _extract_yaml_block(text: str, key: str) -> str:
-        lines = text.splitlines()
-        for index, line in enumerate(lines):
-            if line.strip().startswith(key + ":"):
-                start = index
-                break
-        else:
-            raise AssertionError(f"key {key!r} not found")
-        end = start + 1
-        while end < len(lines) and (
-            lines[end].startswith(" ") or lines[end].startswith("\t")
-        ):
-            end += 1
-        return "\n".join(lines[start:end])
-
     def test_rocky10_has_no_nodejs(self) -> None:
         pkr = (
             REPOSITORY
@@ -242,7 +214,7 @@ class RepositoryPolicyTests(unittest.TestCase):
                     "ubuntu24", mapping.group(1).split(",")
                 )
 
-    def test_ubuntu24_goss_covers_ai_toolchain_executables(self) -> None:
+    def test_agentic_ubuntu26_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (
             REPOSITORY
             / "vm-images/common/scripts"
@@ -257,7 +229,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertTrue(suffixes)
         goss = (
             REPOSITORY
-            / "vm-images/aws/synxdb-cloud/build/ubuntu24/tests"
+            / "vm-images/aws/agentic/build/ubuntu26/tests"
             / "goss.yaml"
         ).read_text()
         for suffix in suffixes:
@@ -266,6 +238,25 @@ class RepositoryPolicyTests(unittest.TestCase):
                 self.assertIn(path, goss)
         # herdr installs system-wide via its own provisioner
         self.assertIn("/usr/local/bin/herdr", goss)
+
+    def test_ai_tooling_ships_only_in_agentic_family(self) -> None:
+        ai_scripts = [
+            "system_add_claude.sh", "system_configure_claude.sh",
+            "system_add_opencode.sh", "system_add_omnigent.sh",
+            "system_add_pi.sh", "system_add_gastown.sh",
+            "system_add_beads.sh", "system_add_herdr.sh",
+            "system_add_ai_toolchain.sh",
+        ]
+        templates = sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"))
+        self.assertTrue(templates)
+        for template in templates:
+            family = template.parents[2].name
+            if family == "agentic":
+                continue
+            content = template.read_text()
+            for script in ai_scripts:
+                with self.subTest(template=str(template), script=script):
+                    self.assertNotIn(script, content)
 
     def test_template_comments_explain_description_omission_without_version_pin(self) -> None:
         for template in sorted(
