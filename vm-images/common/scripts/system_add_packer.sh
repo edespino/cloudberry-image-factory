@@ -35,7 +35,28 @@ case "$OS" in
         # Add the HashiCorp APT repo (per https://developer.hashicorp.com/packer/install)
         curl -fsSL https://apt.releases.hashicorp.com/gpg | \
             sudo gpg --dearmor --yes -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+
+        # HashiCorp does not always publish a dists/<codename>/Release file the
+        # day a new Ubuntu codename ships (e.g. 26.04 "resolute"). Probe the
+        # detected codename first and fall back to the newest Ubuntu LTS
+        # codename HashiCorp does publish (noble) if it 404s, rather than
+        # blindly writing a sources entry that breaks apt-get update.
+        DETECTED_DIST=$(lsb_release -cs)
+        HC_DIST=""
+        for candidate in "$DETECTED_DIST" noble; do
+            if curl -fsSI "https://apt.releases.hashicorp.com/dists/${candidate}/Release" \
+                >/dev/null 2>&1; then
+                HC_DIST="$candidate"
+                break
+            fi
+        done
+        if [ -z "$HC_DIST" ]; then
+            echo "ERROR: no usable HashiCorp apt codename found among: ${DETECTED_DIST} noble"
+            exit 1
+        fi
+        echo "Using HashiCorp apt codename: ${HC_DIST} (detected: ${DETECTED_DIST})"
+
+        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${HC_DIST} main" | \
             sudo tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
 
         sudo apt-get update

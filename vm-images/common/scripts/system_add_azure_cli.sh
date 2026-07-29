@@ -57,7 +57,27 @@ case "$OS" in
         sudo chmod go+r /etc/apt/keyrings/microsoft.gpg
 
         # Add the Azure CLI APT repository for this release
-        AZ_DIST=$(lsb_release -cs)
+        #
+        # Microsoft does not always publish a dists/<codename>/Release file the
+        # day a new Ubuntu codename ships (e.g. 26.04 "resolute"). Probe the
+        # detected codename first and fall back to the newest Ubuntu LTS
+        # codename Microsoft does publish (noble) if it 404s, rather than
+        # blindly writing a sources entry that breaks apt-get update.
+        DETECTED_DIST=$(lsb_release -cs)
+        AZ_DIST=""
+        for candidate in "$DETECTED_DIST" noble; do
+            if curl -fsSI "https://packages.microsoft.com/repos/azure-cli/dists/${candidate}/Release" \
+                >/dev/null 2>&1; then
+                AZ_DIST="$candidate"
+                break
+            fi
+        done
+        if [ -z "$AZ_DIST" ]; then
+            echo "ERROR: no usable Azure CLI apt codename found among: ${DETECTED_DIST} noble"
+            exit 1
+        fi
+        echo "Using Azure CLI apt codename: ${AZ_DIST} (detected: ${DETECTED_DIST})"
+
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ ${AZ_DIST} main" | \
             sudo tee /etc/apt/sources.list.d/azure-cli.list > /dev/null
 
