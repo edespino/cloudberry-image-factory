@@ -304,12 +304,12 @@ build {
     script = "../../../../common/scripts/system_add_zoxide.sh"
   }
 
-  # Install Go (required for gastown)
+  # Install Go
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_golang.sh"
   }
 
-  # Install Dolt (required for gastown)
+  # Install Dolt
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_dolt.sh"
   }
