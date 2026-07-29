@@ -178,9 +178,11 @@ limited to identity and paths:
 
 `ami-build-on-change.yml`
 - `paths` filter: `vm-images/**` plus `tests/**` and
-  `.github/workflows/**` (today, changes under `tests/` or `.github/` never
-  run the suite — fixed as part of this work; doc-only changes stay
-  excluded).
+  `.github/**` (doc-only changes stay excluded). DEFERRED (v2.1): the
+  filters are present but changes under `tests/`/`.github/` alone still
+  yield an empty matrix, so the validate/unittest lane does not run for
+  them — an always-run validation lane is a filed follow-up, not part of
+  this branch.
 - Matrix computed dynamically (replaces `COMMON_SCRIPT_DEPS`):
   - change in `<cloud>/<family>/build/<target>/**` → that target;
   - change in `vm-images/common/scripts/X.sh` → targets whose
