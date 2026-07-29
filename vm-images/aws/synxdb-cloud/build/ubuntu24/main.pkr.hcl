@@ -256,7 +256,7 @@ build {
     script = "../../../../common/scripts/system_add_gitleaks.sh"
   }
 
-  # Install Cloudsmith CLI (pip --user, installs to /home/ubuntu/.local/bin/cloudsmith)
+  # Install Cloudsmith CLI via uv tool (isolated venv; works under access-env PYTHONNOUSERSITE=1)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_cloudsmith_cli.sh"
   }
