@@ -190,29 +190,23 @@ class RepositoryPolicyTests(unittest.TestCase):
                 self.assertNotIn("PKR_VAR_cloudsmith_user", workflow)
                 self.assertNotIn("PKR_VAR_cloudsmith_token", workflow)
 
-    def test_ubuntu24_synxdb_cloud_rebuilds_when_shared_scripts_change(self) -> None:
-        pkr = (
-            REPOSITORY
-            / "vm-images/aws/synxdb-cloud/build/ubuntu24/main.pkr.hcl"
-        ).read_text()
-        shared_scripts = sorted(
-            set(re.findall(r"\.\./\.\./\.\./\.\./common/scripts/([a-z0-9_]+\.sh)", pkr))
-        )
-        self.assertTrue(shared_scripts)
-        workflow = (
-            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
-        ).read_text()
-        for script in shared_scripts:
-            with self.subTest(script=script):
-                mapping = re.search(
-                    r'\["' + re.escape(script) + r'"\]="([^"]*)"', workflow
-                )
-                self.assertIsNotNone(
-                    mapping, f"{script} missing from COMMON_SCRIPT_DEPS"
-                )
-                self.assertIn(
-                    "ubuntu24", mapping.group(1).split(",")
-                )
+    def test_dynamic_matrix_selects_targets_from_hcl_references(self) -> None:
+        import json
+        import subprocess
+        script = REPOSITORY / ".github/scripts/compute-build-matrix.sh"
+        self.assertTrue(script.exists())
+        out = subprocess.run(
+            ["bash", str(script)],
+            input="vm-images/common/scripts/system_add_goss.sh\n",
+            capture_output=True, text=True, cwd=REPOSITORY, check=True,
+        ).stdout
+        names = {(b["family"], b["name"]) for b in json.loads(out)["build"]}
+        expected = set()
+        for template in REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"):
+            if "system_add_goss.sh" in template.read_text():
+                expected.add((template.parents[2].name, template.parent.name))
+        self.assertTrue(expected)
+        self.assertEqual(names, expected)
 
     def test_agentic_ubuntu26_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (

@@ -4,16 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       build_targets:
-        description: 'Select builds to run (comma-separated or "all")'
+        description: 'Targets: "all" or comma-separated family/os (e.g. cloudberry/rocky9,agentic/ubuntu26)'
         required: true
-        default: 'rocky9'  # Default to tested target
-        type: choice
-        options:
-          - 'all'
-          - 'rocky9'
-          - 'rocky10'
-          - 'ubuntu24'
-          - 'rocky9,rocky10'
+        default: 'all'
+        type: string
   # schedule:
   #   # Run weekly builds on Sundays at 2 AM UTC
   #   - cron: '0 2 * * 0'
@@ -28,60 +22,33 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
       should-run: ${{ steps.set-matrix.outputs.should-run }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
       - name: Setup build matrix
         id: set-matrix
+        shell: bash
         run: |
-          # Available builds
-          all_builds=("rocky9" "rocky10" "ubuntu24")
-
-          # Determine which builds to run
-          if [ "${{ github.event_name }}" == "schedule" ]; then
-            # For scheduled runs, build all
-            selected_builds=("${all_builds[@]}")
+          if [ "${{ github.event.inputs.build_targets }}" = "all" ]; then
+            entries=$(for d in vm-images/aws/*/build/*/; do
+              [ -f "${d}main.pkr.hcl" ] || continue
+              fam=$(basename "$(dirname "$(dirname "$d")")"); os=$(basename "$d")
+              echo "{\"family\":\"$fam\",\"name\":\"$os\",\"path\":\"${d%/}\"}"
+            done | paste -sd, -)
           else
-            # For manual dispatch
-            input_targets="${{ inputs.build_targets }}"
-            if [ "$input_targets" == "all" ]; then
-              selected_builds=("${all_builds[@]}")
-            else
-              IFS=',' read -ra selected_builds <<< "$input_targets"
-            fi
+            entries=$(echo "${{ github.event.inputs.build_targets }}" | tr ',' '\n' | while IFS=/ read -r fam os; do
+              d="vm-images/aws/$fam/build/$os"
+              if [ ! -f "$d/main.pkr.hcl" ]; then echo "Unknown target: $fam/$os" >&2; exit 1; fi
+              echo "{\"family\":\"$fam\",\"name\":\"$os\",\"path\":\"$d\"}"
+            done | paste -sd, -)
           fi
+          echo "matrix={\"build\":[$entries]}" >> "$GITHUB_OUTPUT"
 
-          if [ ${#selected_builds[@]} -eq 0 ]; then
-            echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "matrix={\"build\":[]}" >> $GITHUB_OUTPUT
-            exit 0
+          if [ -z "$entries" ]; then
+            echo "should-run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-run=true" >> "$GITHUB_OUTPUT"
           fi
-
-          echo "should-run=true" >> $GITHUB_OUTPUT
-
-          # Create JSON matrix
-          matrix_json="{\"build\":["
-          for i in "${!selected_builds[@]}"; do
-            build_name="${selected_builds[$i]}"
-
-            # Validate build name
-            if [[ ! " ${all_builds[*]} " =~ " $build_name " ]]; then
-              echo "Invalid build name: $build_name"
-              continue
-            fi
-
-            if [ $i -gt 0 ]; then
-              matrix_json+=","
-            fi
-
-            os_family=$(echo "$build_name" | grep -o '^[a-z]*')
-            case "$build_name" in
-              ubuntu24) build_family="synxdb-cloud" ;;
-              *) build_family="cloudberry" ;;
-            esac
-            matrix_json+="{\"family\":\"$build_family\",\"name\":\"$build_name\",\"os-family\":\"$os_family\",\"path\":\"vm-images/aws/$build_family/build/$build_name\"}"
-          done
-          matrix_json+="]}"
-
-          echo "Matrix: $matrix_json"
-          echo "matrix=$matrix_json" >> $GITHUB_OUTPUT
 
   validate:
     needs: setup-matrix
@@ -222,7 +189,7 @@ jobs:
           cutoff_time=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%S.000Z)
 
           aws ec2 describe-security-groups \
-            --filters "Name=group-name,Values=cloudberry-${{ matrix.build.name }}-*-sg" \
+            --filters "Name=group-name,Values=${{ matrix.build.family }}-${{ matrix.build.name }}-*-sg" \
             --query "SecurityGroups[].GroupId" \
             --output text | xargs -r -n1 -I {} bash -c '
               sg_id="{}";
@@ -235,7 +202,7 @@ jobs:
 
           # Clean up key pairs (older than 2 hours for manual builds)
           aws ec2 describe-key-pairs \
-            --filters "Name=key-name,Values=key-cloudberry-${{ matrix.build.name }}-*" \
+            --filters "Name=key-name,Values=key-${{ matrix.build.family }}-${{ matrix.build.name }}-*" \
             --query "KeyPairs[].KeyName" \
             --output text | xargs -r -n1 aws ec2 delete-key-pair --key-name || true
 
