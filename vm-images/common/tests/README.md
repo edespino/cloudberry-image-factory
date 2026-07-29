@@ -180,18 +180,20 @@ To add a new test for gpadmin's Git configuration:
 
 ## Platforms Using These Common Tests
 
-**All common test files (golang, users, security, docker):**
-- Amazon Linux 2023 (al2023)
-- Rocky Linux 9 (rocky9)
-- Ubuntu 22.04 (ubuntu22)
+**Current build targets** (`vm-images/aws/<family>/build/<os>/`):
+- cloudberry: rocky9, rocky10
+- synxdb-cloud: al2023, rocky9, rocky10, ubuntu24
+- agentic: ubuntu26
 
-**MOTD common tests (common-motd.yaml):**
-- CentOS Stream 10 (centos10)
-- Debian 12 (debian12)
-- Rocky Linux 9 (rocky9)
-- Rocky Linux 10 (rocky10)
-- Ubuntu 20.04 (ubuntu20)
-- Ubuntu 22.04 (ubuntu22)
+Not every target includes every common test file — e.g. the `synxdb-cloud`
+and `agentic` operations/workstation targets intentionally omit
+`common-security.yaml` (ulimits and kernel params they don't set). Check each
+target's `tests/goss.yaml` `gossfile:` block for its actual includes.
+
+**Archived 2026-07-24 (recoverable from git history):** al2023, ubuntu22,
+centos10, debian12, ubuntu20 — these platforms are no longer active build
+targets; historical references to their use of these common test files
+remain accurate only as history.
 
 ## Future Enhancement Plans
 

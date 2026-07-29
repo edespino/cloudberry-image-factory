@@ -1,23 +1,22 @@
-# rocky10-synxdb-cloud - Claude AI Context
+# synxdb-cloud/rocky10 - Claude AI Context
 
-SynxDB Cloud-optimized AMI on Rocky Linux 10. Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build.
+SynxDB Cloud-optimized AMI on Rocky Linux 10 (`vm-images/aws/synxdb-cloud/build/rocky10/`). Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build. No AI tooling ships on this image — AI tooling (Claude CLI, ai-toolchain, omnigent, herdr, beads) is agentic-family-only.
 
-## How This Differs from Standard rocky10
+## How This Differs from cloudberry/rocky10
 
-| Aspect | rocky10 | rocky10-synxdb-cloud |
+| Aspect | cloudberry/rocky10 | synxdb-cloud/rocky10 |
 |--------|---------|---------------------|
 | Purpose | Development build AMI | Cloud operations |
 | Build tools | gcc, cmake, etc. | None |
 | Kubernetes | No | helm + kubectl |
 | omnistrate-ctl | No | Yes (latest from GitHub) |
 | DBaaS package | No | Disabled (provisioner commented out) |
-| Claude CLI | No | Yes (gpadmin, cbadmin, rocky) |
 | Ulimits | Yes | No |
 | Kernel configs | Yes | No |
 
 ## Reference Platforms
 
-When refactoring, use `al2023-synxdb-cloud` for the cloud-specific provisioner ordering.
+When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner ordering. `al2023` is an archived cloudberry-family target (recoverable from git history) but remains an active `synxdb-cloud` target here.
 
 ## Provisioner Order (main.pkr.hcl)
 
@@ -36,9 +35,8 @@ When refactoring, use `al2023-synxdb-cloud` for the cloud-specific provisioner o
 13. `system_add_omnistrate_ctl.sh` - Omnistrate CLI (latest release, platform-detected)
 14. ~~`system_add_synxdb_dbaas.sh`~~ - DBaaS offline package (disabled, commented out)
 15. `system_add_motd_manager.sh` - MOTD with `synx` template
-16. `system_add_claude.sh` x3 - gpadmin, cbadmin, rocky
-17. `system_add_goss.sh` - Must be near end
-18. `system_add_docker.sh`
+16. `system_add_goss.sh` - Must be near end
+17. `system_add_docker.sh`
 
 ## Shell Aliases (via /etc/profile.d/)
 

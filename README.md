@@ -14,9 +14,10 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 ┌────────────────────────────────────────────────────────────────────────┐
 │                         GitHub Repository                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
-│  │  Common Scripts │  │  OS-Specific     │  │  GitHub Actions        │ │
-│  │  (21 scripts)   │  │  Build Configs   │  │  Workflows             │ │
-│  │                 │  │  (7 OS targets)  │  │  - Build on Change     │ │
+│  │  Common Scripts │  │  Family/OS       │  │  GitHub Actions        │ │
+│  │  (58 scripts)   │  │  Build Configs   │  │  Workflows             │ │
+│  │                 │  │  (7 targets, 3   │  │  - Build on Change     │ │
+│  │                 │  │   families)      │  │    (dynamic matrix)    │ │
 │  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
 │                                             │  - AMI Cleanup         │ │
 │                                             └────────────────────────┘ │
@@ -42,7 +43,7 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                                    ▼                                   │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                    New AMI Created                               │  │
-│  │    cloudberry-packer-build-{os}-{timestamp}[-PASSED/FAILED]      │  │
+│  │    {family}-packer-{os}-{timestamp}[-PASSED/FAILED]              │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                    │                                   │
 │                                    ▼                                   │
@@ -75,41 +76,51 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 ```
 cloudberry-image-factory/
 ├── .github/workflows/          # GitHub Actions CI/CD workflows
-│   ├── ami-build-on-change.yml # Smart change-driven builds
+│   ├── ami-build-on-change.yml # Smart change-driven builds (dynamic matrix)
 │   ├── ami-build-manual.yml    # Manual/scheduled builds
-│   ├── ami-cleanup-old.yml     # AMI lifecycle management
+│   ├── ami-cleanup-old.yml     # AMI lifecycle management (per-family)
 │   └── README.md               # Workflow documentation
-├── vm-images/aws/cloudberry/
-│   ├── build/                  # Build configurations
-│   │   ├── common/scripts/     # Shared provisioning scripts
-│   │   ├── rocky9/             # Rocky Linux 9 build
-│   │   ├── rocky10/            # Rocky Linux 10 build
-│   │   ├── al2023-synxdb-cloud/    # SynxDB Cloud on Amazon Linux 2023
-│   │   ├── rocky9-synxdb-cloud/    # SynxDB Cloud on Rocky Linux 9
-│   │   ├── rocky10-synxdb-cloud/   # SynxDB Cloud on Rocky Linux 10
-│   │   └── ubuntu24-synxdb-cloud/  # SynxDB Cloud on Ubuntu 24.04
-│   │   # Each build directory contains:
-│   │   #   main.pkr.hcl        - Packer configuration
-│   │   #   scripts/            - OS-specific scripts
-│   │   #   tests/goss.yaml     - Validation tests
-│   └── scripts/                # Operational utilities
-│       ├── packer-build-and-test.sh
-│       └── run-goss-tests.sh
+├── .github/scripts/
+│   └── compute-build-matrix.sh # Derives the CI build matrix from changed files
+├── vm-images/
+│   ├── scripts/                 # Harness trio, shared by every family
+│   │   ├── packer-build-and-test.sh
+│   │   ├── private-runtime-key.py
+│   │   └── validate-ami-metadata.py
+│   ├── common/
+│   │   ├── scripts/              # Shared provisioning scripts
+│   │   └── tests/                # Shared Goss test fragments
+│   └── aws/
+│       ├── cloudberry/build/
+│       │   ├── rocky9/           # Rocky Linux 9 build
+│       │   └── rocky10/          # Rocky Linux 10 build
+│       ├── synxdb-cloud/build/
+│       │   ├── al2023/           # SynxDB Cloud on Amazon Linux 2023
+│       │   ├── rocky9/           # SynxDB Cloud on Rocky Linux 9
+│       │   ├── rocky10/          # SynxDB Cloud on Rocky Linux 10
+│       │   └── ubuntu24/         # SynxDB Cloud on Ubuntu 24.04
+│       └── agentic/build/
+│           └── ubuntu26/         # Standalone AI-tooling image on Ubuntu 26.04
+│       # Each build directory contains:
+│       #   main.pkr.hcl        - Packer configuration
+│       #   scripts/            - OS-specific scripts
+│       #   tests/goss.yaml     - Validation tests
 └── README.md                   # This file
 ```
 
 ## Supported Builds
 
-> **Current Build Targets:** See [`vm-images/aws/cloudberry/build/`](vm-images/aws/cloudberry/build/) for the complete list of supported OS configurations.
+> **Current Build Targets:** See [`vm-images/aws/`](vm-images/aws/) for the complete list of families and OS targets (`vm-images/aws/<family>/build/<os>/`).
 
-| Build Target | OS Family | Package Manager | Notes |
-|--------------|-----------|-----------------|-------|
-| **rocky9** | Rocky Linux 9 | RPM (dnf) | Full-featured, primary target |
-| **rocky10** | Rocky Linux 10 | RPM (dnf) | Latest Rocky release |
-| **al2023-synxdb-cloud** | Amazon Linux 2023 | RPM (dnf) | SynxDB Cloud operations image |
-| **rocky9-synxdb-cloud** | Rocky Linux 9 | RPM (dnf) | SynxDB Cloud operations image |
-| **rocky10-synxdb-cloud** | Rocky Linux 10 | RPM (dnf) | SynxDB Cloud developer workstation image |
-| **ubuntu24-synxdb-cloud** | Ubuntu 24.04 LTS | APT | SynxDB Cloud developer workstation image |
+| Family | OS Target | Package Manager | Notes |
+|--------|-----------|-----------------|-------|
+| **cloudberry** | rocky9 | RPM (dnf) | Full-featured, primary target |
+| **cloudberry** | rocky10 | RPM (dnf) | Latest Rocky release |
+| **synxdb-cloud** | al2023 | RPM (dnf) | SynxDB Cloud operations image |
+| **synxdb-cloud** | rocky9 | RPM (dnf) | SynxDB Cloud operations image |
+| **synxdb-cloud** | rocky10 | RPM (dnf) | SynxDB Cloud developer workstation image |
+| **synxdb-cloud** | ubuntu24 | APT | SynxDB Cloud developer workstation image |
+| **agentic** | ubuntu26 | APT | Standalone AI-tooling image (Ubuntu 26.04) |
 
 > **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
 > removed after ~9 months without maintenance. They remain recoverable from git history.
@@ -143,38 +154,43 @@ cloudberry-image-factory/
 - **Text Processing**: yq (latest)
 - **Testing**: Goss validation framework
 
-> **Note:** Specific versions are managed by individual installation scripts in `vm-images/aws/cloudberry/build/common/scripts/`. Many tools use dynamic version detection to install the latest stable release. See the [Goss test files](vm-images/aws/cloudberry/build/) for verification of installed versions.
+> **Note:** Specific versions are managed by individual installation scripts in `vm-images/common/scripts/`. Many tools use dynamic version detection to install the latest stable release. See the [Goss test files](vm-images/aws/) for verification of installed versions.
 
 ## Build Matrix
 
 ### Script Organization
 
-**Common Scripts** (`vm-images/aws/cloudberry/build/common/scripts/`)
-- 21 shared provisioning scripts used across multiple OS builds
+**Common Scripts** (`vm-images/common/scripts/`)
+- 58 shared provisioning scripts used across multiple targets
 - Include user setup, development tools, kernel configs, testing frameworks, MOTD management
 
 **OS-Specific Scripts** (in each build directory)
-- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: Rocky 9/10)
-- `system_add_synxdb_cloud_dependencies.sh` (SynxDB Cloud variants)
-- `system_set_default_locale.sh` (DEB-based: Ubuntu 24)
+- `system_add_cbdb_build_rpm_dependencies.sh` (RPM-based: cloudberry rocky9/rocky10)
+- `system_add_synxdb_cloud_dependencies.sh` (synxdb-cloud and agentic targets)
+- `system_set_default_locale.sh` (DEB-based targets)
 - `system_add_docker.sh` or `system_docker_setup.sh` (varies by OS)
 
-**Build Configuration**: Each OS has a `main.pkr.hcl` file that orchestrates which scripts run and in what order.
+**Build Configuration**: Each target has a `main.pkr.hcl` file that orchestrates which scripts run and in what order.
 
-> **To see exact script usage per OS:** Review the `main.pkr.hcl` file in each build directory (e.g., `vm-images/aws/cloudberry/build/rocky9/main.pkr.hcl`).
+> **To see exact script usage per target:** Review the `main.pkr.hcl` file in each build directory (e.g., `vm-images/aws/cloudberry/build/rocky9/main.pkr.hcl`).
 
-### Build Profiles by OS Family
+### Build Profiles by Family
 
-**Rocky Linux Family** (rocky9, rocky10):
+**cloudberry** (rocky9, rocky10):
 - Full RPM-based toolchain
 - AWS CLI, Go, Java support (varies by version)
 - Starship prompt, kernel tuning
 - SELinux disabled for development
 
-**SynxDB Variants** (al2023-synxdb-cloud, rocky9-synxdb-cloud, rocky10-synxdb-cloud, ubuntu24-synxdb-cloud):
+**synxdb-cloud** (al2023, rocky9, rocky10, ubuntu24):
 - Operations/workstation profile: kubectl/helm, cloud CLIs, no Cloudberry build toolchain
 - SynxDB-branded AMI naming and MOTD
 - No build-time Cloudsmith credentials are required; the DBaaS package provisioner is disabled
+
+**agentic** (ubuntu26):
+- Standalone from the stock Ubuntu 26.04 `ubuntu-resolute` minimal AMI (not chained from another family)
+- AI tooling ships only here: `system_add_ai_toolchain.sh`, `system_add_claude.sh`, `system_add_omnigent.sh`, `system_add_herdr.sh`, `system_add_beads.sh`, and related agent CLIs
+- Future agentic targets are expected to chain from a base family's `*-PASSED` AMI via `base_family`/`base_os` HCL variables rather than building standalone
 
 ## Getting Started
 
@@ -206,7 +222,7 @@ whose name matches the selected build target.
 cd vm-images/aws/cloudberry/build/rocky9
 
 # Build AMI manually using integrated build-and-test script
-../../scripts/packer-build-and-test.sh
+../../../../scripts/packer-build-and-test.sh
 ```
 
 ### Build Pipeline Flow
@@ -314,21 +330,21 @@ The repository includes intelligent GitHub Actions workflows:
     ami-build-on-change.yml     OR     ami-build-manual.yml
              │                              │
              ▼                              ▼
-    Smart Change Detection          User-Selected Targets
+    Dynamic Matrix Computation    "all" or family/os list
+    (compute-build-matrix.sh)              │
              │                              │
     ┌────────┴────────┐                     │
     ▼                 ▼                     │
-Common Script    OS-Specific File           │
+Common Script    Target-Path File          │
 Changed          Changed                    │
     │                 │                     │
-    ├─ Analyze        └─ Build only         │
-    │  dependency        affected OS        │
-    │  matrix                               │
+    ├─ grep-match     └─ Build only         │
+    │  every target's    that one target   │
+    │  main.pkr.hcl                         │
     │                                       │
-    ├─ dbadmin_configure_environment.sh → Rebuild Rocky 9/10
-    ├─ system_add_awscli.sh → Rebuild Rocky 9/10
-    ├─ system_add_golang.sh → Rebuild Rocky 9/10
-    └─ rocky9/main.pkr.hcl → Rebuild Rocky 9 only
+    ├─ vm-images/common/scripts/X.sh → every target whose HCL references X.sh
+    ├─ vm-images/scripts/** or vm-images/common/tests/** → all targets
+    └─ vm-images/aws/<family>/build/<os>/** → that target only
                 │
                 ▼
     ┌───────────────────────────────┐
@@ -367,8 +383,8 @@ Changed          Changed                    │
     (Always DRY-RUN)
              │
              ▼
-    Find all AMIs:
-    cloudberry-packer-build-*
+    For each family (cloudberry, synxdb-cloud, agentic):
+    Find AMIs matching <family>-packer-*
              │
        ┌─────┴─────┐
        ▼           ▼
@@ -376,11 +392,11 @@ Changed          Changed                    │
    "-FAILED"    contain "-FAILED"
        │           │
        │           ▼
-       │      Group by Config:
-       │      - rocky9/10
+       │      Group by OS within the family:
+       │      e.g. cloudberry/rocky9, cloudberry/rocky10
        │           │
        │           ▼
-       │      For each config:
+       │      For each family/os:
        │      Sort by CreationDate
        │      (newest first)
        │           │
@@ -417,14 +433,14 @@ Changed          Changed                    │
 |---------|---------|-------------|
 | Region | `us-west-2` | Primary AWS region |
 | Instance Type | `t3.2xlarge` | Build instance (8 vCPU, 32GB RAM) |
-| Base AMI Owner | `792107900819` | Rocky Linux Foundation |
+| Base AMI Owner | Varies by target | e.g. Rocky Linux Foundation (`792107900819`) for Rocky targets, Canonical (`099720109477`) for Ubuntu targets |
 | Volume Size | 24GB | Root filesystem size |
 
 ### AMI Naming Convention
 
-**Format:** `cloudberry-packer-{vm_type}-{os_name}-{timestamp}`
+**Format:** `<family>-packer-<os>-{timestamp}`
 
-**Example:** `cloudberry-packer-build-rocky9-20251002-170700`
+**Example:** `cloudberry-packer-rocky9-20251002-170700`
 
 **Important Notes:**
 - **Timestamps are in UTC** (Coordinated Universal Time)
@@ -435,8 +451,8 @@ Changed          Changed                    │
 
 **Example:**
 ```
-AMI Name:       cloudberry-packer-build-rocky9-20251002-100700
-                                                        ↑
+AMI Name:       cloudberry-packer-rocky9-20251002-100700
+                                                    ↑
                                             Build started at 10:07 UTC
 
 AWS CreationDate: 2025-10-02T17:07:00.000Z
@@ -493,12 +509,18 @@ All external downloads now include:
 ## CI/CD Workflows
 
 ### Change Detection Intelligence
-The build system understands script dependencies:
+`compute-build-matrix.sh` derives the build matrix directly from the diff and
+the HCL files — there is no hardcoded dependency map to keep in sync:
 
 ```bash
-# Example: Changing cbladmin_configure_environment.sh rebuilds ALL targets
-# Example: Changing system_add_awscli.sh rebuilds only Rocky targets
-# Example: Changing rocky9/main.pkr.hcl rebuilds only rocky9
+# Example: Changing vm-images/common/scripts/dbadmin_configure_environment.sh
+#          rebuilds every target whose main.pkr.hcl references that script
+# Example: Changing vm-images/common/scripts/system_add_awscli.sh
+#          rebuilds only the targets whose main.pkr.hcl references it
+# Example: Changing vm-images/aws/cloudberry/build/rocky9/main.pkr.hcl
+#          rebuilds only cloudberry/rocky9
+# Example: Changing vm-images/scripts/packer-build-and-test.sh
+#          rebuilds all 7 targets
 ```
 
 ### Cost Management
@@ -515,20 +537,24 @@ The build system understands script dependencies:
 
 ## Usage Examples
 
-### Manual Builds for Different OS Targets
+### Manual Builds for Different Targets
 
 ```bash
 # Rocky Linux 9 (full-featured with all development tools)
 cd vm-images/aws/cloudberry/build/rocky9
-../../scripts/packer-build-and-test.sh
+../../../../scripts/packer-build-and-test.sh
 
 # Rocky Linux 10 (latest Rocky with core tools)
 cd vm-images/aws/cloudberry/build/rocky10
-../../scripts/packer-build-and-test.sh
+../../../../scripts/packer-build-and-test.sh
 
 # SynxDB Cloud on Rocky Linux 10
-cd vm-images/aws/cloudberry/build/rocky10-synxdb-cloud
-../../scripts/packer-build-and-test.sh
+cd vm-images/aws/synxdb-cloud/build/rocky10
+../../../../scripts/packer-build-and-test.sh
+
+# Agentic on Ubuntu 26.04 (standalone, AI tooling)
+cd vm-images/aws/agentic/build/ubuntu26
+../../../../scripts/packer-build-and-test.sh
 ```
 
 ### Using Built AMIs
@@ -559,19 +585,19 @@ ssh -i your-key.pem cbadmin@instance-ip
 
 ### Adding New Scripts
 
-1. **Create script** in `vm-images/aws/cloudberry/build/common/scripts/`
+1. **Create script** in `vm-images/common/scripts/`
 2. **Follow naming convention**: `system_action_component.sh`
 3. **Add to Packer templates** as needed
-4. **Update CI/CD dependency matrix** in workflow files
+4. **No CI/CD edit needed** — the build matrix is computed dynamically and will pick up the new script reference automatically
 5. **Add Goss tests** for validation
 
-### Adding New OS Targets
+### Adding New Targets
 
-1. **Create build directory**: `vm-images/aws/cloudberry/build/newos/`
+1. **Create build directory**: `vm-images/aws/<family>/build/<os>/` (new family) or `vm-images/aws/<existing-family>/build/<os>/` (new OS in an existing family)
 2. **Copy template structure**: `main.pkr.hcl`, `scripts/`, `tests/`
 3. **Configure base AMI** and OS-specific settings
-4. **Update workflows** to include new target in dependency matrix
-5. **Test build locally** before CI/CD integration
+4. **No workflow edits needed** — `.github/scripts/compute-build-matrix.sh` derives the target from the directory layout
+5. **Test build locally** before CI/CD integration: `../../../../scripts/packer-build-and-test.sh`
 6. **Update documentation**: Add to Supported Builds table and Repository Structure in README.md
 
 > **Note:** The repository structure and supported builds list in README.md should be kept in sync with actual build directories. When adding/removing OS targets, update both the code and documentation together.

@@ -1,23 +1,22 @@
-# ubuntu24-synxdb-cloud - Claude AI Context
+# synxdb-cloud/ubuntu24 - Claude AI Context
 
-SynxDB Cloud-optimized AMI on Ubuntu 24.04 (Noble). Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build. DEB/apt port of `rocky10-synxdb-cloud`.
+SynxDB Cloud-optimized AMI on Ubuntu 24.04 (Noble) (`vm-images/aws/synxdb-cloud/build/ubuntu24/`). Minimal operations image (no build toolchain) with Kubernetes tooling (helm, kubectl), omnistrate-ctl, and the Cloudsmith CLI. Cloudsmith credentials are supplied at runtime through 1Password, not during the AMI build. DEB/apt port of `synxdb-cloud/rocky10`. No AI tooling ships on this image — AI tooling (Claude CLI, ai-toolchain, omnigent, herdr, beads) is agentic-family-only.
 
-## How This Differs from Standard ubuntu22
+## How This Differs from cloudberry/rocky10
 
-| Aspect | ubuntu22 | ubuntu24-synxdb-cloud |
+| Aspect | cloudberry/rocky10 | synxdb-cloud/ubuntu24 |
 |--------|----------|----------------------|
 | Purpose | Development build AMI | Cloud operations |
 | Build tools | gcc, cmake, etc. | None |
 | Kubernetes | No | helm + kubectl |
 | omnistrate-ctl | No | Yes (latest from GitHub) |
 | DBaaS package | No | Disabled (provisioner commented out) |
-| Claude CLI | gpadmin, cbadmin | Yes (gpadmin, cbadmin, ubuntu) |
 | Ulimits | Yes | No |
 | Kernel configs | Yes | No |
 
 ## Reference Platforms
 
-This platform is the DEB/apt port of `rocky10-synxdb-cloud` — mirror its provisioner set and ordering. Use `ubuntu22` for DEB-platform idioms (apt dependency script style, locale configuration, Ubuntu AMI source filters).
+This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provisioner set and ordering. The archived `ubuntu22` cloudberry-family target (recoverable from git history) documented DEB-platform idioms (apt dependency script style, locale configuration, Ubuntu AMI source filters) that still apply here.
 
 ## Provisioner Order (main.pkr.hcl)
 
@@ -35,15 +34,14 @@ This platform is the DEB/apt port of `rocky10-synxdb-cloud` — mirror its provi
 12. `system_add_gh.sh` - GitHub CLI
 13. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
 14. `system_add_omnistrate_ctl.sh` - Omnistrate CLI (latest release, platform-detected)
-15. Tooling: k9s, kind, terraform, tofu, packer, age, sops, ansible, uv, nodejs, ai-toolchain (ubuntu: claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes, agy), omnigent, 1password-cli, direnv
+15. Tooling: k9s, kind, terraform, tofu, packer, age, sops, ansible, uv, nodejs, 1password-cli, direnv
 16. ~~`system_add_synxdb_dbaas.sh`~~ - DBaaS offline package (disabled, commented out)
 17. `system_add_motd_manager.sh` - MOTD with `synx` template
-18. `system_add_claude.sh` x2 - gpadmin, cbadmin (ubuntu gets claude via ai-toolchain)
-19. Tooling: gitleaks, cloudsmith-cli, autoenv, git-profiles, zellij, herdr, hwatch, dysk, zoxide, golang, dolt, beads, bun, ssh-agent-tmux, configure-claude x3
-20. `system_add_goss.sh` - Must be near end
-21. `system_add_docker.sh`
+18. Tooling: gitleaks, cloudsmith-cli, autoenv, git-profiles, zellij, hwatch, dysk, zoxide, golang, dolt, bun, ssh-agent-tmux
+19. `system_add_goss.sh` - Must be near end
+20. `system_add_docker.sh`
 
-## Differences from rocky10-synxdb-cloud (RPM → DEB)
+## Differences from synxdb-cloud/rocky10 (RPM → DEB)
 
 - **No `system_configure_dnf.sh`** - RPM-only
 - **No kernel upgrade + reboot** - Rocky 10 needed `kernel-modules-extra` for Docker's xt_addrtype/br_netfilter; Ubuntu AWS kernels ship those modules in the default `linux-modules-*-aws` package

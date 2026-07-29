@@ -31,6 +31,13 @@ This document tracks potential improvements and enhancements for the Cloudberry 
   - CI/CD workflow decision tree
   - Monthly AMI cleanup flow diagram
 
+- [x] **2026-07: family-aware restructure (cloudberry / synxdb-cloud / agentic)**
+  - Layout reorganized to `vm-images/{scripts,common,aws/<family>/build/<os>}`
+  - Harness trio (`packer-build-and-test.sh` + 2 Python helpers) moved to `vm-images/scripts/`, identity derived from the `vm-images/<cloud>/<family>/build/<os>` path
+  - AMI naming unified to `<family>-packer-<os>-<timestamp>` with `-PASSED`/`-FAILED` tagging
+  - CI build matrix computed dynamically by `.github/scripts/compute-build-matrix.sh` (no hardcoded dependency map)
+  - New `agentic` family added (ubuntu26, standalone from stock Ubuntu 26.04); AI tooling now ships only in the agentic family
+
 ---
 
 ## High Priority (Should Do Next)
@@ -146,17 +153,17 @@ AutoCleanup: true
 
 **Cost Monitoring Commands:**
 ```bash
-# View AMI storage costs
+# View AMI storage costs (per family; repeat for cloudberry, synxdb-cloud, agentic)
 aws ec2 describe-snapshots --owner-ids self \
-  --filters "Name=description,Values=*cloudberry-packer-build-*" \
+  --filters "Name=description,Values=*cloudberry-packer-*" \
   --query 'Snapshots[*].[SnapshotId,VolumeSize,StartTime]' \
   --output table
 
-# Count current AMIs per configuration
+# Count current AMIs per family/os configuration
 aws ec2 describe-images --owners self \
-  --filters "Name=name,Values=cloudberry-packer-build-*" \
+  --filters "Name=name,Values=cloudberry-packer-*" \
   --query 'Images[*].Name' --output text | \
-  sed 's/.*-build-\([^-]*\)-.*/\1/' | sort | uniq -c
+  sed 's/^[^-]*-packer-\([^-]*\)-.*/\1/' | sort | uniq -c
 ```
 
 **Deliverables:**
@@ -262,7 +269,7 @@ JUST_SHA256="..."
 
 **Why:** Quick validation that AMIs work correctly after launch
 
-**Create:** `vm-images/aws/cloudberry/scripts/smoke-test.sh`
+**Create:** `vm-images/scripts/smoke-test.sh`
 
 **Functionality:**
 ```bash
@@ -478,10 +485,11 @@ Outlier: Oct 15 (62 min) ← Investigate
 ```yaml
 # Add to Packer templates (main.pkr.hcl):
 tags = {
-  Name                = "cloudberry-packer-build-{os}-{timestamp}"
-  Project             = "cloudberry-database"
+  Name                = "{family}-packer-{os}-{timestamp}"
+  Project             = "cloudberry-image-factory"
   Environment         = "development"
   ManagedBy           = "packer"
+  Family              = var.family
   OS                  = var.os_name
   BuildDate           = timestamp()
   GitCommit           = env("GITHUB_SHA")      # From CI
@@ -497,7 +505,7 @@ tags = {
 
 **Update Tags After Testing:**
 ```bash
-# In packer-build-and-test.sh after Goss tests:
+# In vm-images/scripts/packer-build-and-test.sh after Goss tests:
 aws ec2 create-tags --resources $AMI_ID --tags \
   Key=TestStatus,Value=passed \
   Key=TestDate,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
