@@ -295,7 +295,7 @@ build {
 
   # NOTE: opencode for ubuntu comes from system_add_ai_toolchain.sh above.
 
-  # Install Cloudsmith CLI (pip --user, installs to /home/ubuntu/.local/bin/cloudsmith)
+  # Install Cloudsmith CLI via uv tool (isolated venv; works under access-env PYTHONNOUSERSITE=1)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_cloudsmith_cli.sh"
   }

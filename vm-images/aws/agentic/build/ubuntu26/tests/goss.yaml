@@ -371,7 +371,7 @@ file:
     owner: ubuntu
     filetype: file
 
-  # Cloudsmith CLI (ubuntu user, pip --user install)
+  # Cloudsmith CLI (ubuntu user, uv tool install → isolated tool venv + shim)
   /home/ubuntu/.local/bin/cloudsmith:
     exists: true
     owner: ubuntu
@@ -679,11 +679,11 @@ command:
     exit-status: 0
     timeout: 30000
 
-  # Cloudsmith CLI functionality check (verify binary is executable;
-  # --version output is broken in current cloudsmith-cli, so skip it)
-  "test -x /home/ubuntu/.local/bin/cloudsmith":
+  # Cloudsmith CLI: must run under PYTHONNOUSERSITE=1 (access-env / access run).
+  # Goss already runs as the ubuntu user, so no sudo wrapper is needed.
+  "env HOME=/home/ubuntu PYTHONNOUSERSITE=1 PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cloudsmith --version":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
   # gitleaks functionality check
   "/usr/local/bin/gitleaks version":

@@ -61,7 +61,7 @@ This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provi
 ## Ubuntu 24.04 Base AMI Gotchas
 
 - **SSH uses systemd socket activation** - `ssh.socket` listens on a dual-stack IPv6 socket and triggers `ssh.service` on demand; goss `service: sshd` and `port: tcp:22` assertions from the RPM platforms do not hold. Test the sshd process and an `ss` listener check instead
-- **PEP 668 externally managed Python** - `sudo pip install` and `python3 -m ensurepip` fail; use apt's `python3-pip`/`python3-venv` and per-user venvs. `pip install --user` needs `--break-system-packages`
+- **PEP 668 externally managed Python** - `sudo pip install` and `python3 -m ensurepip` fail; use apt's `python3-pip`/`python3-venv` and per-user venvs. Prefer `uv tool install` for CLIs (cloudsmith-cli, omnigent) so they work under access-env `PYTHONNOUSERSITE=1`; do not use `pip install --user` for those tools.
 - **Python deps use a venv** at `/home/ubuntu/.venv` — use `/home/ubuntu/.venv/bin/pip` for package operations
 - **bat installs as batcat** - test `/usr/local/bin/bat` (symlink created by the dependencies script)
 - **`lsb_release` is required** by common provisioners that add APT repos (`docker`, `packer`, `azure-cli`); the dependencies script installs `lsb-release`
