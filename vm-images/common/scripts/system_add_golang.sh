@@ -10,10 +10,23 @@ set -euo pipefail
 echo "Executing system_add_golang.sh..."
 
 # Official GO Download page - https://go.dev/dl/
-# Hardcoded Go version and SHA256 checksum
+# Hardcoded Go version and per-architecture SHA256 checksums
 GO_VERSION="go1.26.1"
-GO_SHA256="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a"
-GO_URL="https://go.dev/dl/${GO_VERSION}.linux-amd64.tar.gz"
+case "$(uname -m)" in
+  x86_64)
+    GO_ARCH="amd64"
+    GO_SHA256="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a"
+    ;;
+  aarch64|arm64)
+    GO_ARCH="arm64"
+    GO_SHA256="a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7"
+    ;;
+  *)
+    echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1
+    ;;
+esac
+GO_TARBALL="${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+GO_URL="https://go.dev/dl/${GO_TARBALL}"
 
 echo "GO_VERSION=${GO_VERSION}"
 
@@ -21,12 +34,12 @@ echo "GO_VERSION=${GO_VERSION}"
 wget -nv "${GO_URL}"
 
 # Verify the checksum
-echo "${GO_SHA256}  ${GO_VERSION}.linux-amd64.tar.gz" | sha256sum -c -
+echo "${GO_SHA256}  ${GO_TARBALL}" | sha256sum -c -
 
 # Extract and move Go
-tar xf "${GO_VERSION}.linux-amd64.tar.gz"
+tar xf "${GO_TARBALL}"
 sudo mv go "/opt/${GO_VERSION}"
-rm -f "${GO_VERSION}.linux-amd64.tar.gz"
+rm -f "${GO_TARBALL}"
 
 # Update the symbolic link
 sudo rm -rf /opt/go

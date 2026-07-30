@@ -35,10 +35,17 @@ if ! command -v goss &>/dev/null; then
     GOSS_VERSION=$(basename "$LATEST_URL" | sed 's/^v//')
     echo "Latest version: ${GOSS_VERSION}"
 
-    # As of v0.4.10 releases ship tarballs (goss_<ver>_linux_x86_64.tar.gz)
+    # Detect architecture (goss release tarballs use x86_64/arm64)
+    case "$(uname -m)" in
+      x86_64)        GOSS_ARCH="x86_64" ;;
+      aarch64|arm64) GOSS_ARCH="arm64" ;;
+      *)             echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1 ;;
+    esac
+
+    # As of v0.4.10 releases ship tarballs (goss_<ver>_linux_<arch>.tar.gz)
     # plus a combined goss_<ver>_SHA256SUMS file; the raw goss-linux-amd64
     # binary and per-file .sha256 assets no longer exist.
-    TARBALL="goss_${GOSS_VERSION}_linux_x86_64.tar.gz"
+    TARBALL="goss_${GOSS_VERSION}_linux_${GOSS_ARCH}.tar.gz"
     BASE_URL="https://github.com/goss-org/goss/releases/download/v${GOSS_VERSION}"
 
     echo "Downloading Goss ${GOSS_VERSION}..."
