@@ -109,7 +109,7 @@ with per-vendor naming:
 | `system_add_golang.sh` | `go<ver>.linux-amd64.tar.gz` + pinned SHA | `go<ver>.linux-arm64.tar.gz` + second pinned SHA |
 | `system_add_goss.sh` | `goss_<ver>_linux_x86_64.tar.gz` | arm64 tarball from the same release (exact asset name verified against the pinned release during implementation) |
 | `system_add_helm_kubectl.sh` | `linux-amd64` (both tools) | `linux-arm64` (both tools) |
-| `system_config_starship_prompt.sh` | `starship-x86_64-unknown-linux-gnu` | `starship-aarch64-unknown-linux-gnu` |
+| `system_config_starship_prompt.sh` | `starship-x86_64-unknown-linux-gnu` | `starship-aarch64-unknown-linux-musl` (no gnu build for aarch64) |
 | `dbadmin_configure_environment.sh` | `just-<ver>-x86_64-unknown-linux-musl.tar.gz` | `just-<ver>-aarch64-unknown-linux-musl.tar.gz` |
 
 APT repo lines switch from a hardcoded arch to the host's:
