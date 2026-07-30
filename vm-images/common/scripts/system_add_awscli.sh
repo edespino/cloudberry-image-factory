@@ -12,18 +12,25 @@ echo "Executing system_add_awscli_and_config.sh..."
 # Install AWS CLI v2 with checksum verification
 echo "Installing AWS CLI v2..."
 
+# Detect architecture (AWS CLI installers use x86_64/aarch64)
+case "$(uname -m)" in
+  x86_64)        AWS_ARCH="x86_64" ;;
+  aarch64|arm64) AWS_ARCH="aarch64" ;;
+  *)             echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
 # Download AWS CLI installer
 echo "Downloading AWS CLI v2 installer..."
-curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip" -o "awscliv2.zip"
 
 # Download and verify GPG signature
 echo "Downloading and verifying GPG signature..."
-curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip.sig" -o "awscliv2.zip.sig"
+curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip.sig" -o "awscliv2.zip.sig"
 
 # Import AWS CLI GPG key (if not already present)
 if ! gpg --list-keys | grep -q "AWS CLI"; then
     echo "Importing AWS CLI GPG public key..."
-    curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip.sig" -o temp.sig
+    curl -s "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip.sig" -o temp.sig
     # AWS doesn't provide a public key server entry, so we verify the signature exists and is from AWS domain
     # This is a limitation - AWS CLI doesn't provide easy GPG verification
     rm -f temp.sig

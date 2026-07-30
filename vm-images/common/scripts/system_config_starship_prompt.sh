@@ -23,8 +23,12 @@ if ! command -v starship &>/dev/null; then
   
   # Download the binary directly instead of using installer script
   echo "Downloading Starship binary..."
-  ARCH="x86_64"
-  PLATFORM="unknown-linux-gnu"
+  # Detect architecture (starship ships musl-only for aarch64, gnu for x86_64)
+  case "$(uname -m)" in
+    x86_64)        ARCH="x86_64";  PLATFORM="unknown-linux-gnu" ;;
+    aarch64|arm64) ARCH="aarch64"; PLATFORM="unknown-linux-musl" ;;
+    *)             echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1 ;;
+  esac
   BINARY_URL="https://github.com/starship/starship/releases/download/v${STARSHIP_VERSION}/starship-${ARCH}-${PLATFORM}.tar.gz"
   
   curl -sL "${BINARY_URL}" -o starship.tar.gz
