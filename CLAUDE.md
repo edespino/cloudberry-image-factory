@@ -43,7 +43,7 @@ vm-images/
 └── aws/
     ├── cloudberry/build/{rocky9,rocky10}/
     ├── synxdb-cloud/build/{al2023,rocky9,rocky10,ubuntu24}/
-    └── agentic/build/{ubuntu26}/
+    └── agentic/build/{ubuntu26,ubuntu26-arm64}/
         # Each build directory contains:
         #   main.pkr.hcl   - Packer configuration
         #   scripts/       - OS-specific scripts
@@ -55,7 +55,7 @@ from the path it is run from: `vm-images/<cloud>/<family>/build/<os>`. There is
 no registry file to update when adding a target — the path *is* the
 configuration.
 
-## Current Platforms (7 targets)
+## Current Platforms (8 targets)
 
 | Family | OS Target | Package Manager | Notes |
 |--------|-----------|-----------------|-------|
@@ -66,6 +66,7 @@ configuration.
 | synxdb-cloud | rocky10 | RPM (dnf) | SynxDB Cloud workstation image |
 | synxdb-cloud | ubuntu24 | APT | SynxDB Cloud workstation image |
 | agentic | ubuntu26 | APT | Standalone from stock Ubuntu 26.04; AI tooling |
+| agentic | ubuntu26-arm64 | APT | arm64/Graviton sibling of ubuntu26; no dysk |
 
 Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
 Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8.
