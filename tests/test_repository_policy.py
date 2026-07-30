@@ -208,7 +208,7 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertTrue(expected)
         self.assertEqual(names, expected)
 
-    def test_agentic_ubuntu26_goss_covers_ai_toolchain_executables(self) -> None:
+    def test_agentic_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (
             REPOSITORY
             / "vm-images/common/scripts"
@@ -221,17 +221,20 @@ class RepositoryPolicyTests(unittest.TestCase):
             set(re.findall(r'"\$\{USER_HOME\}/([^"]+)"', verification_loop))
         )
         self.assertTrue(suffixes)
-        goss = (
-            REPOSITORY
-            / "vm-images/aws/agentic/build/ubuntu26/tests"
-            / "goss.yaml"
-        ).read_text()
-        for suffix in suffixes:
-            path = f"/home/ubuntu/{suffix}"
-            with self.subTest(executable=path):
-                self.assertIn(path, goss)
-        # herdr installs system-wide via its own provisioner
-        self.assertIn("/usr/local/bin/herdr", goss)
+        goss_files = sorted(
+            REPOSITORY.glob("vm-images/aws/agentic/build/*/tests/goss.yaml")
+        )
+        self.assertTrue(goss_files)
+        for goss_file in goss_files:
+            goss = goss_file.read_text()
+            target = goss_file.parents[1].name
+            for suffix in suffixes:
+                path = f"/home/ubuntu/{suffix}"
+                with self.subTest(target=target, executable=path):
+                    self.assertIn(path, goss)
+            # herdr installs system-wide via its own provisioner
+            with self.subTest(target=target, executable="herdr"):
+                self.assertIn("/usr/local/bin/herdr", goss)
 
     def test_ai_tooling_ships_only_in_agentic_family(self) -> None:
         ai_scripts = [
