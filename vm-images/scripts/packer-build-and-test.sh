@@ -513,6 +513,22 @@ if [ -z "${EXISTING_AMI}" ]; then
   AMI_VALIDATED_FOR_TAGGING=true
 fi
 
+# Step 6b: Pick the goss test instance type from the AMI architecture
+# (arm64 AMIs cannot launch on t3; Graviton t4g is the arm64 equivalent).
+AMI_ARCHITECTURE="$(
+  aws ec2 describe-images \
+    --image-ids "${AMI_ID}" \
+    --query "Images[0].Architecture" \
+    --output "text" \
+    --region "${REGION}"
+)"
+if [ "${AMI_ARCHITECTURE}" = "arm64" ]; then
+  TEST_INSTANCE_TYPE="t4g.medium"
+else
+  TEST_INSTANCE_TYPE="t3.medium"
+fi
+echo "AMI architecture: ${AMI_ARCHITECTURE}; test instance type: ${TEST_INSTANCE_TYPE}"
+
 # Step 7: Retrieve local IP address to restrict SSH access to the current machine
 if ! PUBLIC_IP="$(
   curl --fail --silent --show-error \
@@ -566,7 +582,7 @@ INSTANCE_CREATION_ATTEMPTED=true
 run_test_instance() {
   aws ec2 run-instances \
     --image-id "${AMI_ID}" \
-    --instance-type "t3.medium" \
+    --instance-type "${TEST_INSTANCE_TYPE}" \
     --key-name "${PKR_VAR_KEY_NAME}" \
     --security-group-ids "${SECURITY_GROUP_ID}" \
     --client-token "${CLIENT_TOKEN}" \

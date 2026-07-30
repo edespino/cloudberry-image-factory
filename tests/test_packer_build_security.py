@@ -66,7 +66,10 @@ if operation == "create-key-pair":
     if os.environ.get("FAKE_CREATE_KEY_FAILURE") == "1":
         raise SystemExit(42)
 elif operation == "describe-images":
-    print(os.environ.get("FAKE_AMI_METADATA", "fake-ami-name"))
+    if "Images[0].Architecture" in args:
+        print(os.environ.get("FAKE_AMI_ARCHITECTURE", "x86_64"))
+    else:
+        print(os.environ.get("FAKE_AMI_METADATA", "fake-ami-name"))
 elif operation == "create-security-group":
     if os.environ.get("FAKE_SG_LOST_RESPONSE") == "1":
         raise SystemExit(48)
@@ -719,6 +722,32 @@ exec /usr/bin/{command} "$@"
             "delete-snapshot",
         }
         self.assertTrue(forbidden.isdisjoint(operations))
+
+    def test_arm64_ami_launches_graviton_test_instance(self) -> None:
+        result = self._run(extra_env={"FAKE_AMI_ARCHITECTURE": "arm64"})
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_instance = next(
+            call for call in self._aws_calls()
+            if call[:2] == ["ec2", "run-instances"]
+        )
+        self.assertEqual(
+            run_instance[run_instance.index("--instance-type") + 1],
+            "t4g.medium",
+        )
+
+    def test_x86_64_ami_keeps_t3_test_instance(self) -> None:
+        result = self._run()
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        run_instance = next(
+            call for call in self._aws_calls()
+            if call[:2] == ["ec2", "run-instances"]
+        )
+        self.assertEqual(
+            run_instance[run_instance.index("--instance-type") + 1],
+            "t3.medium",
+        )
 
     def test_existing_ami_rejects_bad_id_before_key_creation(self) -> None:
         for ami_id in ("ami-xyz", "ami-03d2ffba2af95178a;echo", "--help", ""):
