@@ -35,6 +35,13 @@ TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 log "Working in temporary directory: $TEMP_DIR"
 
+# Detect architecture (Helm and kubectl use amd64/arm64)
+case "$(uname -m)" in
+  x86_64)        KUBE_ARCH="amd64" ;;
+  aarch64|arm64) KUBE_ARCH="arm64" ;;
+  *)             log "ERROR: Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+
 ################################
 # Install Helm
 ################################
@@ -54,7 +61,7 @@ else
     log "Latest Helm version: ${HELM_VERSION}"
 
     # Download Helm binary directly instead of using installer script
-    HELM_ARCH="linux-amd64"
+    HELM_ARCH="linux-${KUBE_ARCH}"
     HELM_FILENAME="helm-${HELM_VERSION}-${HELM_ARCH}.tar.gz"
     HELM_URL="https://get.helm.sh/${HELM_FILENAME}"
 
@@ -99,7 +106,7 @@ else
     log "Latest kubectl version: ${KUBECTL_VERSION}"
 
     # Download kubectl binary
-    KUBECTL_URL="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+    KUBECTL_URL="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${KUBE_ARCH}/kubectl"
     log "Downloading kubectl ${KUBECTL_VERSION}..."
     curl -fsSL "$KUBECTL_URL" -o kubectl
 

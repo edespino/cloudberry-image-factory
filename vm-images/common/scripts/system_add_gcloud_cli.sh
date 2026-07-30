@@ -39,7 +39,14 @@ case "$OS" in
 
         INSTALL_ROOT="/usr/local"
         SDK_DIR="${INSTALL_ROOT}/google-cloud-sdk"
-        TARBALL="google-cloud-cli-linux-x86_64.tar.gz"
+
+        # Detect architecture (Google ships x86_64 and arm tarballs)
+        case "$(uname -m)" in
+          x86_64)        GCLOUD_ARCH="x86_64" ;;
+          aarch64|arm64) GCLOUD_ARCH="arm" ;;
+          *)             echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1 ;;
+        esac
+        TARBALL="google-cloud-cli-linux-${GCLOUD_ARCH}.tar.gz"
         TARBALL_URL="https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/${TARBALL}"
 
         # gcloud runs on the system Python (Rocky 10 ships a supported python3).
