@@ -118,8 +118,15 @@ echo "Downloading checksums for verification..."
 CHECKSUMS_URL="https://github.com/casey/just/releases/download/\${JUST_VERSION}/SHA256SUMS"
 wget -nv -q "\$CHECKSUMS_URL" -O SHA256SUMS
 
+# Detect architecture (just ships x86_64/aarch64 musl builds)
+case "\$(uname -m)" in
+  x86_64)        JUST_ARCH="x86_64" ;;
+  aarch64|arm64) JUST_ARCH="aarch64" ;;
+  *)             echo "ERROR: Unsupported architecture: \$(uname -m)"; exit 1 ;;
+esac
+
 # Extract the SHA256 hash for the specific binary
-JUST_FILENAME="just-\${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+JUST_FILENAME="just-\${JUST_VERSION}-\${JUST_ARCH}-unknown-linux-musl.tar.gz"
 JUST_SHA256=\$(grep "\$JUST_FILENAME" SHA256SUMS | awk '{print \$1}')
 echo "Expected SHA256: \${JUST_SHA256}"
 
