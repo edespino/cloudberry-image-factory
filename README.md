@@ -100,7 +100,8 @@ cloudberry-image-factory/
 │       │   ├── rocky10/          # SynxDB Cloud on Rocky Linux 10
 │       │   └── ubuntu24/         # SynxDB Cloud on Ubuntu 24.04
 │       └── agentic/build/
-│           └── ubuntu26/         # Standalone AI-tooling image on Ubuntu 26.04
+│           ├── ubuntu26/         # Standalone AI-tooling image on Ubuntu 26.04
+│           └── ubuntu26-arm64/   # Same image on arm64 (Graviton)
 │       # Each build directory contains:
 │       #   main.pkr.hcl        - Packer configuration
 │       #   scripts/            - OS-specific scripts
@@ -121,6 +122,7 @@ cloudberry-image-factory/
 | **synxdb-cloud** | rocky10 | RPM (dnf) | SynxDB Cloud developer workstation image |
 | **synxdb-cloud** | ubuntu24 | APT | SynxDB Cloud developer workstation image |
 | **agentic** | ubuntu26 | APT | Standalone AI-tooling image (Ubuntu 26.04) |
+| **agentic** | ubuntu26-arm64 | APT | Same image on arm64/Graviton (no dysk — x86-only binary) |
 
 > **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
 > removed after ~9 months without maintenance. They remain recoverable from git history.
@@ -187,7 +189,7 @@ cloudberry-image-factory/
 - SynxDB-branded AMI naming and MOTD
 - No build-time Cloudsmith credentials are required; the DBaaS package provisioner is disabled
 
-**agentic** (ubuntu26):
+**agentic** (ubuntu26, ubuntu26-arm64):
 - Standalone from the stock Ubuntu 26.04 `ubuntu-resolute` minimal AMI (not chained from another family)
 - AI tooling ships only here: `system_add_ai_toolchain.sh`, `system_add_claude.sh`, `system_add_omnigent.sh`, `system_add_herdr.sh`, `system_add_beads.sh`, and related agent CLIs
 - Future agentic targets are expected to chain from a base family's `*-PASSED` AMI via `base_family`/`base_os` HCL variables rather than building standalone
