@@ -32,7 +32,7 @@ enforces this boundary. On this target:
 
 - `system_add_ai_toolchain.sh` (DB_USERNAME=ubuntu) - single consolidated
   per-user install: claude, pi, codex, copilot, gemini, cursor-agent, kimi,
-  opencode, hermes (each self-updating)
+  opencode, hermes, agy, grok (each self-updating)
 - `system_add_omnigent.sh` (DB_USERNAME=ubuntu) - Omnigent
 - `system_add_claude.sh` x2 (gpadmin, cbadmin) - standalone Claude CLI install
   for the two DB admin users; `ubuntu` gets Claude via the ai-toolchain above

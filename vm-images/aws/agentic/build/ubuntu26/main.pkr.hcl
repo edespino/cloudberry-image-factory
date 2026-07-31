@@ -242,8 +242,8 @@ build {
   }
 
   # Install the AI agent toolchain for ubuntu (single consolidated process:
-  # claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes
-  # — all per-user so each tool can self-update)
+  # claude, pi, codex, copilot, gemini, cursor-agent, kimi, opencode, hermes,
+  # agy, grok — all per-user so each tool can self-update)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_ai_toolchain.sh"
     environment_vars = [
