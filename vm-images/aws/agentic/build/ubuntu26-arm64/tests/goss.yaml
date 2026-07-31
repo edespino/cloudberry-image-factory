@@ -241,6 +241,10 @@ file:
   /home/ubuntu/.local/bin/agy:
     exists: true
 
+  # xAI Grok CLI (per-user install, native path ~/.grok/bin)
+  /home/ubuntu/.grok/bin/grok:
+    exists: true
+
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
@@ -570,6 +574,11 @@ command:
   "test -x /home/ubuntu/.local/bin/agy":
     exit-status: 0
     timeout: 5000
+
+  # xAI Grok CLI version check
+  "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.grok/bin/grok --version < /dev/null":
+    exit-status: 0
+    timeout: 30000
 
   # herdr version check (runs system-wide from /usr/local/bin)
   "/usr/local/bin/herdr --version < /dev/null":

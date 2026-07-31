@@ -14,6 +14,7 @@
 #   opencode      OpenCode CLI                 ~/.opencode/bin/opencode
 #   hermes        Nous Hermes Agent            ~/.local/bin/hermes
 #   agy           Google Antigravity CLI       ~/.local/bin/agy
+#   grok          xAI Grok CLI                 ~/.grok/bin/grok
 #
 # Usage:
 #   system_add_ai_toolchain.sh [username]
@@ -86,39 +87,45 @@ fi
 # Installers — each echoes a section header so build logs are searchable
 # ---------------------------------------------------------------------------
 
-echo "=== [1/10] claude (Anthropic Claude Code, native installer) ==="
+echo "=== [1/11] claude (Anthropic Claude Code, native installer) ==="
 run_as_user bash -c 'curl -fsSL https://claude.ai/install.sh | bash'
 
-echo "=== [2/10] pi (PI coding agent, npm) ==="
+echo "=== [2/11] pi (PI coding agent, npm) ==="
 run_as_user /usr/local/bin/npm install -g --prefix "${USER_HOME}/.local" @earendil-works/pi-coding-agent
 
-echo "=== [3/10] codex (OpenAI Codex CLI) ==="
+echo "=== [3/11] codex (OpenAI Codex CLI) ==="
 run_as_user bash -c 'curl -fsSL https://chatgpt.com/codex/install.sh | CODEX_NON_INTERACTIVE=1 sh'
 
-echo "=== [4/10] copilot (GitHub Copilot CLI, npm) ==="
+echo "=== [4/11] copilot (GitHub Copilot CLI, npm) ==="
 run_as_user /usr/local/bin/npm install -g --prefix "${USER_HOME}/.local" @github/copilot
 
-echo "=== [5/10] gemini (Google Gemini CLI, npm) ==="
+echo "=== [5/11] gemini (Google Gemini CLI, npm) ==="
 run_as_user /usr/local/bin/npm install -g --prefix "${USER_HOME}/.local" @google/gemini-cli@latest
 
-echo "=== [6/10] cursor-agent (Cursor Agent) ==="
+echo "=== [6/11] cursor-agent (Cursor Agent) ==="
 run_as_user bash -c 'curl -fsSL https://cursor.com/install | bash'
 
-echo "=== [7/10] kimi (Kimi Code CLI) ==="
+echo "=== [7/11] kimi (Kimi Code CLI) ==="
 run_as_user bash -c 'curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash'
 
-echo "=== [8/10] opencode (OpenCode CLI) ==="
+echo "=== [8/11] opencode (OpenCode CLI) ==="
 run_as_user bash -c 'curl -fsSL https://opencode.ai/install | bash'
 
-echo "=== [9/10] hermes (Nous Hermes Agent) ==="
+echo "=== [9/11] hermes (Nous Hermes Agent) ==="
 # Setup wizard and Playwright/Chromium browser install are runtime concerns
 # (browser adds hundreds of MB; install later with the installer's
 # --ensure browser if needed).
 run_as_user bash -c \
   'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-setup --skip-browser --non-interactive'
 
-echo "=== [10/10] agy (Google Antigravity CLI) ==="
+echo "=== [10/11] agy (Google Antigravity CLI) ==="
 run_as_user bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+
+echo "=== [11/11] grok (xAI Grok CLI) ==="
+# Installs to ~/.grok/bin (native path; the installer's ~/.local/bin symlink
+# is skipped because that dir is not on PATH in the provisioner session).
+# The installer adds ~/.grok/bin to .bashrc itself.
+run_as_user bash -c 'curl -fsSL https://x.ai/cli/install.sh | bash'
 
 # ---------------------------------------------------------------------------
 # Verification — every binary must exist and be executable
@@ -136,7 +143,8 @@ for BIN in \
   "${USER_HOME}/.kimi-code/bin/kimi" \
   "${USER_HOME}/.opencode/bin/opencode" \
   "${USER_HOME}/.local/bin/hermes" \
-  "${USER_HOME}/.local/bin/agy"
+  "${USER_HOME}/.local/bin/agy" \
+  "${USER_HOME}/.grok/bin/grok"
 do
   if run_as_user test -x "${BIN}"; then
     echo "OK:      ${BIN}"
@@ -181,5 +189,6 @@ report_version kimi         "${USER_HOME}/.kimi-code/bin/kimi" --version
 report_version opencode     "${USER_HOME}/.opencode/bin/opencode" --version
 report_version hermes       "${USER_HOME}/.local/bin/hermes" --version
 report_version agy          "${USER_HOME}/.local/bin/agy" --version
+report_version grok         "${USER_HOME}/.grok/bin/grok" --version
 
 echo "system_add_ai_toolchain.sh execution completed."
