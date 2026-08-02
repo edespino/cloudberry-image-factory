@@ -122,10 +122,18 @@ echo "=== [10/11] agy (Google Antigravity CLI) ==="
 run_as_user bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
 
 echo "=== [11/11] grok (xAI Grok CLI) ==="
-# Installs to ~/.grok/bin (native path; the installer's ~/.local/bin symlink
-# is skipped because that dir is not on PATH in the provisioner session).
-# The installer adds ~/.grok/bin to .bashrc itself.
+# Installs to ~/.grok/bin (native path) and adds it to .bashrc itself. The
+# installer also opportunistically symlinks grok and agent into the first
+# writable PATH dir (/usr/local/bin in the provisioner session), which would
+# put links resolving into this user's home on every user's PATH — removed
+# below to keep the install strictly per-user.
 run_as_user bash -c 'curl -fsSL https://x.ai/cli/install.sh | bash'
+for LINK in /usr/local/bin/grok /usr/local/bin/agent; do
+  if [ -L "${LINK}" ] && [[ "$(readlink "${LINK}")" == "${USER_HOME}/.grok/"* ]]; then
+    rm -f "${LINK}"
+    echo "Removed system-wide symlink ${LINK} (grok stays per-user)"
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # Verification — every binary must exist and be executable
