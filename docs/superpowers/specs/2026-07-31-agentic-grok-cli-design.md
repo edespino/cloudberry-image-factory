@@ -135,3 +135,15 @@ The xAI Grok CLI is wanted on these images.
   fallback is defined in section 2.
 - Latest-stable install means two builds on different days may bake
   different grok versions — accepted, identical to the other ten tools.
+
+## Amendment (2026-08-02, build-observed)
+
+The first real build (grok 0.2.118, AMI
+agentic-packer-ubuntu26-20260802-100927-PASSED) showed the installer DID
+symlink /usr/local/bin/{grok,agent} into ~/.grok/bin — /usr/local/bin is
+writable in the provisioner session, contrary to the Ground truth section's
+prediction. Decision (user-approved): the provisioner removes those
+symlinks after install (guarded: only symlinks pointing into
+${USER_HOME}/.grok/), and both goss suites assert their absence. grok
+remains strictly per-user. `grok --version` ran fine under goss — the TTY
+contingency was not needed.

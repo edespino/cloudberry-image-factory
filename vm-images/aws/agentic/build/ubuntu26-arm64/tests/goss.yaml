@@ -245,6 +245,13 @@ file:
   /home/ubuntu/.grok/bin/grok:
     exists: true
 
+  # The grok installer's opportunistic /usr/local/bin symlinks are removed by
+  # the provisioner (per-user scope); assert they stay gone.
+  /usr/local/bin/grok:
+    exists: false
+  /usr/local/bin/agent:
+    exists: false
+
   # age (file encryption)
   /usr/local/bin/age:
     exists: true
