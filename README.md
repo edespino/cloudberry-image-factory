@@ -43,7 +43,7 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                                    ▼                                   │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                    New AMI Created                               │  │
-│  │    {family}-packer-{os}-{timestamp}[-PASSED/FAILED]              │  │
+│  │    {family}-packer-{os}-{timestamp}(Name tag gains -PASSED)      │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                    │                                   │
 │                                    ▼                                   │
@@ -57,16 +57,16 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                    ┌───────────────┴───────────────┐                   │
 │                    ▼                               ▼                   │
 │            Tests PASSED                    Tests FAILED                │
-│            Rename: *-PASSED                Rename: *-FAILED            │
-│            Keep Private                    Keep Private                │
-│            Retain (count-based)            Mark for Deletion           │
+│            Tag Name: *-PASSED              Deregister AMI              │
+│            Keep Private                    Delete snapshots            │
+│            Retain (count-based)            (--keep-failed-ami: tag)    │
 └────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
                           ┌──────────────────┐
                           │  Monthly Cleanup │
                           │  - Keep N newest │
-                          │  - Delete FAILED │
+                          │  - Delete tagged │
                           │  - Delete old    │
                           └──────────────────┘
 ```
@@ -289,11 +289,12 @@ cd vm-images/aws/cloudberry/build/rocky9
          ALL PASSED    SOME FAILED   CONNECTION FAILED
               │             │             │
               ▼             ▼             ▼
-7a. Success Path     7b. Failure Path  7c. Error Path
-    ├─ Rename AMI        ├─ Rename AMI     ├─ Keep AMI name
-    │  *-PASSED          │  *-FAILED       └─ Mark for review
-    ├─ Keep AMI private  └─ Keep private
-    └─ Exit 0                Exit 1
+7a. Success Path     7b. Failure Path      7c. Error Path
+    ├─ Tag Name          ├─ Deregister AMI     ├─ Same as 7b
+    │  *-PASSED          │  + delete snapshots └─ Exit 1
+    ├─ Keep AMI private  │  (--keep-failed-ami:
+    └─ Exit 0            │   tag *-FAILED)
+                         └─ Exit 1
               │
               ▼
 8. Cleanup (always runs)
@@ -372,9 +373,9 @@ Changed          Changed                    │
        ▼                 ▼
    ✅ PASSED        ❌ FAILED
        │                 │
-       ├─ Rename         ├─ Rename
-       │  *-PASSED       │  *-FAILED
-       ├─ Keep private   └─ Keep private
+       ├─ Tag Name       ├─ Deregister AMI
+       │  *-PASSED       └─ Delete snapshots
+       ├─ Keep private
        └─ Comment PR
 ```
 
@@ -393,8 +394,8 @@ Changed          Changed                    │
              │
        ┌─────┴─────┐
        ▼           ▼
-   Contains     Does not
-   "-FAILED"    contain "-FAILED"
+   Name tag     Name tag not
+   *-FAILED     *-FAILED
        │           │
        │           ▼
        │      Group by OS within the family:
@@ -415,7 +416,8 @@ Changed          Changed                    │
        └─────┬─────┘
              ▼
     Delete List Generated:
-    - All FAILED AMIs
+    - All -FAILED-tagged AMIs (only left behind by
+      --keep-failed-ami or a failed build-time discard)
     - Old AMIs beyond retention
              │
              ▼

@@ -34,7 +34,7 @@ This is a Packer-based infrastructure project for building development-optimized
 ```
 vm-images/
 ├── scripts/                          # Harness trio (shared by every family)
-│   ├── packer-build-and-test.sh      # Build, test, PASSED/FAILED tag, cleanup
+│   ├── packer-build-and-test.sh      # Build, test, tag PASSED or discard FAILED, cleanup
 │   ├── private-runtime-key.py        # Temporary SSH key handling
 │   └── validate-ami-metadata.py      # Confirms AMI is not-publicly-shared
 ├── common/
@@ -86,9 +86,12 @@ cd vm-images/aws/<family>/build/<os>
 ../../../../scripts/packer-build-and-test.sh
 ```
 
-AMIs are named `<family>-packer-<os>-<timestamp>`, then renamed with a
-`-PASSED` or `-FAILED` suffix once Goss testing completes. All builds are
-private-only (never publicly shared).
+AMIs are named `<family>-packer-<os>-<timestamp>`. When Goss passes, the
+AMI's `Name` tag gains a `-PASSED` suffix (the name attribute never changes).
+When a build fails, the harness deregisters the AMI it built and deletes its
+snapshots. `--keep-failed-ami` (or `KEEP_FAILED_AMI=1`) keeps it tagged
+`-FAILED` instead, and an `--existing-ami` under test is only ever tagged,
+never deregistered. All builds are private-only (never publicly shared).
 
 ## Adding a New Family
 
@@ -219,9 +222,9 @@ Before committing, verify:
 **Cause:** Missing `gnupg2` or `gnupg` package
 **Solution:** Add to OS-specific dependencies script
 
-### AMI renamed to "*-FAILED"
-**Cause:** Goss tests failed or couldn't run
-**Solution:** Check test results XML, verify all tested packages/tools are installed
+### Build failed and the AMI was discarded
+**Cause:** Goss tests failed or couldn't run; the harness deregistered the AMI and deleted its snapshots
+**Solution:** Check the `goss-test-results-*.xml` and the Packer log; verify all tested packages/tools are installed. Rerun with `--keep-failed-ami` if the image itself must be launched for inspection (it is then tagged `-FAILED`)
 
 ### Workflow doesn't trigger for a script/target change
 **Cause:** Rare — the matrix is computed dynamically from the directory layout and HCL references, not a hardcoded map.
@@ -238,7 +241,7 @@ Before committing, verify:
 
 ```
 Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
-→ Goss Tests Run → PASSED/FAILED → AMI Renamed → Test Instance Terminated
+→ Goss Tests Run → Test Instance Terminated → PASSED: tag Name | FAILED: deregister AMI + delete snapshots
 ```
 
 ## Key Files
@@ -257,7 +260,7 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 3. Push to GitHub
 4. CI/CD detects changes and rebuilds affected AMIs
 5. Tests run automatically
-6. AMIs tagged as PASSED/FAILED
+6. Passing AMIs tagged `-PASSED`; failed builds deregistered and their snapshots deleted
 7. Monthly cleanup removes old AMIs
 
 ## Critical Success Factors

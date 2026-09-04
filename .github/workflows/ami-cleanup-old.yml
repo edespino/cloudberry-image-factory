@@ -85,7 +85,7 @@ jobs:
               --filters \
                 "Name=name,Values=${pattern}" \
                 "Name=state,Values=available" \
-              --query "Images[*].{ImageId:ImageId,Name:Name,CreationDate:CreationDate}" \
+              --query "Images[*].{ImageId:ImageId,Name:Name,Result:Tags[?Key=='Name'].Value | [0],CreationDate:CreationDate}" \
               --output json)
 
             total_count=$(echo "$all_amis" | jq length)
@@ -98,12 +98,15 @@ jobs:
               continue
             fi
 
-            # Separate FAILED AMIs from regular AMIs
-            failed_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED"))]')
+            # Separate FAILED AMIs from regular AMIs. packer-build-and-test.sh
+            # records PASSED/FAILED on the Name *tag* (the AMI name attribute
+            # never changes), and normally deletes a failed build outright;
+            # a -FAILED tag only remains when that deletion was skipped or failed.
+            failed_amis=$(echo "$all_amis" | jq '[.[] | select((.Result // "") | endswith("-FAILED"))]')
             failed_count=$(echo "$failed_amis" | jq length)
 
             # Get non-FAILED AMIs for normal retention processing
-            success_amis=$(echo "$all_amis" | jq '[.[] | select(.Name | contains("-FAILED") | not)]')
+            success_amis=$(echo "$all_amis" | jq '[.[] | select(((.Result // "") | endswith("-FAILED")) | not)]')
 
             echo "Found $failed_count FAILED AMIs for $family (will be marked for deletion)"
             if [ "$failed_count" -gt 0 ]; then
@@ -136,9 +139,10 @@ jobs:
               echo "Processing configuration: $family/$config"
 
               # Get all AMIs for this configuration, sorted by creation date (newest first)
-              # Note: Using success_amis (excludes FAILED AMIs)
+              # Note: Using success_amis (excludes FAILED AMIs). Anchor on the
+              # timestamp so "ubuntu26" does not also claim ubuntu26-gpu/-arm64.
               config_amis=$(echo "$success_amis" | jq -r --arg cfg "$config" --arg fam "$family" \
-                '[.[] | select(.Name | startswith("\($fam)-packer-\($cfg)-"))] |
+                '[.[] | select(.Name | test("^\($fam)-packer-\($cfg)-[0-9]{8}-[0-9]{6}"))] |
                  sort_by(.CreationDate) | reverse')
 
               config_count=$(echo "$config_amis" | jq length)

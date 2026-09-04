@@ -5,6 +5,9 @@
 # Description:
 # This script validates, builds, tests, and result-tags a private Amazon
 # Machine Image (AMI), including cleanup of its temporary AWS resources.
+# An AMI built by this run that fails testing is deregistered and its
+# snapshots deleted; pass --keep-failed-ami (or KEEP_FAILED_AMI=1) to keep
+# it tagged -FAILED instead. An --existing-ami is never deregistered.
 #
 # Usage:
 # ./packer-build-and-test.sh [OPTIONS]
@@ -13,6 +16,9 @@
 #   -p, --private    Keep AMI private (default)
 #   --existing-ami ID
 #                    Test an approved existing private AMI without building
+#   --keep-failed-ami
+#                    Keep a failed build's AMI tagged -FAILED instead of
+#                    deleting it (also: KEEP_FAILED_AMI=1)
 #   -h, --help       Display help message
 #
 # Prerequisites:
@@ -36,6 +42,10 @@ echo "Executing packer-build-and-test.sh..."
 
 # Parse command-line options
 EXISTING_AMI=""
+case "${KEEP_FAILED_AMI:-}" in
+  1|true|yes) KEEP_FAILED_AMI=true ;;
+  *) KEEP_FAILED_AMI=false ;;
+esac
 
 # Function to display usage
 usage() {
@@ -45,6 +55,9 @@ usage() {
   echo "  -p, --private    Keep AMI private (default)"
   echo "  --existing-ami ID"
   echo "                    Test an approved existing private AMI without building"
+  echo "  --keep-failed-ami"
+  echo "                    Keep a failed build's AMI tagged -FAILED instead of"
+  echo "                    deleting it (also: KEEP_FAILED_AMI=1)"
   echo "  -h, --help       Display this help message"
   echo ""
   exit 0
@@ -63,6 +76,10 @@ while [[ $# -gt 0 ]]; do
       fi
       EXISTING_AMI="$2"
       shift 2
+      ;;
+    --keep-failed-ami)
+      KEEP_FAILED_AMI=true
+      shift
       ;;
     -h|--help)
       usage
@@ -194,6 +211,7 @@ AMI_ID=""
 HOSTNAME=""
 AMI_NAME=""
 AMI_VALIDATED_FOR_TAGGING=false
+AMI_CREATED_BY_RUN=false
 CLEANED_UP=false
 CLEANUP_STATUS=0
 
@@ -403,24 +421,74 @@ cleanup() {
   return "${CLEANUP_STATUS}"
 }
 
-# Error handler to rename the AMI as "FAILED" and perform cleanup
-error_handler() {
-  local base_name
+# Tag the AMI's Name as -FAILED (bounded; never blocks cleanup). Used when
+# a failed AMI is kept: --keep-failed-ami, --existing-ami, or as the fallback
+# when discarding fails.
+tag_failed_ami() {
+  local base_name="${AMI_NAME}"
   local NEW_NAME
-  echo "An error occurred. Running cleanup and renaming AMI if necessary."
+  while [[ "${base_name}" =~ -(PASSED|FAILED)$ ]]; do
+    base_name="${base_name%-${BASH_REMATCH[1]}}"
+  done
+  NEW_NAME="${base_name}-FAILED"
+  echo "Renaming AMI to indicate FAILED: ${NEW_NAME}"
+  quiet_bounded_aws 5 ec2 create-tags \
+    --resources "${AMI_ID}" \
+    --tags "Key=Name,Value=${NEW_NAME}" \
+    --region "${REGION}"
+}
+
+# Deregister the AMI this run built and delete its snapshots. Only called
+# for AMIs created by this run (never --existing-ami). Snapshot ids are read
+# before deregistering because the image cannot be described afterwards.
+# Returns non-zero (so the caller tags -FAILED instead) only if the image
+# could not be deregistered; a snapshot left behind is reported as orphaned
+# and is caught by the cleanup workflow's orphan scan.
+discard_failed_ami() {
+  local snapshots_text snapshot
+  local -a snapshots=()
+  echo "Discarding failed AMI ${AMI_ID} (use --keep-failed-ami or KEEP_FAILED_AMI=1 to keep it tagged -FAILED)."
+  snapshots_text="$(
+    bounded_aws 15 ec2 describe-images \
+      --image-ids "${AMI_ID}" \
+      --query "Images[0].BlockDeviceMappings[?Ebs.SnapshotId!=null].Ebs.SnapshotId" \
+      --output "text" \
+      --region "${REGION}" 2>/dev/null
+  )" || snapshots_text=""
+  snapshots_text="$(normalize_aws_text "${snapshots_text}")"
+  read -r -a snapshots <<< "${snapshots_text}"
+  if ! quiet_bounded_aws 15 ec2 deregister-image \
+    --image-id "${AMI_ID}" --region "${REGION}"; then
+    echo "WARNING: could not deregister failed AMI ${AMI_ID}; tagging it -FAILED instead." >&2
+    return 1
+  fi
+  echo "Deregistered failed AMI ${AMI_ID}."
+  for snapshot in ${snapshots[@]+"${snapshots[@]}"}; do
+    if [[ ! "${snapshot}" =~ ^snap-[0-9a-f]+$ ]]; then
+      echo "WARNING: ignoring unexpected snapshot id '${snapshot}' for ${AMI_ID}." >&2
+      continue
+    fi
+    if quiet_bounded_aws 15 ec2 delete-snapshot \
+      --snapshot-id "${snapshot}" --region "${REGION}"; then
+      echo "Deleted snapshot ${snapshot}."
+    else
+      echo "WARNING: could not delete snapshot ${snapshot} of failed AMI ${AMI_ID}; it is orphaned." >&2
+    fi
+  done
+  return 0
+}
+
+# Error handler: clean up, then discard (or tag) the failed AMI
+error_handler() {
+  echo "An error occurred. Running cleanup and discarding or tagging the AMI if necessary."
   trap - ERR
   cleanup || true
   if [ -n "${AMI_ID}" ] && [ "${AMI_VALIDATED_FOR_TAGGING}" = true ]; then
-    base_name="${AMI_NAME}"
-    while [[ "${base_name}" =~ -(PASSED|FAILED)$ ]]; do
-      base_name="${base_name%-${BASH_REMATCH[1]}}"
-    done
-    NEW_NAME="${base_name}-FAILED"
-    echo "Renaming AMI to indicate FAILED: ${NEW_NAME}"
-    quiet_bounded_aws 5 ec2 create-tags \
-      --resources "${AMI_ID}" \
-      --tags "Key=Name,Value=${NEW_NAME}" \
-      --region "${REGION}"
+    if [ "${AMI_CREATED_BY_RUN}" = true ] && [ "${KEEP_FAILED_AMI}" != true ]; then
+      discard_failed_ami || tag_failed_ami
+    else
+      tag_failed_ami
+    fi
   fi
   exit 1
 }
@@ -501,6 +569,7 @@ if [ -z "${EXISTING_AMI}" ]; then
   # Step 5: Parse the AMI ID from the Packer manifest file
   echo "Parsing the AMI ID from packer-manifest.json..."
   AMI_ID="$(jq -r '.builds[-1].artifact_id' "packer-manifest.json" | cut -d':' -f2)"
+  AMI_CREATED_BY_RUN=true
 
   # Step 6: Retrieve the AMI name
   AMI_NAME="$(

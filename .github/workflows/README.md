@@ -62,6 +62,15 @@ each family/os configuration, e.g.:
 
 This ensures you always have N working AMIs per target, regardless of their age.
 
+Failed builds do not normally reach this workflow: `packer-build-and-test.sh`
+deregisters a failed build's AMI and deletes its snapshots at build time. An
+AMI tagged `-FAILED` exists only when the build ran with `--keep-failed-ami`
+(or `KEEP_FAILED_AMI=1`) or when that deletion itself failed. The workflow
+reads PASSED/FAILED from the AMI's `Name` tag (the AMI name attribute never
+carries the suffix) and always deletes `-FAILED` images. Per-target grouping
+anchors on the timestamp so `ubuntu26` never swallows `ubuntu26-gpu` or
+`ubuntu26-arm64`.
+
 ## Dynamic Build Matrix
 
 There is no hardcoded dependency map. `.github/scripts/compute-build-matrix.sh`
