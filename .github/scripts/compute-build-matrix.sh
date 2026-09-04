@@ -5,12 +5,15 @@
 #   vm-images/aws/<family>/build/<os>/**                -> that target
 #   vm-images/common/scripts/X.sh                       -> targets whose HCL references X.sh
 #   vm-images/scripts/** or vm-images/common/tests/**   -> all targets
+# A target directory containing a MANUAL_DISPATCH_ONLY marker file is never
+# selected here (any rule); it builds only via ami-build-manual.yml.
 set -euo pipefail
 
 all_targets() {
   local d fam os
   for d in vm-images/aws/*/build/*/; do
     [ -f "${d}main.pkr.hcl" ] || continue
+    [ -e "${d}MANUAL_DISPATCH_ONLY" ] && continue
     fam=$(basename "$(dirname "$(dirname "$d")")")
     os=$(basename "$d")
     echo "$fam $os ${d%/}"
@@ -28,7 +31,7 @@ while IFS= read -r file; do
     vm-images/aws/*/build/*/*)
       fam=$(echo "$file" | cut -d/ -f3); os=$(echo "$file" | cut -d/ -f5)
       dir="vm-images/aws/$fam/build/$os"
-      [ -f "$dir/main.pkr.hcl" ] && add_target "$fam" "$os" "$dir"
+      [ -f "$dir/main.pkr.hcl" ] && [ ! -e "$dir/MANUAL_DISPATCH_ONLY" ] && add_target "$fam" "$os" "$dir"
       ;;
     vm-images/common/scripts/*.sh)
       script=$(basename "$file")

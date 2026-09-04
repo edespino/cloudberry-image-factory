@@ -183,7 +183,7 @@ To add a new test for gpadmin's Git configuration:
 **Current build targets** (`vm-images/aws/<family>/build/<os>/`):
 - cloudberry: rocky9, rocky10
 - synxdb-cloud: al2023, rocky9, rocky10, ubuntu24
-- agentic: ubuntu26
+- agentic: ubuntu26, ubuntu26-arm64, ubuntu26-gpu
 
 Not every target includes every common test file — e.g. the `synxdb-cloud`
 and `agentic` operations/workstation targets intentionally omit

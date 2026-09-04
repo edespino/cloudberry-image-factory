@@ -1,0 +1,7 @@
+This target is excluded from the change-driven CI matrix
+(.github/scripts/compute-build-matrix.sh) and builds only via manual dispatch:
+ami-build-manual.yml with build_targets=agentic/ubuntu26-gpu (or "all").
+
+Reason: the builder is a g6.xlarge GPU instance and the source AMI is the
+newest agentic/ubuntu26 -PASSED image. A base rebuild does not rebuild this
+image automatically; rebuild it deliberately after the base changes.

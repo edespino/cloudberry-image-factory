@@ -74,10 +74,16 @@ computes the build matrix from the changed-file list on every run:
 | `vm-images/scripts/**` or `vm-images/common/tests/**` | All targets (shared harness/tests affect every build) |
 | Anything else (docs, other paths) | No targets — no build triggered |
 
+A target directory containing a `MANUAL_DISPATCH_ONLY` marker file is never
+selected by any of these rules (currently `agentic/ubuntu26-gpu`, whose
+builder is a `g6.xlarge` GPU instance chained from the newest
+`agentic/ubuntu26` `-PASSED` AMI).
+
 Manual dispatch (`ami-build-manual.yml`) does not use the script above; it
 accepts `all` or a comma-separated `family/os` list (e.g.
 `cloudberry/rocky9,agentic/ubuntu26`) and builds the matrix directly from that
-input.
+input. Marker-file targets are included in `all` and can be named explicitly
+(`agentic/ubuntu26-gpu`); manual dispatch is the only CI path that builds them.
 
 ## Setup Requirements
 

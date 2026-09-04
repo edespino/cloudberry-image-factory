@@ -101,7 +101,8 @@ cloudberry-image-factory/
 │       │   └── ubuntu24/         # SynxDB Cloud on Ubuntu 24.04
 │       └── agentic/build/
 │           ├── ubuntu26/         # Standalone AI-tooling image on Ubuntu 26.04
-│           └── ubuntu26-arm64/   # Same image on arm64 (Graviton)
+│           ├── ubuntu26-arm64/   # Same image on arm64 (Graviton)
+│           └── ubuntu26-gpu/     # NVIDIA L4 inference image chained from ubuntu26 (manual dispatch only)
 │       # Each build directory contains:
 │       #   main.pkr.hcl        - Packer configuration
 │       #   scripts/            - OS-specific scripts
@@ -123,6 +124,7 @@ cloudberry-image-factory/
 | **synxdb-cloud** | ubuntu24 | APT | SynxDB Cloud developer workstation image |
 | **agentic** | ubuntu26 | APT | Standalone AI-tooling image (Ubuntu 26.04) |
 | **agentic** | ubuntu26-arm64 | APT | Same image on arm64/Graviton (no dysk — x86-only binary) |
+| **agentic** | ubuntu26-gpu | APT | x86_64 NVIDIA L4 inference image chained from the `ubuntu26` `-PASSED` AMI; `g6.xlarge` builder; NVIDIA 580 server driver, nvtop, Ollama (loopback only); CI manual dispatch only |
 
 > **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
 > removed after ~9 months without maintenance. They remain recoverable from git history.
@@ -189,8 +191,9 @@ cloudberry-image-factory/
 - SynxDB-branded AMI naming and MOTD
 - No build-time Cloudsmith credentials are required; the DBaaS package provisioner is disabled
 
-**agentic** (ubuntu26, ubuntu26-arm64):
-- Standalone from the stock Ubuntu 26.04 `ubuntu-resolute` minimal AMI (not chained from another family)
+**agentic** (ubuntu26, ubuntu26-arm64, ubuntu26-gpu):
+- `ubuntu26` / `ubuntu26-arm64`: standalone from the stock Ubuntu 26.04 `ubuntu-resolute` minimal AMI (not chained from another family)
+- `ubuntu26-gpu`: chained from the newest `agentic/ubuntu26` `-PASSED` AMI (matched on the `Name` tag) via `base_family`/`base_os` HCL variables; layers only the GPU stack (NVIDIA 580 server driver held via `apt-mark`, `nvidia-smi`, `nvtop`, Ollama bound to loopback, no model weights). Built on `g6.xlarge` so a build-time smoke test runs against a real L4; goss stays hardware-independent because the test instance has no GPU
 - AI tooling ships only here: `system_add_ai_toolchain.sh`, `system_add_claude.sh`, `system_add_omnigent.sh`, `system_add_herdr.sh`, `system_add_beads.sh`, and related agent CLIs
 - Future agentic targets are expected to chain from a base family's `*-PASSED` AMI via `base_family`/`base_os` HCL variables rather than building standalone
 
@@ -557,6 +560,11 @@ cd vm-images/aws/synxdb-cloud/build/rocky10
 # Agentic on Ubuntu 26.04 (standalone, AI tooling)
 cd vm-images/aws/agentic/build/ubuntu26
 ../../../../scripts/packer-build-and-test.sh
+
+# Agentic GPU image (chained from the newest agentic/ubuntu26 -PASSED AMI;
+# g6.xlarge builder; not built by the change-driven workflow)
+cd vm-images/aws/agentic/build/ubuntu26-gpu
+../../../../scripts/packer-build-and-test.sh
 ```
 
 ### Using Built AMIs
@@ -598,7 +606,7 @@ ssh -i your-key.pem cbadmin@instance-ip
 1. **Create build directory**: `vm-images/aws/<family>/build/<os>/` (new family) or `vm-images/aws/<existing-family>/build/<os>/` (new OS in an existing family)
 2. **Copy template structure**: `main.pkr.hcl`, `scripts/`, `tests/`
 3. **Configure base AMI** and OS-specific settings
-4. **No workflow edits needed** — `.github/scripts/compute-build-matrix.sh` derives the target from the directory layout
+4. **No workflow edits needed** — `.github/scripts/compute-build-matrix.sh` derives the target from the directory layout. To keep a target out of the change-driven matrix (e.g. an expensive GPU builder), add a `MANUAL_DISPATCH_ONLY` file to its directory; it then builds only via `ami-build-manual.yml`
 5. **Test build locally** before CI/CD integration: `../../../../scripts/packer-build-and-test.sh`
 6. **Update documentation**: Add to Supported Builds table and Repository Structure in README.md
 
