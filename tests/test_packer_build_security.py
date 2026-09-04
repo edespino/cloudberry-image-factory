@@ -69,9 +69,12 @@ elif operation == "describe-images":
     if "Images[0].Architecture" in args:
         print(os.environ.get("FAKE_AMI_ARCHITECTURE", "x86_64"))
     elif any("BlockDeviceMappings" in value for value in args):
-        print(os.environ.get("FAKE_AMI_SNAPSHOTS", "snap-0123456789abcdef0 snap-0fedcba9876543210"))
+        if os.environ.get("FAKE_AMI_SNAPSHOT_LOOKUP_FAILURE") == "1":
+            raise SystemExit(55)
+        # real CLI --output text joins list values with tabs
+        print(os.environ.get("FAKE_AMI_SNAPSHOTS", "snap-0123456789abcdef0\\tsnap-0fedcba9876543210"))
     else:
-        print(os.environ.get("FAKE_AMI_METADATA", "fake-ami-name"))
+        print(os.environ.get("FAKE_AMI_METADATA", "synxdb-cloud-packer-rocky9-20260904-000000"))
 elif operation == "deregister-image":
     if os.environ.get("FAKE_DEREGISTER_STALL") == "1":
         time.sleep(30)
@@ -575,6 +578,59 @@ exec {self._real(command)} "$@"
         self.assertIn("snap-0fedcba9876543210", result.stderr)
         # the image is already deregistered; there is nothing left to tag
         self.assertEqual(self._name_tags(), [])
+
+    def test_snapshot_lookup_failure_tags_instead_of_orphaning(self) -> None:
+        result = self._run(
+            extra_env={"FAKE_GOSS_FAILURE": "1", "FAKE_AMI_SNAPSHOT_LOOKUP_FAILURE": "1"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        # Without the snapshot ids the image must not be deregistered: that
+        # would orphan its snapshots silently. Tag it for the cleanup workflow.
+        self.assertNotIn("deregister-image", operations)
+        self.assertNotIn("delete-snapshot", operations)
+        tags = self._name_tags()
+        self.assertEqual(len(tags), 1)
+        self.assertTrue(tags[0].endswith("-FAILED"))
+        self.assertIn("WARNING", result.stderr)
+
+    def test_ami_without_snapshots_is_deregistered_without_warnings(self) -> None:
+        result = self._run(
+            extra_env={"FAKE_GOSS_FAILURE": "1", "FAKE_AMI_SNAPSHOTS": "None"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        self.assertIn("deregister-image", operations)
+        self.assertNotIn("delete-snapshot", operations)
+        self.assertNotIn("unexpected snapshot id", result.stderr)
+        self.assertEqual(self._name_tags(), [])
+
+    def test_discard_refuses_ami_outside_target_name_prefix(self) -> None:
+        result = self._run(
+            extra_env={"FAKE_GOSS_FAILURE": "1", "FAKE_AMI_METADATA": "untrusted-image"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        self.assertNotIn("deregister-image", operations)
+        self.assertNotIn("delete-snapshot", operations)
+        tags = self._name_tags()
+        self.assertEqual(len(tags), 1)
+        self.assertTrue(tags[0].endswith("-FAILED"))
+        self.assertIn("WARNING", result.stderr)
+
+    def test_keep_failed_ami_env_is_case_insensitive(self) -> None:
+        for value in ("TRUE", "True", "Yes"):
+            self.aws_log.unlink(missing_ok=True)
+            with self.subTest(value=value):
+                result = self._run(
+                    extra_env={"FAKE_GOSS_FAILURE": "1", "KEEP_FAILED_AMI": value}
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("deregister-image", self._operations())
+                self.assertEqual(len(self._name_tags()), 1)
 
     def test_hung_ami_discard_cannot_block_critical_cleanup(self) -> None:
         started = time.monotonic()

@@ -42,7 +42,7 @@ echo "Executing packer-build-and-test.sh..."
 
 # Parse command-line options
 EXISTING_AMI=""
-case "${KEEP_FAILED_AMI:-}" in
+case "$(printf '%s' "${KEEP_FAILED_AMI:-}" | tr '[:upper:]' '[:lower:]')" in
   1|true|yes) KEEP_FAILED_AMI=true ;;
   *) KEEP_FAILED_AMI=false ;;
 esac
@@ -441,20 +441,31 @@ tag_failed_ami() {
 # Deregister the AMI this run built and delete its snapshots. Only called
 # for AMIs created by this run (never --existing-ami). Snapshot ids are read
 # before deregistering because the image cannot be described afterwards.
-# Returns non-zero (so the caller tags -FAILED instead) only if the image
-# could not be deregistered; a snapshot left behind is reported as orphaned
-# and is caught by the cleanup workflow's orphan scan.
+# Returns non-zero, so the caller tags -FAILED and the cleanup workflow later
+# deletes image and snapshots together, when the image name is not this
+# target's, when the snapshot ids cannot be read (deregistering then would
+# orphan them silently), or when deregistration fails. A snapshot that fails
+# to delete after deregistration is reported by id; it must be removed by
+# hand, since the cleanup workflow's orphan scan matches on snapshot
+# descriptions that Packer-created snapshots do not carry.
 discard_failed_ami() {
   local snapshots_text snapshot
   local -a snapshots=()
+  if [[ "${AMI_NAME}" != "${AMI_NAME_PREFIX}"* ]]; then
+    echo "WARNING: refusing to discard ${AMI_ID}: name '${AMI_NAME}' is outside ${AMI_NAME_PREFIX}*; tagging it -FAILED instead." >&2
+    return 1
+  fi
   echo "Discarding failed AMI ${AMI_ID} (use --keep-failed-ami or KEEP_FAILED_AMI=1 to keep it tagged -FAILED)."
-  snapshots_text="$(
+  if ! snapshots_text="$(
     bounded_aws 15 ec2 describe-images \
       --image-ids "${AMI_ID}" \
       --query "Images[0].BlockDeviceMappings[?Ebs.SnapshotId!=null].Ebs.SnapshotId" \
       --output "text" \
       --region "${REGION}" 2>/dev/null
-  )" || snapshots_text=""
+  )"; then
+    echo "WARNING: could not read the snapshot ids of ${AMI_ID}; tagging it -FAILED instead of orphaning them." >&2
+    return 1
+  fi
   snapshots_text="$(normalize_aws_text "${snapshots_text}")"
   read -r -a snapshots <<< "${snapshots_text}"
   if ! quiet_bounded_aws 15 ec2 deregister-image \
@@ -472,7 +483,7 @@ discard_failed_ami() {
       --snapshot-id "${snapshot}" --region "${REGION}"; then
       echo "Deleted snapshot ${snapshot}."
     else
-      echo "WARNING: could not delete snapshot ${snapshot} of failed AMI ${AMI_ID}; it is orphaned." >&2
+      echo "WARNING: could not delete snapshot ${snapshot} of failed AMI ${AMI_ID}; it is orphaned and must be removed by hand." >&2
     fi
   done
   return 0
