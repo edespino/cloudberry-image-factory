@@ -68,8 +68,17 @@ if operation == "create-key-pair":
 elif operation == "describe-images":
     if "Images[0].Architecture" in args:
         print(os.environ.get("FAKE_AMI_ARCHITECTURE", "x86_64"))
+    elif any("BlockDeviceMappings" in value for value in args):
+        print(os.environ.get("FAKE_AMI_SNAPSHOTS", "snap-0123456789abcdef0 snap-0fedcba9876543210"))
     else:
         print(os.environ.get("FAKE_AMI_METADATA", "fake-ami-name"))
+elif operation == "deregister-image":
+    if os.environ.get("FAKE_DEREGISTER_STALL") == "1":
+        time.sleep(30)
+    if os.environ.get("FAKE_DEREGISTER_FAILURE") == "1":
+        raise SystemExit(53)
+elif operation == "delete-snapshot" and os.environ.get("FAKE_SNAPSHOT_DELETE_FAILURE") == "1":
+    raise SystemExit(54)
 elif operation == "create-security-group":
     if os.environ.get("FAKE_SG_LOST_RESPONSE") == "1":
         raise SystemExit(48)
@@ -179,6 +188,12 @@ if os.environ.get("FAKE_PACKER_INIT_FAILURE") == "1" and sys.argv[1] == "init":
 import json, os, sys
 with open(os.environ["FAKE_{command.upper()}_LOG"], "a") as stream:
     stream.write(json.dumps(sys.argv[1:]) + "\\n")
+if (
+    "{command}" == "ssh"
+    and os.environ.get("FAKE_GOSS_FAILURE") == "1"
+    and any("goss" in value for value in sys.argv[1:])
+):
+    raise SystemExit(1)
 """,
             )
         self._executable(
@@ -191,8 +206,8 @@ with open(os.environ["FAKE_{command.upper()}_LOG"], "a") as stream:
 import json, os, subprocess, sys
 with open(os.environ["FAKE_TIMEOUT_LOG"], "a") as stream:
     stream.write(json.dumps(sys.argv[1:]) + "\\n")
-raise SystemExit(subprocess.run(["/usr/bin/timeout", *sys.argv[1:]]).returncode)
-""",
+raise SystemExit(subprocess.run([REAL_TIMEOUT, *sys.argv[1:]]).returncode)
+""".replace("REAL_TIMEOUT", repr(self._real("timeout"))),
         )
         for command in ("rm", "rmdir"):
             self._executable(
@@ -202,9 +217,16 @@ printf '%s\n' '{command}' >> "$FAKE_EVENT_LOG"
 if [ "${{FAKE_LOCAL_REMOVE_FAILURE:-}}" = "1" ]; then
   exit 47
 fi
-exec /usr/bin/{command} "$@"
+exec {self._real(command)} "$@"
 """,
             )
+
+    def _real(self, command: str) -> str:
+        # The fakes wrap the real GNU tools; their paths differ by platform
+        # (/usr/bin on Linux, /bin or Homebrew's gnubin on macOS).
+        executable = shutil.which(command)
+        self.assertIsNotNone(executable, f"{command} is required to run this suite")
+        return executable
 
     def _run(
         self,
@@ -258,6 +280,18 @@ exec /usr/bin/{command} "$@"
             return []
         return [
             json.loads(line) for line in self.aws_log.read_text().splitlines()
+        ]
+
+    def _operations(self) -> list[str]:
+        return [call[1] for call in self._aws_calls() if len(call) > 1]
+
+    def _name_tags(self) -> list[str]:
+        return [
+            value
+            for call in self._aws_calls()
+            if call[:2] == ["ec2", "create-tags"]
+            for value in call
+            if value.startswith("Key=Name,Value=")
         ]
 
     def _delete_calls(self) -> list[list[str]]:
@@ -437,20 +471,130 @@ exec /usr/bin/{command} "$@"
             key = call[call.index("-i") + 1]
             self.assertTrue(key.startswith(str(self.runtime)))
 
-    def test_ssh_exhaustion_cleans_before_bounded_failed_tag(self) -> None:
+    def test_ssh_exhaustion_cleans_before_bounded_ami_discard(self) -> None:
         result = self._run(extra_env={"FAKE_SSH_UNREACHABLE": "1"})
 
         self.assertNotEqual(result.returncode, 0)
         events = self.event_log.read_text().splitlines()
-        tag_index = events.index("aws:create-tags")
+        self.assertIn("aws:deregister-image", events)
+        discard_index = events.index("aws:deregister-image")
         for operation in (
             "aws:delete-key-pair",
             "aws:terminate-instances",
             "aws:wait",
             "aws:delete-security-group",
         ):
-            self.assertLess(events.index(operation), tag_index)
+            self.assertLess(events.index(operation), discard_index)
+        self.assertNotIn("aws:create-tags", events)
         self.assertEqual(len(self._delete_calls()), 1)
+
+    def test_failed_goss_discards_run_ami_and_its_snapshots(self) -> None:
+        result = self._run(extra_env={"FAKE_GOSS_FAILURE": "1"})
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        self.assertIn("deregister-image", operations)
+        calls = self._aws_calls()
+        deregister = [call for call in calls if call[:2] == ["ec2", "deregister-image"]]
+        self.assertEqual(len(deregister), 1)
+        self.assertEqual(deregister[0][deregister[0].index("--image-id") + 1], "ami-fake")
+        # snapshot ids are looked up while the image is still registered
+        lookup_index = next(
+            index for index, call in enumerate(calls)
+            if call[:2] == ["ec2", "describe-images"]
+            and any("BlockDeviceMappings" in value for value in call)
+        )
+        self.assertLess(lookup_index, operations.index("deregister-image"))
+        snapshots = sorted(
+            call[call.index("--snapshot-id") + 1]
+            for call in calls if call[:2] == ["ec2", "delete-snapshot"]
+        )
+        self.assertEqual(snapshots, ["snap-0123456789abcdef0", "snap-0fedcba9876543210"])
+        self.assertGreater(
+            operations.index("delete-snapshot"), operations.index("deregister-image")
+        )
+        self.assertEqual(self._name_tags(), [])
+        self.assertIn("ami-fake", result.stdout)
+
+    def test_keep_failed_ami_tags_instead_of_discarding(self) -> None:
+        for arguments, environment in (
+            (("--keep-failed-ami",), {}),
+            ((), {"KEEP_FAILED_AMI": "1"}),
+        ):
+            self.aws_log.unlink(missing_ok=True)
+            with self.subTest(arguments=arguments, environment=environment):
+                result = self._run(
+                    *arguments, extra_env={"FAKE_GOSS_FAILURE": "1", **environment}
+                )
+                self.assertNotEqual(result.returncode, 0)
+                operations = self._operations()
+                self.assertNotIn("deregister-image", operations)
+                self.assertNotIn("delete-snapshot", operations)
+                tags = self._name_tags()
+                self.assertEqual(len(tags), 1)
+                self.assertTrue(tags[0].endswith("-FAILED"))
+
+    def test_existing_ami_failure_tags_and_never_deregisters(self) -> None:
+        result = self._run(
+            "--existing-ami",
+            "ami-03d2ffba2af95178a",
+            extra_env={"FAKE_AMI_METADATA": self._metadata(), "FAKE_GOSS_FAILURE": "1"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        self.assertNotIn("deregister-image", operations)
+        self.assertNotIn("delete-snapshot", operations)
+        tags = self._name_tags()
+        self.assertEqual(len(tags), 1)
+        self.assertTrue(tags[0].endswith("-FAILED"))
+
+    def test_deregister_failure_falls_back_to_failed_tag(self) -> None:
+        result = self._run(
+            extra_env={"FAKE_GOSS_FAILURE": "1", "FAKE_DEREGISTER_FAILURE": "1"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        operations = self._operations()
+        self.assertIn("deregister-image", operations)
+        self.assertNotIn("delete-snapshot", operations)
+        tags = self._name_tags()
+        self.assertEqual(len(tags), 1)
+        self.assertTrue(tags[0].endswith("-FAILED"))
+        self.assertIn("WARNING", result.stderr)
+
+    def test_snapshot_delete_failure_warns_and_tries_every_snapshot(self) -> None:
+        result = self._run(
+            extra_env={"FAKE_GOSS_FAILURE": "1", "FAKE_SNAPSHOT_DELETE_FAILURE": "1"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self._operations().count("delete-snapshot"), 2)
+        self.assertIn("WARNING", result.stderr)
+        self.assertIn("snap-0123456789abcdef0", result.stderr)
+        self.assertIn("snap-0fedcba9876543210", result.stderr)
+        # the image is already deregistered; there is nothing left to tag
+        self.assertEqual(self._name_tags(), [])
+
+    def test_hung_ami_discard_cannot_block_critical_cleanup(self) -> None:
+        started = time.monotonic()
+        result = self._run(
+            extra_env={
+                "FAKE_SECURITY_GROUP_FAILURE": "1",
+                "FAKE_DEREGISTER_STALL": "1",
+            },
+            timeout=28,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(time.monotonic() - started, 25)
+        self.assertEqual(len(self._delete_calls()), 1)
+        events = self.event_log.read_text().splitlines()
+        self.assertIn("aws:deregister-image", events)
+        self.assertLess(
+            events.index("aws:delete-key-pair"),
+            events.index("aws:deregister-image"),
+        )
 
     def test_cleanup_waits_with_realistic_bound_and_retries_sg(self) -> None:
         result = self._run(
@@ -637,6 +781,7 @@ exec /usr/bin/{command} "$@"
     def test_hung_failure_tagging_cannot_block_critical_cleanup(self) -> None:
         started = time.monotonic()
         result = self._run(
+            "--keep-failed-ami",
             extra_env={
                 "FAKE_SECURITY_GROUP_FAILURE": "1",
                 "FAKE_TAG_STALL": "1",

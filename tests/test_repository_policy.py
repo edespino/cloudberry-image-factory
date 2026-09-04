@@ -253,6 +253,21 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertTrue((target / "main.pkr.hcl").exists())
         self.assertTrue((target / "MANUAL_DISPATCH_ONLY").exists())
 
+    def test_cleanup_workflow_reads_result_from_name_tag_and_anchors_config(self) -> None:
+        workflow = (
+            REPOSITORY / ".github/workflows/ami-cleanup-old.yml"
+        ).read_text()
+        # packer-build-and-test.sh records PASSED/FAILED on the Name *tag*; the
+        # AMI name attribute never carries the suffix, so selecting on .Name
+        # can never match a FAILED image.
+        self.assertIn("Tags[?Key=='Name'].Value", workflow)
+        self.assertNotIn('select(.Name | contains("-FAILED"))', workflow)
+        self.assertNotIn('select(.Name | contains("-FAILED") | not)', workflow)
+        # Per-config grouping must anchor on the timestamp: a bare prefix
+        # match lets "ubuntu26-" also claim ubuntu26-gpu-* and ubuntu26-arm64-*.
+        self.assertNotIn('startswith("\($fam)-packer-\($cfg)-")', workflow)
+        self.assertIn('-[0-9]{8}-[0-9]{6}', workflow)
+
     def test_agentic_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (
             REPOSITORY
