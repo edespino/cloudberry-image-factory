@@ -498,6 +498,12 @@ port:
     listening: false
 
 # Command execution tests (using full paths to avoid PATH issues)
+#
+# GPU target note: on the first goss pass after a cold first boot the large
+# Go/Node binaries (kubectl, terraform, tofu, packer, sops, npm,
+# omnistrate-ctl) timed out at the base file's 5s/10s limits while the root
+# volume was still lazy-loading and ollama was reading its CUDA runtime, so
+# those entries use 30s here. gh and docker live in common-docker.yaml.
 command:
   # SSH listener check (replaces the port/service assertions — see note above)
   "ss -lnt | grep -E ':22\\s'":
@@ -545,7 +551,7 @@ command:
   "/usr/local/bin/kubectl version --client":
     exit-status: 0
     stdout: ["Client Version"]
-    timeout: 5000
+    timeout: 30000
 
   # kind functionality check
   "/usr/local/bin/kind version":
@@ -559,13 +565,13 @@ command:
   "CHECKPOINT_DISABLE=1 /usr/local/bin/terraform version":
     exit-status: 0
     stdout: ["Terraform v"]
-    timeout: 10000
+    timeout: 30000
 
   # opentofu functionality check (same network update-check concern)
   "CHECKPOINT_DISABLE=1 /usr/local/bin/tofu version":
     exit-status: 0
     stdout: ["OpenTofu v"]
-    timeout: 10000
+    timeout: 30000
 
   # uv functionality check
   "/usr/local/bin/uv --version":
@@ -583,7 +589,7 @@ command:
   # /usr/local/bin must be on PATH — goss otherwise runs with a minimal PATH)
   "PATH=/usr/local/bin:$PATH /usr/local/bin/npm --version":
     exit-status: 0
-    timeout: 10000
+    timeout: 30000
 
   # Omnigent functionality check (verify binary is executable;
   # bare invocation launches an interactive session, so skip running it)
@@ -675,14 +681,14 @@ command:
   "/usr/local/bin/sops --version --disable-version-check":
     exit-status: 0
     stdout: ["sops"]
-    timeout: 5000
+    timeout: 30000
 
   # packer functionality check (CHECKPOINT_DISABLE skips the HashiCorp update
   # check, a network call that can exceed the goss timeout)
   "CHECKPOINT_DISABLE=1 /usr/bin/packer version":
     exit-status: 0
     stdout: ["Packer v"]
-    timeout: 10000
+    timeout: 30000
 
   # ansible functionality check
   "/usr/bin/ansible --version":
@@ -693,7 +699,7 @@ command:
   # omnistrate-ctl functionality check
   "/usr/local/bin/omnistrate-ctl --version":
     exit-status: 0
-    timeout: 5000
+    timeout: 30000
 
 
   # 1Password CLI check

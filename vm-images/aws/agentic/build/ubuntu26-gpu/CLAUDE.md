@@ -66,7 +66,7 @@ architecture). It has no GPU: the nvidia module does not load there and
 
 - **Packer build** (`scripts/system_verify_gpu_stack.sh`, on the `g6.xlarge`
   builder): `lsmod` shows nvidia and not nouveau, `nvidia-smi -L` reports an
-  `NVIDIA L4`, `ollama` is active with a `library=cuda` accelerator line in
+  `NVIDIA L4`, `ollama` is active with a `library=CUDA` accelerator line in
   its journal, and `ss -ltn` shows `127.0.0.1:11434` and no non-loopback
   11434 listener. Any miss fails the build.
 - **goss** (`tests/goss.yaml`): hardware-independent facts only. It is a
