@@ -203,10 +203,55 @@ class RepositoryPolicyTests(unittest.TestCase):
         names = {(b["family"], b["name"]) for b in json.loads(out)["build"]}
         expected = set()
         for template in REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"):
+            if (template.parent / "MANUAL_DISPATCH_ONLY").exists():
+                continue
             if "system_add_goss.sh" in template.read_text():
                 expected.add((template.parents[2].name, template.parent.name))
         self.assertTrue(expected)
         self.assertEqual(names, expected)
+
+    def test_manual_dispatch_only_marker_excludes_target_from_change_matrix(self) -> None:
+        import json
+        import subprocess
+        import tempfile
+        script = REPOSITORY / ".github/scripts/compute-build-matrix.sh"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            auto = root / "vm-images/aws/fam/build/auto"
+            manual = root / "vm-images/aws/fam/build/manual"
+            for target in (auto, manual):
+                (target / "tests").mkdir(parents=True)
+                (target / "main.pkr.hcl").write_text(
+                    'script = "../../../../common/scripts/system_add_goss.sh"\n'
+                )
+                (target / "tests/goss.yaml").write_text("")
+            (manual / "MANUAL_DISPATCH_ONLY").write_text("manual only\n")
+            (root / "vm-images/common/scripts").mkdir(parents=True)
+            (root / "vm-images/common/scripts/system_add_goss.sh").write_text("")
+            (root / "vm-images/scripts").mkdir(parents=True)
+            (root / "vm-images/scripts/harness.sh").write_text("")
+
+            cases = {
+                "own directory": "vm-images/aws/fam/build/manual/tests/goss.yaml\n",
+                "referenced common script": "vm-images/common/scripts/system_add_goss.sh\n",
+                "shared harness": "vm-images/scripts/harness.sh\n",
+            }
+            for label, changed in cases.items():
+                out = subprocess.run(
+                    ["bash", str(script)],
+                    input=changed, capture_output=True, text=True,
+                    cwd=root, check=True,
+                ).stdout
+                names = {b["name"] for b in json.loads(out)["build"]}
+                with self.subTest(changed=label):
+                    self.assertNotIn("manual", names)
+                    if label != "own directory":
+                        self.assertIn("auto", names)
+
+    def test_agentic_gpu_target_is_manual_dispatch_only(self) -> None:
+        target = REPOSITORY / "vm-images/aws/agentic/build/ubuntu26-gpu"
+        self.assertTrue((target / "main.pkr.hcl").exists())
+        self.assertTrue((target / "MANUAL_DISPATCH_ONLY").exists())
 
     def test_agentic_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (
