@@ -503,7 +503,9 @@ port:
 # Go/Node binaries (kubectl, terraform, tofu, packer, sops, npm,
 # omnistrate-ctl) timed out at the base file's 5s/10s limits while the root
 # volume was still lazy-loading and ollama was reading its CUDA runtime, so
-# those entries use 30s here. gh and docker live in common-docker.yaml.
+# those entries use 30s here, and the per-user agent CLIs (claude --version
+# missed even the base file's 30s on that pass) use 60s. gh and docker live
+# in common-docker.yaml.
 command:
   # SSH listener check (replaces the port/service assertions — see note above)
   "ss -lnt | grep -E ':22\\s'":
@@ -617,42 +619,42 @@ command:
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/claude --version < /dev/null":
     exit-status: 0
     stdout: ["Claude Code"]
-    timeout: 30000
+    timeout: 60000
 
   # PI coding agent version check (Earendil Works distribution)
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/pi --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Hermes Agent version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/hermes --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # OpenAI Codex CLI version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/codex --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # GitHub Copilot CLI version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/copilot --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Google Gemini CLI version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/gemini --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Cursor Agent version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cursor-agent --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Kimi Code CLI version check (current native CLI, not the legacy Python kimi-cli)
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.kimi-code/bin/kimi --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Google Antigravity CLI — executable-only. `agy --version` needs a TTY
   # (bubbletea: "error opening TTY: could not open TTY: open /dev/tty: no
@@ -664,7 +666,7 @@ command:
   # xAI Grok CLI version check
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.grok/bin/grok --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # herdr version check (runs system-wide from /usr/local/bin)
   "/usr/local/bin/herdr --version < /dev/null":
@@ -773,13 +775,13 @@ command:
   # OpenCode CLI version check (as ubuntu user; see AI toolchain note above)
   "sudo -n -u ubuntu env HOME=/home/ubuntu PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.opencode/bin/opencode --version < /dev/null":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # Cloudsmith CLI: must run under PYTHONNOUSERSITE=1 (access-env / access run).
   # Goss already runs as the ubuntu user, so no sudo wrapper is needed.
   "env HOME=/home/ubuntu PYTHONNOUSERSITE=1 PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin /home/ubuntu/.local/bin/cloudsmith --version":
     exit-status: 0
-    timeout: 30000
+    timeout: 60000
 
   # gitleaks functionality check
   "/usr/local/bin/gitleaks version":
