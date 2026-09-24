@@ -6,8 +6,8 @@ import unittest
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
-# An aws CLI call, bare or path-qualified (aws ec2 ..., /usr/bin/aws s3 ...).
-AWS_CLI_INVOCATION = re.compile(r"(?m)(^|[\s;&|(`$\"'])(\S*/)?aws\s+[a-z0-9]")
+# An aws CLI call, bare, path-qualified or quoted (aws ec2 ..., "/usr/bin/aws" s3 ...).
+AWS_CLI_INVOCATION = re.compile(r"(?m)(^|[\s;&|(`$\"'])(\S*/)?aws[\"']?\s+[a-z0-9]")
 
 
 class RepositoryPolicyTests(unittest.TestCase):
@@ -44,6 +44,8 @@ class RepositoryPolicyTests(unittest.TestCase):
             "/usr/bin/aws s3 ls",
             "x=$(/usr/local/bin/aws ec2 describe-vpcs)",
             'bash -c "aws ssm get-parameter"',
+            '"/usr/bin/aws" ec2 describe-images',
+            "'./aws' sts get-caller-identity",
         ):
             with self.subTest(line=line):
                 self.assertIsNotNone(AWS_CLI_INVOCATION.search(line))
