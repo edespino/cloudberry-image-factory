@@ -8,16 +8,23 @@ AWS credentials. AMIs are built and tested locally with
 ## `validate.yml` - Template Validation
 
 **Triggers:** pushes and pull requests to `main` that touch `vm-images/`,
-`tests/`, or `.github/` (Markdown-only changes are ignored), and manual
-`workflow_dispatch`.
+`tests/`, `.github/`, or `infra/` (Markdown-only changes are ignored), and
+manual `workflow_dispatch`.
 
 **Jobs:**
-1. `detect-changes` — diffs the pull request's base and head SHAs (or
-   `HEAD~1..HEAD` on push) and passes the changed files to
-   `.github/scripts/compute-build-matrix.sh`.
-2. `validate` — for each selected target: runs the offline test suite
-   (`python3 -m unittest discover -s tests`), then `packer init` and
-   `packer validate` for the target's `main.pkr.hcl`.
+1. `unit-tests` — always runs the offline test suite
+   (`python3 -m unittest discover -s tests`), including the repository
+   policy tests, whether or not any template is selected.
+2. `detect-changes` — selects targets with
+   `.github/scripts/compute-build-matrix.sh`: a pull request diffs its base and
+   head SHAs; a push diffs the whole push (`github.event.before` to
+   `github.sha`) and validates every target when that base is unknown (new
+   branch); a manual dispatch validates every target (`--all`).
+3. `validate` — for each selected target, `packer init` and `packer validate`
+   for its `main.pkr.hcl`.
+
+Checkouts use `persist-credentials: false`, and the workflow has
+`permissions: contents: read`.
 
 ## Target Selection
 
@@ -30,6 +37,9 @@ selects targets from the changed-file list on every run:
 | `vm-images/common/scripts/X.sh` | Every target whose `main.pkr.hcl` references `X.sh` (found by `grep`, not a lookup table) |
 | `vm-images/scripts/**` or `vm-images/common/tests/**` | All targets (shared harness/tests affect every build) |
 | Anything else (docs, other paths) | No targets — nothing to validate |
+
+Deleted paths are classified too: deleting a common script selects every
+template that still references it, so the broken reference fails validation.
 
 ## Setup Requirements
 

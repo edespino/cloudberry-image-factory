@@ -25,37 +25,21 @@ variable "custom_shell_commands" {
   default = []
 }
 
-variable "aws_access_key" {
-  type    = string
-  default = ""
-}
-
-variable "aws_secret_key" {
-  type    = string
-  default = ""
-}
-
-variable "aws_session_token" {
-  type    = string
-  default = ""
-}
-
 variable "region" {
   type    = string
   default = ""
 }
 
-# The Purpose=ami-build subnet, set by packer-build-and-test.sh. The build
-# account has no default VPC; the empty default only serves packer validate.
+# The Purpose=ami-build subnet, passed by packer-build-and-test.sh with -var so
+# no environment or .pkrvars.hcl value can override it. The build account has
+# no default VPC; the empty default only serves packer validate. Credentials
+# come only from the AWS SDK chain the harness checks (no credential variables).
 variable "subnet_id" {
   type    = string
   default = ""
 }
 
 source "amazon-ebs" "base-build-image" {
-  access_key    = var.aws_access_key
-  secret_key    = var.aws_secret_key
-  token         = var.aws_session_token
   region        = var.region
   temporary_security_group_source_public_ip = true
   subnet_id                   = var.subnet_id

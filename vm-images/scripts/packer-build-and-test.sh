@@ -330,9 +330,9 @@ resolve_build_account() {
   echo "Build account: ${EXPECTED_AMI_OWNER}"
 }
 
-# Find the Purpose=ami-build subnet (first by AZ name). Packer receives it
-# through PKR_VAR_subnet_id; the test instance and its security group use
-# the same subnet and VPC.
+# Find the Purpose=ami-build subnet (first by AZ name). Packer receives it as
+# -var subnet_id; the test instance and its security group use the same
+# subnet and VPC.
 resolve_build_network() {
   local network
   network="$(
@@ -349,7 +349,6 @@ resolve_build_network() {
     return 1
   fi
   echo "Build subnet: ${BUILD_SUBNET_ID} (VPC ${BUILD_VPC_ID})"
-  export PKR_VAR_subnet_id="${BUILD_SUBNET_ID}"
 }
 
 cleanup() {
@@ -576,6 +575,20 @@ if [ -n "${EXISTING_AMI}" ]; then
       "${AMI_METADATA_HELPER}" \
         "${AMI_ID}" "${EXPECTED_AMI_OWNER}" "${AMI_NAME_PREFIX}"
   )"
+  # Public=false still allows explicit account, organization, or OU launch
+  # permissions; an image under test must have none.
+  LAUNCH_PERMISSION_COUNT="$(
+    aws ec2 describe-image-attribute \
+      --image-id "${AMI_ID}" \
+      --attribute "launchPermission" \
+      --query "length(LaunchPermissions)" \
+      --output "text" \
+      --region "${REGION}"
+  )"
+  if [ "${LAUNCH_PERMISSION_COUNT}" != "0" ]; then
+    echo "Error: existing AMI ${AMI_ID} has launch permissions; it must not be shared." >&2
+    error_handler
+  fi
   AMI_VALIDATED_FOR_TAGGING=true
 fi
 
@@ -612,6 +625,7 @@ if [ -z "${EXISTING_AMI}" ]; then
     -var "family=${FAMILY}" \
     -var "os_name=${OS_NAME}" \
     -var "region=${REGION}" \
+    -var "subnet_id=${BUILD_SUBNET_ID}" \
     "${HCL_FILE}"; then
     echo "Packer template validation failed. Aborting."
     error_handler
@@ -623,6 +637,7 @@ if [ -z "${EXISTING_AMI}" ]; then
     -var "family=${FAMILY}" \
     -var "os_name=${OS_NAME}" \
     -var "region=${REGION}" \
+    -var "subnet_id=${BUILD_SUBNET_ID}" \
     "${HCL_FILE}"
 
   # Step 5: Parse the AMI ID from the Packer manifest file

@@ -101,5 +101,21 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                     for line in expected:
                         self.assertEqual(block.count(line), 1, line)
 
+    def test_templates_take_no_credentials_and_never_share(self) -> None:
+        # Credentials come only from the SDK chain the harness checks against
+        # the build account; images and snapshots stay in that account.
+        forbidden_settings = re.compile(
+            r"(?m)^\s*(access_key|secret_key|token|profile|assume_role|"
+            r"ami_users|ami_groups|ami_org_arns|ami_ou_arns|"
+            r"snapshot_users|snapshot_groups|ami_regions)\s*[={]"
+        )
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            content = template.read_text()
+            with self.subTest(template=template):
+                for variable in ("aws_access_key", "aws_secret_key", "aws_session_token"):
+                    self.assertNotIn(f'variable "{variable}"', content)
+                for block in amazon_ebs_blocks(content):
+                    self.assertIsNone(forbidden_settings.search(block))
+
 if __name__ == "__main__":
     unittest.main()

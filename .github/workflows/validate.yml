@@ -11,6 +11,7 @@ on:
       - 'vm-images/**'
       - 'tests/**'
       - '.github/**'
+      - 'infra/**'
       - '!**/*.md'
   pull_request:
     branches: [main]
@@ -18,6 +19,7 @@ on:
       - 'vm-images/**'
       - 'tests/**'
       - '.github/**'
+      - 'infra/**'
       - '!**/*.md'
   workflow_dispatch:
 
@@ -25,6 +27,17 @@ permissions:
   contents: read
 
 jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run offline repository tests
+        run: python3 -m unittest discover -s tests
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -38,19 +51,47 @@ jobs:
           # Pull-request change detection compares immutable event SHAs. Fetch
           # full history so both objects and their merge base are available.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Compute validation matrix
         id: set-matrix
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          script=.github/scripts/compute-build-matrix.sh
+          all=false
+          case "$EVENT_NAME" in
+            pull_request)
+              changed=$(git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA")
+              ;;
+            push)
+              # Diff the whole push, not only its last commit. A new branch
+              # or an unknown base validates everything.
+              if [ -z "$PUSH_BEFORE_SHA" ] \
+                || [ "$PUSH_BEFORE_SHA" = "0000000000000000000000000000000000000000" ] \
+                || ! git cat-file -e "$PUSH_BEFORE_SHA^{commit}" 2>/dev/null; then
+                all=true
+              else
+                changed=$(git diff --name-only "$PUSH_BEFORE_SHA" "$PUSH_AFTER_SHA")
+              fi
+              ;;
+            *)
+              all=true
+              ;;
+          esac
+          if [ "$all" = true ]; then
+            changed="(all targets)"
+            matrix=$("$script" --all)
           else
-            changed=$(git diff --name-only HEAD~1 HEAD)
+            matrix=$(printf '%s\n' "$changed" | "$script")
           fi
           echo "$changed"
-          matrix=$(echo "$changed" | .github/scripts/compute-build-matrix.sh)
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           if [ "$(echo "$matrix" | jq '.build | length')" -gt 0 ]; then
             echo "should-run=true" >> "$GITHUB_OUTPUT"
@@ -73,9 +114,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-
-      - name: Run offline repository tests
-        run: python3 -m unittest discover -s tests
+        with:
+          persist-credentials: false
 
       - name: Setup Packer
         uses: hashicorp/setup-packer@v3.4.0
