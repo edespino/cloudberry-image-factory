@@ -4,7 +4,9 @@ A comprehensive Packer-based infrastructure project for building development-opt
 
 ## Overview
 
-The Cloudberry Image Factory provides automated AMI builds across multiple operating systems with integrated testing, security enhancements, and intelligent CI/CD workflows. Built specifically for **development environments** with appropriate configurations for development workflows.
+The Cloudberry Image Factory builds and tests private AMIs across multiple operating systems with integrated Goss testing and security enhancements. Built specifically for **development environments** with appropriate configurations for development workflows.
+
+Builds are started locally with `vm-images/scripts/packer-build-and-test.sh` and run in the Synx Engineering AWS account (`260369602265`, `us-west-2`). GitHub Actions only runs offline checks (unit tests and `packer validate`); it has no AWS access.
 
 ## Architecture
 
@@ -15,23 +17,21 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │                         GitHub Repository                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
 │  │  Common Scripts │  │  Family/OS       │  │  GitHub Actions        │ │
-│  │  (58 scripts)   │  │  Build Configs   │  │  Workflows             │ │
-│  │                 │  │  (7 targets, 3   │  │  - Build on Change     │ │
-│  │                 │  │   families)      │  │    (dynamic matrix)    │ │
-│  └─────────────────┘  └──────────────────┘  │  - Manual/Scheduled    │ │
-│                                             │  - AMI Cleanup         │ │
+│  │  (58 scripts)   │  │  Build Configs   │  │  validate.yml          │ │
+│  │                 │  │  (9 targets, 3   │  │  - unit tests          │ │
+│  │                 │  │   families)      │  │  - packer validate     │ │
+│  └─────────────────┘  └──────────────────┘  │  (no AWS access)       │ │
 │                                             └────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────┘
                                     │
                     ┌───────────────┴───────────────┐
-                    │   Trigger Events              │
-                    │   - Git Push/PR               │
-                    │   - Manual Run                │
-                    │   - Scheduled (cron)          │
+                    │   Local build (operator)      │
+                    │   AWS_PROFILE=synx-engineering│
+                    │   packer-build-and-test.sh    │
                     └───────────────┬───────────────┘
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          AWS Environment                               │
+│         Synx Engineering 260369602265, us-west-2, Purpose=ami-build    │
 │                                                                        │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │               Packer Build Process (t3.2xlarge)                  │  │
@@ -59,29 +59,21 @@ The Cloudberry Image Factory provides automated AMI builds across multiple opera
 │            Tests PASSED                    Tests FAILED                │
 │            Tag Name: *-PASSED              Deregister AMI              │
 │            Keep Private                    Delete snapshots            │
-│            Retain (count-based)            (--keep-failed-ami: tag)    │
+│                                            (--keep-failed-ami: tag)    │
 └────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                          ┌──────────────────┐
-                          │  Monthly Cleanup │
-                          │  - Keep N newest │
-                          │  - Delete tagged │
-                          │  - Delete old    │
-                          └──────────────────┘
 ```
 
 ## Repository Structure
 
 ```
 cloudberry-image-factory/
-├── .github/workflows/          # GitHub Actions CI/CD workflows
-│   ├── ami-build-on-change.yml # Smart change-driven builds (dynamic matrix)
-│   ├── ami-build-manual.yml    # Manual/scheduled builds
-│   ├── ami-cleanup-old.yml     # AMI lifecycle management (per-family)
+├── .github/workflows/          # GitHub Actions (offline checks only)
+│   ├── validate.yml            # Unit tests + packer validate for changed targets
 │   └── README.md               # Workflow documentation
 ├── .github/scripts/
-│   └── compute-build-matrix.sh # Derives the CI build matrix from changed files
+│   └── compute-build-matrix.sh # Selects the targets validate.yml checks
+├── infra/
+│   └── engineering-ami-build.cfn.yaml # Build VPC (Purpose=ami-build) in Synx Engineering
 ├── vm-images/
 │   ├── scripts/                 # Harness trio, shared by every family
 │   │   ├── packer-build-and-test.sh
@@ -102,7 +94,7 @@ cloudberry-image-factory/
 │       └── agentic/build/
 │           ├── ubuntu26/         # Standalone AI-tooling image on Ubuntu 26.04
 │           ├── ubuntu26-arm64/   # Same image on arm64 (Graviton)
-│           └── ubuntu26-gpu/     # NVIDIA L4 inference image chained from ubuntu26 (manual dispatch only)
+│           └── ubuntu26-gpu/     # NVIDIA L4 inference image chained from ubuntu26
 │       # Each build directory contains:
 │       #   main.pkr.hcl        - Packer configuration
 │       #   scripts/            - OS-specific scripts
@@ -124,7 +116,7 @@ cloudberry-image-factory/
 | **synxdb-cloud** | ubuntu24 | APT | SynxDB Cloud developer workstation image |
 | **agentic** | ubuntu26 | APT | Standalone AI-tooling image (Ubuntu 26.04) |
 | **agentic** | ubuntu26-arm64 | APT | Same image on arm64/Graviton (no dysk — x86-only binary) |
-| **agentic** | ubuntu26-gpu | APT | x86_64 NVIDIA L4 inference image chained from the `ubuntu26` `-PASSED` AMI; `g6.xlarge` builder; NVIDIA 580 server driver, nvtop, Ollama (loopback only); CI manual dispatch only |
+| **agentic** | ubuntu26-gpu | APT | x86_64 NVIDIA L4 inference image chained from the `ubuntu26` `-PASSED` AMI; `g6.xlarge` builder; NVIDIA 580 server driver, nvtop, Ollama (loopback only) |
 
 > **Archived (2026-07-24):** `al2023`, `centos10`, `debian12`, `ubuntu20`, and `ubuntu22` were
 > removed after ~9 months without maintenance. They remain recoverable from git history.
@@ -201,11 +193,10 @@ cloudberry-image-factory/
 
 ### Prerequisites
 
-- **AWS Account** with EC2 and AMI permissions
+- **AWS SSO profile** for Synx Engineering (`synx-engineering`, PowerUser, `us-west-2`)
+- **Build VPC** from `infra/engineering-ami-build.cfn.yaml` (subnets tagged `Purpose=ami-build`)
 - **Packer** 1.8+ installed locally
-- **AWS CLI** configured with appropriate credentials
 - **Python 3**, `jq`, OpenSSH client, `nc`, `curl`, and GNU `timeout`
-- **GitHub repository** with required secrets (for CI/CD)
 
 When this script runs through `access run`, the final command receives a
 private mode-0700 `XDG_RUNTIME_DIR`. When invoked directly, an explicitly set
@@ -213,21 +204,29 @@ private mode-0700 `XDG_RUNTIME_DIR`. When invoked directly, an explicitly set
 directory owned by the current user with exactly mode 0700. If it is unset,
 `RUNNER_TEMP` (or `TMPDIR`) may be a current-user-owned mode-0755 directory,
 but it must not be group/world writable; the script securely creates and
-removes a cryptographically named mode-0700 per-run child beneath it. Both AMI
-build workflows explicitly export such a private child.
+removes a cryptographically named mode-0700 per-run child beneath it.
+
+The harness builds only in the Synx Engineering account `260369602265`. It
+reads the account from the credentials and stops on any other. The account
+has no default VPC: the build instance, the test instance, and the test
+security group use the first available subnet tagged `Purpose=ami-build`, and
+the build stops if there is none. Volumes use the account's default EBS
+encryption. Images stay in this account; they are not shared to others.
 
 Existing-AMI recovery accepts only available, not-publicly-shared images owned
-by the documented account `703671893074`, in the fixed `us-west-2` region,
-whose name matches the selected build target.
+by the credentials' account, in the fixed `us-west-2` region, whose name
+matches the selected build target.
 
 ### Manual Build Process
 
 ```bash
+aws sso login --sso-session synx
+
 # Navigate to specific build directory
 cd vm-images/aws/cloudberry/build/rocky9
 
-# Build AMI manually using integrated build-and-test script
-../../../../scripts/packer-build-and-test.sh
+# Build and test the AMI in Synx Engineering
+AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
 ```
 
 ### Build Pipeline Flow
@@ -304,133 +303,24 @@ cd vm-images/aws/cloudberry/build/rocky9
    └─ Display final results
 ```
 
-### Automated CI/CD Builds
+### Pull Request Checks
 
-The repository includes intelligent GitHub Actions workflows:
+`.github/workflows/validate.yml` runs on pushes and pull requests to `main`
+that touch `vm-images/`, `tests/`, or `.github/`. It runs the offline unit
+tests and `packer validate` for each changed target, selected by
+`.github/scripts/compute-build-matrix.sh`:
 
-- **Automatic builds**: Triggered on script/configuration changes
-- **Manual builds**: On-demand with configurable options
-- **Scheduled builds**: Weekly automated builds
-- **Smart rebuilds**: Only affected AMIs rebuilt based on change detection
+- `vm-images/common/scripts/X.sh` → every target whose `main.pkr.hcl` references `X.sh`
+- `vm-images/scripts/**` or `vm-images/common/tests/**` → all targets
+- `vm-images/aws/<family>/build/<os>/**` → that target only
 
-### CI/CD Workflow Decision Tree
+It never builds an AMI and holds no AWS credentials.
 
-```
-                        GitHub Event
-                             │
-         ┌───────────────────┼───────────────────┐
-         ▼                   ▼                   ▼
-    Push/PR to Main    Manual Trigger    Scheduled (Weekly)
-         │                   │                   │
-         ▼                   │                   │
-    Changed Files?           │                   │
-         │                   │                   │
-    ┌────┴────┐              │                   │
-    ▼         ▼              │                   │
- Yes         No              │                   │
-    │         │              │                   │
-    │      (Skip)            │                   │
-    │                        │                   │
-    └────────┬───────────────┴───────────────────┘
-             ▼
-    ami-build-on-change.yml     OR     ami-build-manual.yml
-             │                              │
-             ▼                              ▼
-    Dynamic Matrix Computation    "all" or family/os list
-    (compute-build-matrix.sh)              │
-             │                              │
-    ┌────────┴────────┐                     │
-    ▼                 ▼                     │
-Common Script    Target-Path File          │
-Changed          Changed                    │
-    │                 │                     │
-    ├─ grep-match     └─ Build only         │
-    │  every target's    that one target   │
-    │  main.pkr.hcl                         │
-    │                                       │
-    ├─ vm-images/common/scripts/X.sh → every target whose HCL references X.sh
-    ├─ vm-images/scripts/** or vm-images/common/tests/** → all targets
-    └─ vm-images/aws/<family>/build/<os>/** → that target only
-                │
-                ▼
-    ┌───────────────────────────────┐
-    │   Build Matrix Generation     │
-    │   Max 3 parallel builds       │
-    └───────────────────────────────┘
-                │
-       ┌────────┴────────┐
-       ▼                 ▼
-    Build AMI       Test AMI
-    (60 min)        (10 min)
-       │                 │
-       └────────┬────────┘
-                ▼
-       ┌─────────────────┐
-       │  Test Results   │
-       └─────────────────┘
-                │
-       ┌────────┴────────┐
-       ▼                 ▼
-   ✅ PASSED        ❌ FAILED
-       │                 │
-       ├─ Tag Name       ├─ Deregister AMI
-       │  *-PASSED       └─ Delete snapshots
-       ├─ Keep private
-       └─ Comment PR
-```
+### Retiring Old AMIs
 
-### Monthly AMI Cleanup Flow
-
-```
-    1st of Month, 3 AM UTC
-             │
-             ▼
-    ami-cleanup-old.yml
-    (Always DRY-RUN)
-             │
-             ▼
-    For each family (cloudberry, synxdb-cloud, agentic):
-    Find AMIs matching <family>-packer-*
-             │
-       ┌─────┴─────┐
-       ▼           ▼
-   Name tag     Name tag not
-   *-FAILED     *-FAILED
-       │           │
-       │           ▼
-       │      Group by OS within the family:
-       │      e.g. cloudberry/rocky9, cloudberry/rocky10
-       │           │
-       │           ▼
-       │      For each family/os:
-       │      Sort by CreationDate
-       │      (newest first)
-       │           │
-       │      ┌────┴────┐
-       │      ▼         ▼
-       │   Count ≤ N  Count > N
-       │      │         │
-       │   Keep All  Keep N newest
-       │              Delete rest
-       │           │
-       └─────┬─────┘
-             ▼
-    Delete List Generated:
-    - All -FAILED-tagged AMIs (only left behind by
-      --keep-failed-ami or a failed build-time discard)
-    - Old AMIs beyond retention
-             │
-             ▼
-    Generate Report:
-    - ✅ AMIs to KEEP
-    - ❌ AMIs to DELETE
-    - GitHub Step Summary
-             │
-             ▼
-    DRY-RUN: No action taken
-    Manual trigger required
-    for actual deletion
-```
+There is no automated cleanup. `packer-build-and-test.sh` removes a failed
+build's AMI and snapshots itself; older `-PASSED` images in Synx Engineering
+are deregistered by hand, together with their snapshots.
 
 ## Configuration
 
@@ -513,35 +403,6 @@ All external downloads now include:
 - **cbladmin_configure_environment.sh**: Comprehensive security for all downloads
 - **system_add_goss.sh**: Secure testing framework installation
 
-## CI/CD Workflows
-
-### Change Detection Intelligence
-`compute-build-matrix.sh` derives the build matrix directly from the diff and
-the HCL files — there is no hardcoded dependency map to keep in sync:
-
-```bash
-# Example: Changing vm-images/common/scripts/dbadmin_configure_environment.sh
-#          rebuilds every target whose main.pkr.hcl references that script
-# Example: Changing vm-images/common/scripts/system_add_awscli.sh
-#          rebuilds only the targets whose main.pkr.hcl references it
-# Example: Changing vm-images/aws/cloudberry/build/rocky9/main.pkr.hcl
-#          rebuilds only cloudberry/rocky9
-# Example: Changing vm-images/scripts/packer-build-and-test.sh
-#          rebuilds all 7 targets
-```
-
-### Cost Management
-- **Parallel build limits**: Maximum 3 concurrent builds
-- **Smart rebuilds**: Only affected AMIs rebuilt
-- **Automatic cleanup**: Temporary resources removed
-- **AMI lifecycle**: Monthly cleanup of old images
-
-### Build Features
-- **Matrix builds**: Parallel execution across OS targets
-- **Artifact collection**: Build manifests and test results
-- **PR integration**: Automatic status updates
-- **Manual override**: Full control for releases
-
 ## Usage Examples
 
 ### Manual Builds for Different Targets
@@ -564,7 +425,7 @@ cd vm-images/aws/agentic/build/ubuntu26
 ../../../../scripts/packer-build-and-test.sh
 
 # Agentic GPU image (chained from the newest agentic/ubuntu26 -PASSED AMI;
-# g6.xlarge builder; not built by the change-driven workflow)
+# g6.xlarge builder)
 cd vm-images/aws/agentic/build/ubuntu26-gpu
 ../../../../scripts/packer-build-and-test.sh
 ```
@@ -586,11 +447,11 @@ ssh -i your-key.pem cbadmin@instance-ip
 ### Development Workflow
 
 ```bash
-# 1. Modify scripts or configurations
-# 2. Push changes to GitHub
-# 3. CI/CD automatically detects changes and rebuilds affected AMIs
-# 4. Review build results in PR comments
-# 5. Merge after successful builds
+# 1. Modify scripts or configurations on a branch
+# 2. Build and test affected targets locally in Synx Engineering:
+#    AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
+# 3. Open a PR; validate.yml runs unit tests and packer validate
+# 4. Merge after local builds pass
 ```
 
 ## Customization
@@ -600,7 +461,7 @@ ssh -i your-key.pem cbadmin@instance-ip
 1. **Create script** in `vm-images/common/scripts/`
 2. **Follow naming convention**: `system_action_component.sh`
 3. **Add to Packer templates** as needed
-4. **No CI/CD edit needed** — the build matrix is computed dynamically and will pick up the new script reference automatically
+4. **No workflow edit needed** — `validate.yml` selects targets from the script references in each `main.pkr.hcl`
 5. **Add Goss tests** for validation
 
 ### Adding New Targets
@@ -608,8 +469,8 @@ ssh -i your-key.pem cbadmin@instance-ip
 1. **Create build directory**: `vm-images/aws/<family>/build/<os>/` (new family) or `vm-images/aws/<existing-family>/build/<os>/` (new OS in an existing family)
 2. **Copy template structure**: `main.pkr.hcl`, `scripts/`, `tests/`
 3. **Configure base AMI** and OS-specific settings
-4. **No workflow edits needed** — `.github/scripts/compute-build-matrix.sh` derives the target from the directory layout. To keep a target out of the change-driven matrix (e.g. an expensive GPU builder), add a `MANUAL_DISPATCH_ONLY` file to its directory; it then builds only via `ami-build-manual.yml`
-5. **Test build locally** before CI/CD integration: `../../../../scripts/packer-build-and-test.sh`
+4. **No workflow edits needed** — `.github/scripts/compute-build-matrix.sh` derives the target from the directory layout
+5. **Build and test locally**: `AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh`
 6. **Update documentation**: Add to Supported Builds table and Repository Structure in README.md
 
 > **Note:** The repository structure and supported builds list in README.md should be kept in sync with actual build directories. When adding/removing OS targets, update both the code and documentation together.
@@ -667,8 +528,7 @@ aws ec2 delete-key-pair --key-name temp-packer-key
 2. **Security First**: All downloads must include verification
 3. **Testing Required**: Add Goss tests for new functionality
 4. **Documentation**: Update README for significant changes (avoid hardcoding version numbers)
-5. **CI/CD Integration**: Ensure workflows understand new dependencies
-6. **Version Management**:
+5. **Version Management**:
    - Prefer dynamic version detection (e.g., "latest" from GitHub releases)
    - Document versions in Goss tests, not README
    - Use package manager defaults when appropriate
@@ -684,14 +544,14 @@ aws ec2 delete-key-pair --key-name temp-packer-key
 
 ### Repository Information
 - **Purpose**: Development AMI factory for Apache Cloudberry Database
-- **Maintenance**: Active development with automated testing
+- **Maintenance**: Active development; local builds with automated Goss testing
 - **License**: [Check repository LICENSE file]
 - **Issues**: Use GitHub Issues for bugs and feature requests
 
 ### Key Contacts
 - **Infrastructure**: Repository maintainers
 - **Security**: Follow security enhancement patterns
-- **CI/CD**: GitHub Actions workflow documentation
+- **CI**: `.github/workflows/README.md`
 
 ---
 

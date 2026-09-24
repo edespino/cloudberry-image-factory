@@ -45,12 +45,29 @@ variable "region" {
   default = ""
 }
 
+# The Purpose=ami-build subnet, set by packer-build-and-test.sh. The build
+# account has no default VPC; the empty default only serves packer validate.
+variable "subnet_id" {
+  type    = string
+  default = ""
+}
+
 source "amazon-ebs" "base-cbdb-build-image" {
   access_key    = var.aws_access_key
   secret_key    = var.aws_secret_key
   token         = var.aws_session_token
   region        = var.region
   temporary_security_group_source_public_ip = true
+  subnet_id                   = var.subnet_id
+  associate_public_ip_address = true
+
+  # The account's SCP denies RunInstances unless IMDSv2 is required
+  # (RequireImdsv2OnLaunch); Packer's default request sends HttpTokens=optional.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   instance_type = "t3.2xlarge"
 

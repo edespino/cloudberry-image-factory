@@ -83,6 +83,23 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                         assignments[0],
                     )
 
+    def test_templates_take_build_subnet_from_harness(self) -> None:
+        # The build account has no default VPC; packer-build-and-test.sh
+        # passes the Purpose=ami-build subnet. Its SCP denies launches
+        # that do not require IMDSv2.
+        expected = (
+            "subnet_id                   = var.subnet_id",
+            "associate_public_ip_address = true",
+            'http_tokens                 = "required"',
+        )
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            content = template.read_text()
+            with self.subTest(template=template):
+                self.assertIn('variable "subnet_id"', content)
+                self.assertNotIn("kms_key_id", content)
+                for block in amazon_ebs_blocks(content):
+                    for line in expected:
+                        self.assertEqual(block.count(line), 1, line)
 
 if __name__ == "__main__":
     unittest.main()

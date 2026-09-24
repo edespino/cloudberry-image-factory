@@ -1,0 +1,92 @@
+name: Validate Templates
+
+# Offline checks only: the repository test suite and Packer template
+# validation for each changed target. AMIs are built locally in Synx
+# Engineering (260369602265), see README.md; GitHub has no AWS access.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vm-images/**'
+      - 'tests/**'
+      - '.github/**'
+      - '!**/*.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'vm-images/**'
+      - 'tests/**'
+      - '.github/**'
+      - '!**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      should-run: ${{ steps.set-matrix.outputs.should-run }}
+      changed-files: ${{ steps.set-matrix.outputs.changed-files }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          # Pull-request change detection compares immutable event SHAs. Fetch
+          # full history so both objects and their merge base are available.
+          fetch-depth: 0
+
+      - name: Compute validation matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          else
+            changed=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          echo "$changed"
+          matrix=$(echo "$changed" | .github/scripts/compute-build-matrix.sh)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$(echo "$matrix" | jq '.build | length')" -gt 0 ]; then
+            echo "should-run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should-run=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "changed-files<<EOF"
+            echo "$changed"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Run offline repository tests
+        run: python3 -m unittest discover -s tests
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3.4.0
+        with:
+          version: "latest"
+
+      - name: Initialize and validate Packer template for ${{ matrix.build.name }}
+        working-directory: ${{ matrix.build.path }}
+        run: |
+          echo "Initializing Packer plugins for ${{ matrix.build.name }}"
+          packer init main.pkr.hcl
+          echo "Validating Packer template for ${{ matrix.build.name }}"
+          packer validate -var "family=${{ matrix.build.family }}" -var "os_name=${{ matrix.build.name }}" -var "region=us-west-2" main.pkr.hcl
+
