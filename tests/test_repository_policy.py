@@ -9,17 +9,40 @@ REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 class RepositoryPolicyTests(unittest.TestCase):
-    def test_ci_validates_offline_before_packer(self) -> None:
-        workflow = (REPOSITORY / ".github/workflows/validate.yml").read_text()
-        test_position = workflow.find("python3 -m unittest discover -s tests")
-        validate_position = workflow.find("packer validate")
-        self.assertGreaterEqual(test_position, 0)
-        self.assertGreater(validate_position, test_position)
+    def test_unit_tests_run_on_every_triggering_change(self) -> None:
+        import yaml
+        workflow = yaml.safe_load(
+            (REPOSITORY / ".github/workflows/validate.yml").read_text()
+        )
+        unit_tests = workflow["jobs"]["unit-tests"]
+        self.assertNotIn("if", unit_tests)
+        self.assertNotIn("needs", unit_tests)
+        commands = [step.get("run", "") for step in unit_tests["steps"]]
+        self.assertIn("python3 -m unittest discover -s tests", commands)
+        triggers = workflow.get("on", workflow.get(True))
+        for event in ("push", "pull_request"):
+            with self.subTest(event=event):
+                self.assertIn("infra/**", triggers[event]["paths"])
+
+    def test_checkouts_do_not_persist_the_github_token(self) -> None:
+        import yaml
+        workflow = yaml.safe_load(
+            (REPOSITORY / ".github/workflows/validate.yml").read_text()
+        )
+        for job_name, job in workflow["jobs"].items():
+            for step in job["steps"]:
+                if str(step.get("uses", "")).startswith("actions/checkout"):
+                    with self.subTest(job=job_name):
+                        self.assertIs(step["with"]["persist-credentials"], False)
 
     def test_github_workflows_never_reach_aws(self) -> None:
         # Builds run locally in Synx Engineering; GitHub holds no AWS access.
-        workflows = sorted((REPOSITORY / ".github/workflows").glob("*.yml"))
+        workflows_dir = REPOSITORY / ".github/workflows"
+        workflows = sorted(
+            [*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]
+        )
         self.assertEqual([path.name for path in workflows], ["validate.yml"])
+        aws_cli = re.compile(r"(?m)(^|[\s;&|(`$])aws\s+[a-z0-9]")
         for workflow_path in workflows:
             workflow = workflow_path.read_text()
             with self.subTest(workflow=workflow_path.name):
@@ -29,9 +52,9 @@ class RepositoryPolicyTests(unittest.TestCase):
                     "id-token",
                     "packer build",
                     "packer-build-and-test.sh",
-                    "aws ec2",
                 ):
                     self.assertNotIn(forbidden, workflow)
+                self.assertIsNone(aws_cli.search(workflow))
 
     def test_docs_describe_private_only_builds(self) -> None:
         for relative in ("README.md", ".github/workflows/README.md"):
@@ -50,6 +73,9 @@ class RepositoryPolicyTests(unittest.TestCase):
             REPOSITORY / ".github/workflows/validate.yml"
         ).read_text()
         self.assertIn("fetch-depth: 0", workflow)
+        # Pushes diff the whole push, not only the last commit.
+        self.assertIn("github.event.before", workflow)
+        self.assertNotIn("HEAD~1", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
         self.assertIn("github.event.pull_request.head.sha", workflow)
         self.assertNotIn("origin/${{ github.base_ref }}...HEAD", workflow)
@@ -179,6 +205,44 @@ class RepositoryPolicyTests(unittest.TestCase):
                 expected.add((template.parents[2].name, template.parent.name))
         self.assertTrue(expected)
         self.assertEqual(names, expected)
+
+    def test_matrix_selects_all_targets_on_request(self) -> None:
+        import json
+        import subprocess
+        script = REPOSITORY / ".github/scripts/compute-build-matrix.sh"
+        out = subprocess.run(
+            ["bash", str(script), "--all"],
+            input="", capture_output=True, text=True, cwd=REPOSITORY, check=True,
+        ).stdout
+        names = {(b["family"], b["name"]) for b in json.loads(out)["build"]}
+        expected = {
+            (template.parents[2].name, template.parent.name)
+            for template in REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")
+        }
+        self.assertEqual(names, expected)
+
+    def test_deleted_common_script_selects_templates_that_reference_it(self) -> None:
+        import json
+        import subprocess
+        import tempfile
+        script = REPOSITORY / ".github/scripts/compute-build-matrix.sh"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name, body in (
+                ("uses", 'script = "../../../../common/scripts/gone.sh"\n'),
+                ("other", 'script = "../../../../common/scripts/kept.sh"\n'),
+            ):
+                target = root / "vm-images/aws/fam/build" / name
+                target.mkdir(parents=True)
+                (target / "main.pkr.hcl").write_text(body)
+            (root / "vm-images/common/scripts").mkdir(parents=True)
+            out = subprocess.run(
+                ["bash", str(script)],
+                input="vm-images/common/scripts/gone.sh\n",
+                capture_output=True, text=True, cwd=root, check=True,
+            ).stdout
+        names = {b["name"] for b in json.loads(out)["build"]}
+        self.assertEqual(names, {"uses"})
 
     def test_agentic_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (

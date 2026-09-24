@@ -154,6 +154,9 @@ Resources:
                   - logs:PutLogEvents
                   - logs:DescribeLogStreams
                 Resource: !GetAtt FlowLogGroup.Arn
+              - Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: "*"
 
   FlowLog:
     Type: AWS::EC2::FlowLog

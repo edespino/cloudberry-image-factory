@@ -81,6 +81,8 @@ elif operation == "describe-subnets":
     print(os.environ.get(
         "FAKE_BUILD_NETWORK", "subnet-0a1b2c3d4e5f60718\tvpc-0f1e2d3c4b5a69788"
     ))
+elif operation == "describe-image-attribute":
+    print(os.environ.get("FAKE_LAUNCH_PERMISSION_COUNT", "0"))
 elif operation == "deregister-image":
     if os.environ.get("FAKE_DEREGISTER_STALL") == "1":
         time.sleep(30)
@@ -173,7 +175,6 @@ record = {
     "key_parent_mode": stat.S_IMODE(key.parent.stat().st_mode),
     "key_value": key.read_text() if key.exists() else None,
     "cwd_pems": [str(path) for path in pathlib.Path.cwd().glob("*.pem")],
-    "subnet_id": os.environ.get("PKR_VAR_subnet_id"),
 }
 with open(os.environ["FAKE_PACKER_LOG"], "a") as stream:
     stream.write(json.dumps(record) + "\\n")
@@ -1022,7 +1023,8 @@ exec {self._real(command)} "$@"
         for record in (
             json.loads(line) for line in self.packer_log.read_text().splitlines()
         ):
-            self.assertEqual(record["subnet_id"], "subnet-0a1b2c3d4e5f60718")
+            if record["argv"][0] in ("validate", "build"):
+                self.assertIn("subnet_id=subnet-0a1b2c3d4e5f60718", record["argv"])
         create_group = next(
             call for call in calls if call[:2] == ["ec2", "create-security-group"]
         )
@@ -1057,6 +1059,35 @@ exec {self._real(command)} "$@"
                 self.assertEqual(
                     list(self.runtime.glob("cloudberry-packer-*")), []
                 )
+
+    def test_subnet_is_passed_as_command_line_variable(self) -> None:
+        # -var outranks PKR_VAR_* and *.auto.pkrvars.hcl, so a hostile
+        # environment value cannot move the build to another subnet.
+        result = self._run(extra_env={"PKR_VAR_subnet_id": "subnet-0ffffffffffffffff"})
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        for record in (
+            json.loads(line) for line in self.packer_log.read_text().splitlines()
+        ):
+            if record["argv"][0] in ("validate", "build"):
+                self.assertIn("subnet_id=subnet-0a1b2c3d4e5f60718", record["argv"])
+
+    def test_shared_existing_ami_is_rejected_before_any_mutation(self) -> None:
+        result = self._run(
+            "--existing-ami",
+            "ami-03d2ffba2af95178a",
+            extra_env={
+                "FAKE_AMI_METADATA": self._metadata(),
+                "FAKE_LAUNCH_PERMISSION_COUNT": "1",
+            },
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(
+            self._operations(),
+            ["get-caller-identity", "describe-images", "describe-image-attribute"],
+        )
+        self.assertEqual(self._name_tags(), [])
 
     def test_existing_ami_owner_must_match_build_account(self) -> None:
         result = self._run(
