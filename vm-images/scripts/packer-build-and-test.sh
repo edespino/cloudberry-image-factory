@@ -178,8 +178,15 @@ echo "Using SSH user: ${OS_USER} for OS: ${OS_NAME}"
 
 # Define AWS region and timestamp for unique naming
 REGION="us-west-2"                  # Fixed region where the AMI is tested
-# Existing-AMI recovery is restricted to this approved account.
-EXPECTED_AMI_OWNER="703671893074"
+# The only approved build account: Synx Engineering. It has no default VPC,
+# so builds use the Purpose=ami-build subnet; volumes use the account's
+# default EBS encryption.
+ENGINEERING_ACCOUNT="260369602265"
+# Set once the credentials are confirmed to belong to ENGINEERING_ACCOUNT; the
+# only owner an --existing-ami may have.
+EXPECTED_AMI_OWNER=""
+BUILD_SUBNET_ID=""
+BUILD_VPC_ID=""
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")  # Timestamp for unique resource naming
 RUN_NONCE="$(python3 -c 'import secrets; print(secrets.token_hex(12))')"
 RUN_ID="${TIMESTAMP}-${RUN_NONCE}"
@@ -303,6 +310,46 @@ discover_instance() {
     [ "${attempt}" -eq 2 ] || sleep 1
   done
   return 1
+}
+
+# Confirm the credentials belong to the approved build account.
+resolve_build_account() {
+  local account
+  if [ -n "${EXPECTED_AMI_OWNER}" ]; then
+    return 0
+  fi
+  account="$(
+    aws sts get-caller-identity \
+      --query "Account" --output "text" --region "${REGION}"
+  )"
+  if [ "${account}" != "${ENGINEERING_ACCOUNT}" ]; then
+    echo "Error: credentials belong to account '${account}', not the build account ${ENGINEERING_ACCOUNT}." >&2
+    return 1
+  fi
+  EXPECTED_AMI_OWNER="${account}"
+  echo "Build account: ${EXPECTED_AMI_OWNER}"
+}
+
+# Find the Purpose=ami-build subnet (first by AZ name). Packer receives it
+# through PKR_VAR_subnet_id; the test instance and its security group use
+# the same subnet and VPC.
+resolve_build_network() {
+  local network
+  network="$(
+    aws ec2 describe-subnets \
+      --filters "Name=tag:Purpose,Values=ami-build" "Name=state,Values=available" \
+      --query "sort_by(Subnets, &AvailabilityZone)[0].[SubnetId,VpcId]" \
+      --output "text" --region "${REGION}"
+  )"
+  network="$(normalize_aws_text "${network}")"
+  read -r BUILD_SUBNET_ID BUILD_VPC_ID <<< "${network}" || true
+  if [[ ! "${BUILD_SUBNET_ID}" =~ ^subnet-[0-9a-f]+$ ]] \
+    || [[ ! "${BUILD_VPC_ID:-}" =~ ^vpc-[0-9a-f]+$ ]]; then
+    echo "Error: no available Purpose=ami-build subnet in ${ENGINEERING_ACCOUNT}." >&2
+    return 1
+  fi
+  echo "Build subnet: ${BUILD_SUBNET_ID} (VPC ${BUILD_VPC_ID})"
+  export PKR_VAR_subnet_id="${BUILD_SUBNET_ID}"
 }
 
 cleanup() {
@@ -441,13 +488,11 @@ tag_failed_ami() {
 # Deregister the AMI this run built and delete its snapshots. Only called
 # for AMIs created by this run (never --existing-ami). Snapshot ids are read
 # before deregistering because the image cannot be described afterwards.
-# Returns non-zero, so the caller tags -FAILED and the cleanup workflow later
-# deletes image and snapshots together, when the image name is not this
-# target's, when the snapshot ids cannot be read (deregistering then would
-# orphan them silently), or when deregistration fails. A snapshot that fails
-# to delete after deregistration is reported by id; it must be removed by
-# hand, since the cleanup workflow's orphan scan matches on snapshot
-# descriptions that Packer-created snapshots do not carry.
+# Returns non-zero, so the caller tags -FAILED for removal by hand, when the
+# image name is not this target's, when the snapshot ids cannot be read
+# (deregistering then would orphan them silently), or when deregistration
+# fails. A snapshot that fails to delete after deregistration is reported by
+# id; it must be removed by hand.
 discard_failed_ami() {
   local snapshots_text snapshot
   local -a snapshots=()
@@ -521,6 +566,7 @@ trap error_handler ERR
 
 if [ -n "${EXISTING_AMI}" ]; then
   AMI_ID="${EXISTING_AMI}"
+  resolve_build_account
   echo "Validating existing private AMI metadata..."
   AMI_NAME="$(
     aws ec2 describe-images \
@@ -544,6 +590,8 @@ if [ "${FALLBACK_RUNTIME_CREATED}" = true ]; then
 fi
 PRIVATE_KEY_DIRECTORY_NAME="$(basename -- "${PRIVATE_KEY_DIR}")"
 export PKR_VAR_PRIVATE_KEY_FILE="${PRIVATE_KEY_DIR}/${PRIVATE_KEY_FILENAME}"
+resolve_build_account
+resolve_build_network
 echo "Creating new key pair..."
 AWS_KEY_PAIR_CREATION_ATTEMPTED=true
 aws ec2 create-key-pair --key-name "${PKR_VAR_KEY_NAME}" --query 'KeyMaterial' --output text --region "${REGION}" |
@@ -637,6 +685,7 @@ SECURITY_GROUP_CREATION_ATTEMPTED=true
 if ! SECURITY_GROUP_ID="$(
   aws ec2 create-security-group \
     --group-name "${SECURITY_GROUP_NAME}" \
+    --vpc-id "${BUILD_VPC_ID}" \
     --description "Security group for ${OS_NAME} ${FAMILY}" \
     --tag-specifications \
       "ResourceType=security-group,Tags=[{Key=${RUN_TAG_KEY},Value=${RUN_ID}}]" \
@@ -664,7 +713,9 @@ run_test_instance() {
     --image-id "${AMI_ID}" \
     --instance-type "${TEST_INSTANCE_TYPE}" \
     --key-name "${PKR_VAR_KEY_NAME}" \
-    --security-group-ids "${SECURITY_GROUP_ID}" \
+    --network-interfaces \
+      "DeviceIndex=0,SubnetId=${BUILD_SUBNET_ID},Groups=${SECURITY_GROUP_ID},AssociatePublicIpAddress=true" \
+    --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
     --client-token "${CLIENT_TOKEN}" \
     --tag-specifications \
       "ResourceType=instance,Tags=[{Key=${RUN_TAG_KEY},Value=${RUN_ID}}]" \

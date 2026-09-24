@@ -3,33 +3,35 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import unittest
-import yaml
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
 
 class RepositoryPolicyTests(unittest.TestCase):
-    def test_ci_runs_offline_unittest_before_build_script(self) -> None:
-        for name in ("ami-build-manual.yml", "ami-build-on-change.yml"):
-            workflow = (REPOSITORY / ".github/workflows" / name).read_text()
-            with self.subTest(workflow=name):
-                test_position = workflow.find(
-                    "python3 -m unittest discover -s tests"
-                )
-                build_position = workflow.rfind("../../../../scripts/packer-build-and-test.sh")
-                self.assertGreaterEqual(test_position, 0)
-                self.assertGreater(build_position, test_position)
-                self.assertIn("install -d -m 0700", workflow)
-                self.assertIn("XDG_RUNTIME_DIR=", workflow)
-                self.assertIn("GITHUB_ENV", workflow)
+    def test_ci_validates_offline_before_packer(self) -> None:
+        workflow = (REPOSITORY / ".github/workflows/validate.yml").read_text()
+        test_position = workflow.find("python3 -m unittest discover -s tests")
+        validate_position = workflow.find("packer validate")
+        self.assertGreaterEqual(test_position, 0)
+        self.assertGreater(validate_position, test_position)
 
-    def test_manual_workflow_has_no_publication_knob(self) -> None:
-        workflow = (
-            REPOSITORY / ".github/workflows/ami-build-manual.yml"
-        ).read_text()
-        self.assertNotIn("make_public", workflow)
-        self.assertNotIn("MAKE_PUBLIC", workflow)
+    def test_github_workflows_never_reach_aws(self) -> None:
+        # Builds run locally in Synx Engineering; GitHub holds no AWS access.
+        workflows = sorted((REPOSITORY / ".github/workflows").glob("*.yml"))
+        self.assertEqual([path.name for path in workflows], ["validate.yml"])
+        for workflow_path in workflows:
+            workflow = workflow_path.read_text()
+            with self.subTest(workflow=workflow_path.name):
+                for forbidden in (
+                    "configure-aws-credentials",
+                    "secrets.",
+                    "id-token",
+                    "packer build",
+                    "packer-build-and-test.sh",
+                    "aws ec2",
+                ):
+                    self.assertNotIn(forbidden, workflow)
 
     def test_docs_describe_private_only_builds(self) -> None:
         for relative in ("README.md", ".github/workflows/README.md"):
@@ -43,44 +45,14 @@ class RepositoryPolicyTests(unittest.TestCase):
         patterns = (REPOSITORY / ".gitignore").read_text().splitlines()
         self.assertIn(".hermes/", patterns)
 
-    def test_all_workflows_are_fixed_to_us_west_2(self) -> None:
-        for workflow_path in sorted(
-            (REPOSITORY / ".github/workflows").glob("*.yml")
-        ):
-            workflow = workflow_path.read_text()
-            with self.subTest(workflow=workflow_path.name):
-                self.assertNotIn("aws_region:", workflow)
-                self.assertNotIn("vars.AWS_REGION", workflow)
-                self.assertIn("AWS_REGION: us-west-2", workflow)
-
     def test_change_detection_fetches_and_diffs_pull_request_shas(self) -> None:
         workflow = (
-            REPOSITORY / ".github/workflows/ami-build-on-change.yml"
+            REPOSITORY / ".github/workflows/validate.yml"
         ).read_text()
         self.assertIn("fetch-depth: 0", workflow)
         self.assertIn("github.event.pull_request.base.sha", workflow)
         self.assertIn("github.event.pull_request.head.sha", workflow)
         self.assertNotIn("origin/${{ github.base_ref }}...HEAD", workflow)
-
-    def test_pull_requests_validate_without_building_or_cleaning_aws(self) -> None:
-        workflow_path = REPOSITORY / ".github/workflows/ami-build-on-change.yml"
-        workflow = yaml.safe_load(workflow_path.read_text())
-        event_gate = "github.event_name != 'pull_request'"
-
-        for job_name in ("build", "cleanup"):
-            with self.subTest(job=job_name):
-                job = workflow["jobs"][job_name]
-                job_if = str(job.get("if", ""))
-                self.assertIn(event_gate, job_if)
-
-                for step in job.get("steps", []):
-                    if "configure-aws-credentials" in str(step.get("uses", "")):
-                        step_if = str(step.get("if", ""))
-                        self.assertIn(
-                            event_gate,
-                            step_if,
-                            f"{job_name} credential step must be gated on non-PR events",
-                        )
 
     def test_retired_elastic_platform_is_not_an_active_target(self) -> None:
         # Split the retired name so this test does not count itself as an
@@ -184,7 +156,7 @@ class RepositoryPolicyTests(unittest.TestCase):
                 self.assertNotIn("var.cloudsmith_user", content)
                 self.assertNotIn("var.cloudsmith_token", content)
 
-        for name in ("ami-build-manual.yml", "ami-build-on-change.yml"):
+        for name in ("validate.yml",):
             workflow = (REPOSITORY / ".github/workflows" / name).read_text()
             with self.subTest(workflow=name):
                 self.assertNotIn("PKR_VAR_cloudsmith_user", workflow)
@@ -203,70 +175,10 @@ class RepositoryPolicyTests(unittest.TestCase):
         names = {(b["family"], b["name"]) for b in json.loads(out)["build"]}
         expected = set()
         for template in REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"):
-            if (template.parent / "MANUAL_DISPATCH_ONLY").exists():
-                continue
             if "system_add_goss.sh" in template.read_text():
                 expected.add((template.parents[2].name, template.parent.name))
         self.assertTrue(expected)
         self.assertEqual(names, expected)
-
-    def test_manual_dispatch_only_marker_excludes_target_from_change_matrix(self) -> None:
-        import json
-        import subprocess
-        import tempfile
-        script = REPOSITORY / ".github/scripts/compute-build-matrix.sh"
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            auto = root / "vm-images/aws/fam/build/auto"
-            manual = root / "vm-images/aws/fam/build/manual"
-            for target in (auto, manual):
-                (target / "tests").mkdir(parents=True)
-                (target / "main.pkr.hcl").write_text(
-                    'script = "../../../../common/scripts/system_add_goss.sh"\n'
-                )
-                (target / "tests/goss.yaml").write_text("")
-            (manual / "MANUAL_DISPATCH_ONLY").write_text("manual only\n")
-            (root / "vm-images/common/scripts").mkdir(parents=True)
-            (root / "vm-images/common/scripts/system_add_goss.sh").write_text("")
-            (root / "vm-images/scripts").mkdir(parents=True)
-            (root / "vm-images/scripts/harness.sh").write_text("")
-
-            cases = {
-                "own directory": "vm-images/aws/fam/build/manual/tests/goss.yaml\n",
-                "referenced common script": "vm-images/common/scripts/system_add_goss.sh\n",
-                "shared harness": "vm-images/scripts/harness.sh\n",
-            }
-            for label, changed in cases.items():
-                out = subprocess.run(
-                    ["bash", str(script)],
-                    input=changed, capture_output=True, text=True,
-                    cwd=root, check=True,
-                ).stdout
-                names = {b["name"] for b in json.loads(out)["build"]}
-                with self.subTest(changed=label):
-                    self.assertNotIn("manual", names)
-                    if label != "own directory":
-                        self.assertIn("auto", names)
-
-    def test_agentic_gpu_target_is_manual_dispatch_only(self) -> None:
-        target = REPOSITORY / "vm-images/aws/agentic/build/ubuntu26-gpu"
-        self.assertTrue((target / "main.pkr.hcl").exists())
-        self.assertTrue((target / "MANUAL_DISPATCH_ONLY").exists())
-
-    def test_cleanup_workflow_reads_result_from_name_tag_and_anchors_config(self) -> None:
-        workflow = (
-            REPOSITORY / ".github/workflows/ami-cleanup-old.yml"
-        ).read_text()
-        # packer-build-and-test.sh records PASSED/FAILED on the Name *tag*; the
-        # AMI name attribute never carries the suffix, so selecting on .Name
-        # can never match a FAILED image.
-        self.assertIn("Tags[?Key=='Name'].Value", workflow)
-        self.assertNotIn('select(.Name | contains("-FAILED"))', workflow)
-        self.assertNotIn('select(.Name | contains("-FAILED") | not)', workflow)
-        # Per-config grouping must anchor on the timestamp: a bare prefix
-        # match lets "ubuntu26-" also claim ubuntu26-gpu-* and ubuntu26-arm64-*.
-        self.assertNotIn('startswith("\($fam)-packer-\($cfg)-")', workflow)
-        self.assertIn('-[0-9]{8}-[0-9]{6}', workflow)
 
     def test_agentic_goss_covers_ai_toolchain_executables(self) -> None:
         toolchain = (

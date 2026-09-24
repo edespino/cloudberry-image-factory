@@ -45,6 +45,13 @@ variable "region" {
   default = ""
 }
 
+# The Purpose=ami-build subnet, set by packer-build-and-test.sh. The build
+# account has no default VPC; the empty default only serves packer validate.
+variable "subnet_id" {
+  type    = string
+  default = ""
+}
+
 # Chained target: the source AMI is the newest tested image of another target
 # in this account (see CLAUDE.md, "Chained from agentic/ubuntu26").
 variable "base_family" {
@@ -63,6 +70,16 @@ source "amazon-ebs" "gpu-build-image" {
   token         = var.aws_session_token
   region        = var.region
   temporary_security_group_source_public_ip = true
+  subnet_id                   = var.subnet_id
+  associate_public_ip_address = true
+
+  # The account's SCP denies RunInstances unless IMDSv2 is required
+  # (RequireImdsv2OnLaunch); Packer's default request sends HttpTokens=optional.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
 
   # A real L4 so the build-time GPU smoke test exercises the driver and
   # Ollama's CUDA path. Not t3.*: the goss test instance (t3.medium) has no

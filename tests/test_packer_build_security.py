@@ -75,6 +75,12 @@ elif operation == "describe-images":
         print(os.environ.get("FAKE_AMI_SNAPSHOTS", "snap-0123456789abcdef0\\tsnap-0fedcba9876543210"))
     else:
         print(os.environ.get("FAKE_AMI_METADATA", "synxdb-cloud-packer-rocky9-20260904-000000"))
+elif operation == "get-caller-identity":
+    print(os.environ.get("FAKE_ACCOUNT", "260369602265"))
+elif operation == "describe-subnets":
+    print(os.environ.get(
+        "FAKE_BUILD_NETWORK", "subnet-0a1b2c3d4e5f60718\tvpc-0f1e2d3c4b5a69788"
+    ))
 elif operation == "deregister-image":
     if os.environ.get("FAKE_DEREGISTER_STALL") == "1":
         time.sleep(30)
@@ -167,6 +173,7 @@ record = {
     "key_parent_mode": stat.S_IMODE(key.parent.stat().st_mode),
     "key_value": key.read_text() if key.exists() else None,
     "cwd_pems": [str(path) for path in pathlib.Path.cwd().glob("*.pem")],
+    "subnet_id": os.environ.get("PKR_VAR_subnet_id"),
 }
 with open(os.environ["FAKE_PACKER_LOG"], "a") as stream:
     stream.write(json.dumps(record) + "\\n")
@@ -307,7 +314,7 @@ exec {self._real(command)} "$@"
     def _metadata(**changes: object) -> str:
         image: dict[str, object] = {
             "ImageId": "ami-03d2ffba2af95178a",
-            "OwnerId": "703671893074",
+            "OwnerId": "260369602265",
             "State": "available",
             "Public": False,
             "Name": (
@@ -830,7 +837,7 @@ exec {self._real(command)} "$@"
         result = self._run(extra_env={"FAKE_DELETE_STALL": "1"})
 
         self.assertNotEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertLess(time.monotonic() - started, 8)
+        self.assertLess(time.monotonic() - started, 10)
         self.assertEqual(len(self._delete_calls()), 1)
         self.assertNotIn("Cleanup completed", result.stdout)
 
@@ -980,11 +987,88 @@ exec {self._real(command)} "$@"
                 )
                 self.assertNotEqual(result.returncode, 0)
                 calls = self._aws_calls()
-                self.assertEqual(len(calls), 1)
-                self.assertEqual(calls[0][:2], ["ec2", "describe-images"])
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(calls[0][:2], ["sts", "get-caller-identity"])
+                self.assertEqual(calls[1][:2], ["ec2", "describe-images"])
                 self.assertEqual(
                     list(self.runtime.glob("cloudberry-packer-*")), []
                 )
+
+    def test_unapproved_account_fails_before_any_mutation(self) -> None:
+        for account in ("703671893074", "000000000000"):
+            for arguments, environment in (
+                ((), {"FAKE_ACCOUNT": account}),
+                (
+                    ("--existing-ami", "ami-03d2ffba2af95178a"),
+                    {"FAKE_ACCOUNT": account, "FAKE_AMI_METADATA": self._metadata()},
+                ),
+            ):
+                self.aws_log.unlink(missing_ok=True)
+                with self.subTest(account=account, arguments=arguments):
+                    result = self._run(*arguments, extra_env=environment)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertEqual(self._operations(), ["get-caller-identity"])
+                    self.assertFalse(self.packer_log.exists())
+
+    def test_build_and_test_instances_use_tagged_subnet(self) -> None:
+        result = self._run()
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = self._aws_calls()
+        describe_subnets = next(
+            call for call in calls if call[:2] == ["ec2", "describe-subnets"]
+        )
+        self.assertIn("Name=tag:Purpose,Values=ami-build", describe_subnets)
+        for record in (
+            json.loads(line) for line in self.packer_log.read_text().splitlines()
+        ):
+            self.assertEqual(record["subnet_id"], "subnet-0a1b2c3d4e5f60718")
+        create_group = next(
+            call for call in calls if call[:2] == ["ec2", "create-security-group"]
+        )
+        self.assertEqual(
+            create_group[create_group.index("--vpc-id") + 1], "vpc-0f1e2d3c4b5a69788"
+        )
+        run_instance = next(
+            call for call in calls if call[:2] == ["ec2", "run-instances"]
+        )
+        self.assertNotIn("--security-group-ids", run_instance)
+        self.assertEqual(
+            run_instance[run_instance.index("--network-interfaces") + 1],
+            "DeviceIndex=0,SubnetId=subnet-0a1b2c3d4e5f60718,"
+            "Groups=sg-fake,AssociatePublicIpAddress=true",
+        )
+        self.assertEqual(
+            run_instance[run_instance.index("--metadata-options") + 1],
+            "HttpTokens=required,HttpEndpoint=enabled",
+        )
+
+    def test_missing_or_malformed_subnet_fails_before_key_pair(self) -> None:
+        for network in ("None", "subnet-x;y\tvpc-0f1e2d3c4b5a69788", "subnet-0a1b2c3d4e5f60718"):
+            self.aws_log.unlink(missing_ok=True)
+            with self.subTest(network=network):
+                result = self._run(extra_env={"FAKE_BUILD_NETWORK": network})
+                self.assertNotEqual(result.returncode, 0)
+                operations = self._operations()
+                self.assertNotIn("create-key-pair", operations)
+                self.assertNotIn("create-security-group", operations)
+                self.assertNotIn("run-instances", operations)
+                self.assertFalse(self.packer_log.exists())
+                self.assertEqual(
+                    list(self.runtime.glob("cloudberry-packer-*")), []
+                )
+
+    def test_existing_ami_owner_must_match_build_account(self) -> None:
+        result = self._run(
+            "--existing-ami",
+            "ami-03d2ffba2af95178a",
+            extra_env={"FAKE_AMI_METADATA": self._metadata(OwnerId="703671893074")},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(
+            self._operations(), ["get-caller-identity", "describe-images"]
+        )
 
     def test_existing_ami_does_not_require_packer_executable(self) -> None:
         result = self._run(

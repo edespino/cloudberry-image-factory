@@ -1,0 +1,180 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  AMI build network for cloudberry-image-factory in Synx Engineering
+  (260369602265, us-west-2): a public VPC with two subnets tagged
+  Purpose=ami-build. Builds run locally with packer-build-and-test.sh under
+  the operator's SSO session; GitHub has no AWS access.
+
+Parameters:
+  VpcCidr:
+    Type: String
+    Description: /24 for the build VPC; split into two /25 subnets. Keep it outside the launcher's 10.0.0.0/16.
+    AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/24$
+  OwnerTag:
+    Type: String
+    Description: Value of the Owner tag (SynxTags tag policy, report-only).
+    MinLength: 1
+
+Rules:
+  EngineeringUsWest2Only:
+    Assertions:
+      - Assert: !Equals [!Ref AWS::AccountId, "260369602265"]
+        AssertDescription: Deploy only to Synx Engineering (260369602265).
+      - Assert: !Equals [!Ref AWS::Region, us-west-2]
+        AssertDescription: Deploy only to us-west-2; the harness region is fixed.
+
+Resources:
+  # ---------------------------------------------------------------- network
+  BuildVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true  # harness reaches the test instance by PublicDnsName
+      Tags:
+        - {Key: Name, Value: ami-build}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - {Key: Name, Value: ami-build}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BuildVpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BuildVpc
+      Tags:
+        - {Key: Name, Value: ami-build-public}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Packer and the harness request a public IP explicitly, so the subnets
+  # never hand one out on their own.
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BuildVpc
+      AvailabilityZone: us-west-2a
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 2, 7]]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - {Key: Name, Value: ami-build-us-west-2a}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BuildVpc
+      AvailabilityZone: us-west-2b
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 2, 7]]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - {Key: Name, Value: ami-build-us-west-2b}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  SubnetARouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  SubnetBRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  FlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /vpc/ami-build/flow-logs
+      RetentionInDays: 90
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  FlowLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ami-build-vpc-flow-logs
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: vpc-flow-logs.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}
+      Policies:
+        - PolicyName: write-flow-logs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                Resource: !GetAtt FlowLogGroup.Arn
+
+  FlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceId: !Ref BuildVpc
+      ResourceType: VPC
+      TrafficType: ALL
+      LogDestinationType: cloud-watch-logs
+      LogGroupName: !Ref FlowLogGroup
+      DeliverLogsPermissionArn: !GetAtt FlowLogRole.Arn
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: engineering}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+Outputs:
+  VpcId:
+    Value: !Ref BuildVpc
+  SubnetIds:
+    Value: !Join [",", [!Ref SubnetA, !Ref SubnetB]]
+  DefaultSecurityGroupId:
+    Description: Strip its rules after deploy (CloudFormation cannot manage the default security group).
+    Value: !GetAtt BuildVpc.DefaultSecurityGroup

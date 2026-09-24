@@ -27,7 +27,9 @@ This file provides context and guidelines for Claude AI when working on this pro
 
 ## Project Overview
 
-This is a Packer-based infrastructure project for building development-optimized, private-only Amazon Machine Images (AMIs) on AWS. It is organized by **family** — a family is a product line (`cloudberry`, `synxdb-cloud`, `agentic`) that builds AMIs across one or more OS targets, with automated Goss testing and dynamic CI/CD workflows.
+This is a Packer-based infrastructure project for building development-optimized, private-only Amazon Machine Images (AMIs) on AWS. It is organized by **family** — a family is a product line (`cloudberry`, `synxdb-cloud`, `agentic`) that builds AMIs across one or more OS targets, with automated Goss testing.
+
+**All AMI builds are started locally** and run in Synx Engineering (`260369602265`, `us-west-2`) with `AWS_PROFILE=synx-engineering`. GitHub Actions (`validate.yml`) runs only offline checks — unit tests and `packer validate` — and has no AWS access.
 
 ## Repository Layout
 
@@ -67,7 +69,7 @@ configuration.
 | synxdb-cloud | ubuntu24 | APT | SynxDB Cloud workstation image |
 | agentic | ubuntu26 | APT | Standalone from stock Ubuntu 26.04; AI tooling |
 | agentic | ubuntu26-arm64 | APT | arm64/Graviton sibling of ubuntu26; no dysk |
-| agentic | ubuntu26-gpu | APT | x86_64 NVIDIA L4 image chained from the ubuntu26 `-PASSED` AMI; g6.xlarge builder; CI manual dispatch only (`MANUAL_DISPATCH_ONLY` marker) |
+| agentic | ubuntu26-gpu | APT | x86_64 NVIDIA L4 image chained from the ubuntu26 `-PASSED` AMI; g6.xlarge builder |
 
 Archived 2026-07-24 (recoverable from git history): al2023, centos10, debian12, ubuntu20, ubuntu22.
 Retired 2026-07-27 (recoverable from git history): al2023-synxdb-elastic, rocky8.
@@ -93,9 +95,14 @@ snapshots. `--keep-failed-ami` (or `KEEP_FAILED_AMI=1`) keeps it tagged
 `-FAILED` instead, and an `--existing-ami` under test is only ever tagged,
 never deregistered. All builds are private-only (never publicly shared).
 
+The harness reads the account from the credentials and runs only in Synx
+Engineering (`260369602265`). The account has no default VPC: builds need an
+available subnet tagged `Purpose=ami-build`, which the harness passes to every
+template as `subnet_id`. Volumes use the account's default EBS encryption.
+
 ## Adding a New Family
 
-A new family needs no workflow edits — the CI build matrix is computed
+A new family needs no workflow edits — `validate.yml` selects targets
 dynamically from the directory layout (see `.github/scripts/compute-build-matrix.sh`).
 
 1. Create `vm-images/aws/<family>/build/<os>/` with `main.pkr.hcl`, `scripts/`, `tests/goss.yaml`.
@@ -162,23 +169,20 @@ gossfile:
 - Command execution (verify tools work)
 - Default user existence
 
-### 5. GitHub Actions Workflows
+### 5. GitHub Actions Validation
 
-**No workflow edits needed.** The build matrix is computed dynamically by
-`.github/scripts/compute-build-matrix.sh` from the directory layout:
+**No workflow edits needed.** `validate.yml` runs unit tests and
+`packer validate` for the targets `.github/scripts/compute-build-matrix.sh`
+selects from the changed files:
 
 - A change under `vm-images/aws/<family>/build/<os>/**` selects that one target.
 - A change to `vm-images/common/scripts/X.sh` selects every target whose
   `main.pkr.hcl` references `X.sh` (grep-matched, not a hardcoded map).
 - A change under `vm-images/scripts/**` or `vm-images/common/tests/**`
   selects every target.
-- Manual dispatch (`ami-build-manual.yml`) takes `all` or a comma-separated
-  `family/os` list, e.g. `cloudberry/rocky9,agentic/ubuntu26`.
-- A target directory containing a `MANUAL_DISPATCH_ONLY` file is skipped by
-  the change-driven matrix under every rule and builds only via manual
-  dispatch (currently `agentic/ubuntu26-gpu`).
-- `ami-cleanup-old.yml` needs no changes — cleanup runs per-family against
-  the `<family>-packer-*` naming pattern.
+
+No workflow builds AMIs or holds AWS credentials; a repository policy test
+enforces this. Old AMIs are retired by hand.
 
 ### 6. Documentation
 
@@ -190,6 +194,7 @@ Update `README.md`:
 
 Before committing, verify:
 - [ ] `system_add_goss.sh` provisioner included in main.pkr.hcl
+- [ ] `subnet_id` variable and the `subnet_id`/`associate_public_ip_address` source lines copied from an existing template
 - [ ] `gnupg2`/`gnupg` in dependencies script
 - [ ] AMI filter and owner ID correct
 - [ ] SSH username matches AMI default user
@@ -226,8 +231,12 @@ Before committing, verify:
 **Cause:** Goss tests failed or couldn't run; the harness deregistered the AMI and deleted its snapshots
 **Solution:** Check the `goss-test-results-*.xml` and the Packer log; verify all tested packages/tools are installed. Rerun with `--keep-failed-ami` if the image itself must be launched for inspection (it is then tagged `-FAILED`)
 
-### Workflow doesn't trigger for a script/target change
-**Cause:** Rare — the matrix is computed dynamically from the directory layout and HCL references, not a hardcoded map.
+### "no available Purpose=ami-build subnet"
+**Cause:** The build VPC stack (`infra/engineering-ami-build.cfn.yaml`) is not deployed, or the credentials are not for Synx Engineering
+**Solution:** Check `AWS_PROFILE=synx-engineering`; confirm the subnets exist with `aws ec2 describe-subnets --filters Name=tag:Purpose,Values=ami-build`
+
+### Validation does not run for a script/target change
+**Cause:** Rare — targets are selected dynamically from the directory layout and HCL references, not a hardcoded map.
 **Solution:** Check `.github/scripts/compute-build-matrix.sh`; verify the changed script's basename appears in the target's `main.pkr.hcl`.
 
 ## Important Patterns
@@ -248,20 +257,19 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 
 - `vm-images/common/scripts/` - Shared provisioners (58 scripts)
 - `vm-images/scripts/packer-build-and-test.sh` - Main build orchestrator (harness trio)
-- `.github/scripts/compute-build-matrix.sh` - Dynamic CI build matrix
-- `.github/workflows/` - CI/CD automation
+- `.github/scripts/compute-build-matrix.sh` - Selects targets for `validate.yml`
+- `.github/workflows/validate.yml` - Offline checks (unit tests, packer validate)
+- `infra/engineering-ami-build.cfn.yaml` - Build VPC in Synx Engineering
 - Each target's `main.pkr.hcl` - Build definition
 - Each target's `tests/goss.yaml` - Validation tests
 
 ## Development Workflow
 
-1. Make changes to scripts or configurations
-2. Test locally: `packer validate` and `packer-build-and-test.sh`
-3. Push to GitHub
-4. CI/CD detects changes and rebuilds affected AMIs
-5. Tests run automatically
-6. Passing AMIs tagged `-PASSED`; failed builds deregistered and their snapshots deleted
-7. Monthly cleanup removes old AMIs
+1. Make changes to scripts or configurations on a branch
+2. Build and test locally: `AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh`
+3. Passing AMIs tagged `-PASSED`; failed builds deregistered and their snapshots deleted
+4. Open a PR; `validate.yml` runs unit tests and `packer validate`
+5. Retire old AMIs by hand
 
 ## Critical Success Factors
 
