@@ -6,6 +6,8 @@ import unittest
 
 
 REPOSITORY = Path(__file__).resolve().parents[1]
+# An aws CLI call, bare or path-qualified (aws ec2 ..., /usr/bin/aws s3 ...).
+AWS_CLI_INVOCATION = re.compile(r"(?m)(^|[\s;&|(`$\"'])(\S*/)?aws\s+[a-z0-9]")
 
 
 class RepositoryPolicyTests(unittest.TestCase):
@@ -35,6 +37,20 @@ class RepositoryPolicyTests(unittest.TestCase):
                     with self.subTest(job=job_name):
                         self.assertIs(step["with"]["persist-credentials"], False)
 
+    def test_aws_cli_pattern_catches_bare_and_path_qualified_calls(self) -> None:
+        for line in (
+            "aws ec2 describe-images",
+            "  run: aws sts get-caller-identity",
+            "/usr/bin/aws s3 ls",
+            "x=$(/usr/local/bin/aws ec2 describe-vpcs)",
+            'bash -c "aws ssm get-parameter"',
+        ):
+            with self.subTest(line=line):
+                self.assertIsNotNone(AWS_CLI_INVOCATION.search(line))
+        for line in ("GitHub has no AWS access.", "awscli", "AWS_REGION: us-west-2"):
+            with self.subTest(line=line):
+                self.assertIsNone(AWS_CLI_INVOCATION.search(line))
+
     def test_github_workflows_never_reach_aws(self) -> None:
         # Builds run locally in Synx Engineering; GitHub holds no AWS access.
         workflows_dir = REPOSITORY / ".github/workflows"
@@ -42,7 +58,7 @@ class RepositoryPolicyTests(unittest.TestCase):
             [*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]
         )
         self.assertEqual([path.name for path in workflows], ["validate.yml"])
-        aws_cli = re.compile(r"(?m)(^|[\s;&|(`$])aws\s+[a-z0-9]")
+        aws_cli = AWS_CLI_INVOCATION
         for workflow_path in workflows:
             workflow = workflow_path.read_text()
             with self.subTest(workflow=workflow_path.name):

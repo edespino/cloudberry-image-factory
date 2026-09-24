@@ -213,9 +213,10 @@ security group use the first available subnet tagged `Purpose=ami-build`, and
 the build stops if there is none. Volumes use the account's default EBS
 encryption. Images stay in this account; they are not shared to others.
 
-Existing-AMI recovery accepts only available, not-publicly-shared images owned
-by the credentials' account, in the fixed `us-west-2` region, whose name
-matches the selected build target.
+Existing-AMI recovery accepts only available images owned by the
+credentials' account, in the fixed `us-west-2` region, whose name matches the
+selected build target, and that are not shared at all: no public access and no
+account, organization, or OU launch permissions.
 
 ### Manual Build Process
 
@@ -244,7 +245,8 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
 2. Packer Initialization
    ├─ packer init (download required plugins)
    ├─ packer validate (check HCL syntax)
-   └─ Set build variables (vm_type, os_name, credentials)
+   └─ Pass build variables with -var (family, os_name, region, subnet_id);
+      credentials come only from the checked AWS SDK chain
               │
               ▼
 3. AMI Build Process (20-60 minutes)
@@ -306,9 +308,10 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
 ### Pull Request Checks
 
 `.github/workflows/validate.yml` runs on pushes and pull requests to `main`
-that touch `vm-images/`, `tests/`, or `.github/`. It runs the offline unit
-tests and `packer validate` for each changed target, selected by
-`.github/scripts/compute-build-matrix.sh`:
+that touch `vm-images/`, `tests/`, `.github/`, or `infra/`, and on manual
+dispatch. The offline unit tests always run; `packer validate` runs for each
+target `.github/scripts/compute-build-matrix.sh` selects (every target on
+manual dispatch):
 
 - `vm-images/common/scripts/X.sh` → every target whose `main.pkr.hcl` references `X.sh`
 - `vm-images/scripts/**` or `vm-images/common/tests/**` → all targets
