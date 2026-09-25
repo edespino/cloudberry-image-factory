@@ -224,7 +224,7 @@ Before committing, verify:
 
 ### "goss: command not found"
 **Cause:** Missing `system_add_goss.sh` provisioner in main.pkr.hcl
-**Solution:** Add the provisioner near the end, immediately before the final `system_prepare_image_capture.sh` provisioner
+**Solution:** Add the provisioner near the end; the tail order is `system_add_goss.sh` → `system_add_dbadmin_ssh_keygen.sh` (templates that create gpadmin/cbadmin) → `system_prepare_image_capture.sh`
 
 ### "gpg: command not found"
 **Cause:** Missing `gnupg2` or `gnupg` package
@@ -246,9 +246,9 @@ Before committing, verify:
 
 1. **Two database admin users:** Always create both `gpadmin` and `cbadmin` with identical configurations
 2. **User environment configuration:** Must run `dbadmin_configure_environment.sh` for both users
-3. **Test framework near the end:** `system_add_goss.sh` goes after all tools are installed; only `system_prepare_image_capture.sh` runs after it
+3. **Test framework near the end:** `system_add_goss.sh` goes after all tools are installed; only `system_add_dbadmin_ssh_keygen.sh` (where gpadmin/cbadmin exist) and then `system_prepare_image_capture.sh` run after it
 4. **Goss tests match reality:** Only test packages/tools that are actually installed by provisioners
-5. **No baked SSH keys:** the image ships no SSH key pair for any user (a policy test and goss enforce it). `gpadmin`/`cbadmin` get a per-instance Ed25519 key at first boot from `cloudberry-dbadmin-ssh-keygen.service` (`system_add_dbadmin_ssh_keygen.sh`), which writes `/var/lib/cloudberry/dbadmin-ssh-keys.ready` and leaves `authorized_keys` empty. Multi-node clusters trust each other after the launcher's `lkeyx` exchanges the public keys.
+5. **No baked SSH keys:** the image ships no SSH key pair for any user (a policy test and goss enforce it). `gpadmin`/`cbadmin` get a per-instance Ed25519 key at first boot from `cloudberry-dbadmin-ssh-keygen.service` (`system_add_dbadmin_ssh_keygen.sh`), which writes `/var/lib/cloudberry/dbadmin-ssh-keys.ready` and leaves `authorized_keys` empty. Multi-node clusters trust each other after the launcher's `lkeyx` exchanges the public keys. A template built from our own image (`owners = ["self"]`, e.g. ubuntu26-gpu) must create that marker in `user_data` `bootcmd`, so the unit never generates keys on the builder (deleted key bytes could survive in the snapshot); a test enforces it.
 
 ## Build Process Flow
 

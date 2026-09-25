@@ -38,6 +38,10 @@ user:
 
 # Critical files and directories
 file:
+  # No baked key pair for the OS default user: it would be shared by every
+  # instance of the image.
+  /home/ec2-user/.ssh/id_ed25519:
+    exists: false
   # Goss installation (from system_add_goss.sh)
   /usr/local/bin/goss:
     exists: true
