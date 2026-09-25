@@ -1065,6 +1065,18 @@ exec {self._real(command)} "$@"
             any(value.startswith("Name=availability-zone") for value in describe_subnets)
         )
 
+    def test_no_subnet_in_build_az_names_the_zone(self) -> None:
+        result = self._run(
+            extra_env={"BUILD_AZ": "us-west-2b", "FAKE_BUILD_NETWORK": "None"}
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("in us-west-2b", result.stderr)
+        operations = self._operations()
+        for mutation in ("create-key-pair", "create-security-group", "run-instances"):
+            self.assertNotIn(mutation, operations)
+        self.assertFalse(self.packer_log.exists())
+
     def test_invalid_build_az_fails_before_any_aws_call(self) -> None:
         for value in ("us-east-1a", "us-west-2", "us-west-2b;x", "--help"):
             self.aws_log.unlink(missing_ok=True)
