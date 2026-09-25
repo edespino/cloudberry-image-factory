@@ -40,7 +40,7 @@ vm-images/
 │   ├── private-runtime-key.py        # Temporary SSH key handling
 │   └── validate-ami-metadata.py      # Confirms AMI is not-publicly-shared
 ├── common/
-│   ├── scripts/                      # Shared provisioners (59 scripts)
+│   ├── scripts/                      # Shared provisioners (60 scripts)
 │   └── tests/                        # Shared Goss fragments (gossfile includes)
 └── aws/
     ├── cloudberry/build/{rocky9,rocky10}/
@@ -142,7 +142,8 @@ vm-images/aws/<family>/build/{osname}/
 13. `system_add_docker.sh`
 14. `system_add_motd_manager.sh`
 15. **`system_add_goss.sh`** ⚠️ **DO NOT FORGET THIS!**
-16. **`system_prepare_image_capture.sh`** — always the last provisioner: clears build-instance SSM agent, cloud-init and machine-id state (a policy test enforces it); every source also sets `ssh_clear_authorized_keys = true`
+16. `system_add_dbadmin_ssh_keygen.sh` — first-boot per-instance SSH keys for gpadmin/cbadmin (templates that create them)
+17. **`system_prepare_image_capture.sh`** — always the last provisioner: clears build-instance SSM agent, cloud-init and machine-id state (a policy test enforces it); every source also sets `ssh_clear_authorized_keys = true`
 
 **Common Mistake:** Creating Goss tests without including `system_add_goss.sh` provisioner. This causes "goss: command not found" errors during testing.
 
@@ -247,7 +248,7 @@ Before committing, verify:
 2. **User environment configuration:** Must run `dbadmin_configure_environment.sh` for both users
 3. **Test framework near the end:** `system_add_goss.sh` goes after all tools are installed; only `system_prepare_image_capture.sh` runs after it
 4. **Goss tests match reality:** Only test packages/tools that are actually installed by provisioners
-5. **No baked SSH key for the OS default user:** `dbadmin_configure_environment.sh` runs for `ubuntu`/`rocky` with `GENERATE_SSH_KEYPAIR=false` (a policy test and goss enforce it). `gpadmin`/`cbadmin` still get a baked key pair shared by every instance of the image, which the launcher's multi-node clusters rely on; it is replaced by per-instance keys once the launcher exchanges keys between nodes.
+5. **No baked SSH keys:** the image ships no SSH key pair for any user (a policy test and goss enforce it). `gpadmin`/`cbadmin` get a per-instance Ed25519 key at first boot from `cloudberry-dbadmin-ssh-keygen.service` (`system_add_dbadmin_ssh_keygen.sh`), which writes `/var/lib/cloudberry/dbadmin-ssh-keys.ready` and leaves `authorized_keys` empty. Multi-node clusters trust each other after the launcher's `lkeyx` exchanges the public keys.
 
 ## Build Process Flow
 
@@ -258,7 +259,7 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 
 ## Key Files
 
-- `vm-images/common/scripts/` - Shared provisioners (59 scripts)
+- `vm-images/common/scripts/` - Shared provisioners (60 scripts)
 - `vm-images/scripts/packer-build-and-test.sh` - Main build orchestrator (harness trio)
 - `.github/scripts/compute-build-matrix.sh` - Selects targets for `validate.yml`
 - `.github/workflows/validate.yml` - Offline checks (unit tests, packer validate)

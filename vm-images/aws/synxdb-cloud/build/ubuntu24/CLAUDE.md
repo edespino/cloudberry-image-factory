@@ -30,7 +30,7 @@ This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provi
 8. `system_set_timezone.sh`
 9. `system_config_starship_prompt.sh`
 10. `system_add_swap.sh`
-11. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, ubuntu (`GENERATE_SSH_KEYPAIR=false`)
+11. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, ubuntu (no SSH key pair)
 12. `system_add_gh.sh` - GitHub CLI
 12b. `system_add_glow.sh` - glow (terminal markdown viewer, Charm repo)
 13. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
@@ -41,7 +41,8 @@ This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provi
 18. Tooling: gitleaks, cloudsmith-cli, autoenv, git-profiles, zellij, hwatch, dysk, zoxide, golang, dolt, bun, ssh-agent-tmux
 19. `system_add_goss.sh` - Must be near end
 20. `system_add_docker.sh`
-21. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
+21. `system_add_dbadmin_ssh_keygen.sh` - installs the first-boot unit that gives gpadmin/cbadmin per-instance SSH keys
+22. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
 
 ## Differences from synxdb-cloud/rocky10 (RPM → DEB)
 

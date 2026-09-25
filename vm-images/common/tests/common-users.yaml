@@ -27,6 +27,11 @@ user:
 
 # Critical files and directories
 file:
+  # Written by cloudberry-dbadmin-ssh-keygen.service once gpadmin/cbadmin
+  # have their per-instance keys (the id_ed25519 checks below cover them).
+  /var/lib/cloudberry/dbadmin-ssh-keys.ready:
+    exists: true
+    filetype: file
   # gpadmin user configuration
   /home/gpadmin:
     exists: true
@@ -91,6 +96,8 @@ file:
     owner: gpadmin
     group: gpadmin
     filetype: file
+    # Starts empty: the image bakes no key; the launcher's lkeyx adds peers.
+    size: 0
 
   # cbadmin user configuration
   /home/cbadmin:
@@ -156,8 +163,14 @@ file:
     owner: cbadmin
     group: cbadmin
     filetype: file
+    # Starts empty: the image bakes no key; the launcher's lkeyx adds peers.
+    size: 0
 
 # Command execution tests
+service:
+  cloudberry-dbadmin-ssh-keygen:
+    enabled: true
+
 command:
   # gpadmin user just command
   "sudo -u gpadmin /home/gpadmin/bin/just --version":

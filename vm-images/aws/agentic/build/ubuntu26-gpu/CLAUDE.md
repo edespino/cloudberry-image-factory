@@ -43,7 +43,8 @@ Agentic Targets" described in `../ubuntu26/CLAUDE.md`:
 6. `system_add_goss.sh` - already present from the base (no-op), kept so the
    template installs the test framework near the end like every target
 7. `system_prepare_image_capture.sh` - last: clears build-instance SSM agent,
-   cloud-init and machine-id state before capture
+   gpadmin/cbadmin SSH keys (generated on this build instance by the base's
+   first-boot unit), cloud-init and machine-id state before capture
 
 Scripts live in this target, not `common/scripts/`, because they are
 GPU-specific and DEB-specific. Promote them if a second GPU target appears.
