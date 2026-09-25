@@ -223,7 +223,7 @@ Before committing, verify:
 
 ### "goss: command not found"
 **Cause:** Missing `system_add_goss.sh` provisioner in main.pkr.hcl
-**Solution:** Add provisioner before post-processors section
+**Solution:** Add the provisioner near the end, immediately before the final `system_prepare_image_capture.sh` provisioner
 
 ### "gpg: command not found"
 **Cause:** Missing `gnupg2` or `gnupg` package
@@ -245,7 +245,7 @@ Before committing, verify:
 
 1. **Two database admin users:** Always create both `gpadmin` and `cbadmin` with identical configurations
 2. **User environment configuration:** Must run `dbadmin_configure_environment.sh` for both users
-3. **Test framework last:** `system_add_goss.sh` should be near the end, after all tools are installed
+3. **Test framework near the end:** `system_add_goss.sh` goes after all tools are installed; only `system_prepare_image_capture.sh` runs after it
 4. **Goss tests match reality:** Only test packages/tools that are actually installed by provisioners
 
 ## Build Process Flow
