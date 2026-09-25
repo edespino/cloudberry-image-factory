@@ -174,7 +174,8 @@ build {
   provisioner "shell" {
     script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
-      "DB_USERNAME=ubuntu"
+      "DB_USERNAME=ubuntu",
+      "GENERATE_SSH_KEYPAIR=false"
     ]
   }
 

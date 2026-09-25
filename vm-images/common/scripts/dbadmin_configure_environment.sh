@@ -14,6 +14,12 @@
 # Usage:
 #   dbadmin_configure_environment.sh [username]
 #   DB_USERNAME=gpadmin dbadmin_configure_environment.sh
+#   GENERATE_SSH_KEYPAIR=false DB_USERNAME=ubuntu dbadmin_configure_environment.sh
+#
+# GENERATE_SSH_KEYPAIR (default true) bakes an Ed25519 key pair that the user
+# also trusts. Every instance of the image then shares that private key, so
+# templates set it to false for the OS default user, which needs no
+# node-to-node key.
 #
 # Enable strict mode for better error handling
 set -euo pipefail
@@ -24,6 +30,12 @@ DB_USERNAME="${1:-${DB_USERNAME:-gpadmin}}"
 # Validate username (alphanumeric and underscore only)
 if ! [[ "${DB_USERNAME}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   echo "ERROR: Invalid username '${DB_USERNAME}'. Must start with lowercase letter or underscore and contain only lowercase letters, numbers, underscores, or hyphens."
+  exit 1
+fi
+
+GENERATE_SSH_KEYPAIR="${GENERATE_SSH_KEYPAIR:-true}"
+if [ "${GENERATE_SSH_KEYPAIR}" != true ] && [ "${GENERATE_SSH_KEYPAIR}" != false ]; then
+  echo "ERROR: GENERATE_SSH_KEYPAIR must be true or false (got '${GENERATE_SSH_KEYPAIR}')."
   exit 1
 fi
 
@@ -165,28 +177,33 @@ git config --global init.defaultBranch main
 # Ensure the .ssh directory exists
 mkdir -p "/home/${DB_USERNAME}/.ssh"
 
-# Generate SSH key pair for database admin user if it doesn't already exist
-# Using Ed25519 for better security than RSA
-if [ ! -f "/home/${DB_USERNAME}/.ssh/id_ed25519" ]; then
-  echo "Generating Ed25519 SSH key pair for ${DB_USERNAME}..."
-  ssh-keygen -t ed25519 -f "/home/${DB_USERNAME}/.ssh/id_ed25519" -N "" -C "${DB_USERNAME}@cloudberry-build-\$(date +%Y%m%d)"
+if [ "${GENERATE_SSH_KEYPAIR}" = true ]; then
+  # Generate SSH key pair for database admin user if it doesn't already exist
+  # Using Ed25519 for better security than RSA
+  if [ ! -f "/home/${DB_USERNAME}/.ssh/id_ed25519" ]; then
+    echo "Generating Ed25519 SSH key pair for ${DB_USERNAME}..."
+    ssh-keygen -t ed25519 -f "/home/${DB_USERNAME}/.ssh/id_ed25519" -N "" -C "${DB_USERNAME}@cloudberry-build-\$(date +%Y%m%d)"
+  fi
+
+  # Add the public key to authorized_keys to enable passwordless SSH access
+  # Note: This enables passwordless access - consider if this is necessary for your use case
+  echo "Configuring passwordless SSH access..."
+  cat "/home/${DB_USERNAME}/.ssh/id_ed25519.pub" >> "/home/${DB_USERNAME}/.ssh/authorized_keys"
+
+  # Set appropriate permissions for the .ssh directory and files
+  chmod 700 "/home/${DB_USERNAME}/.ssh"
+  chmod 600 "/home/${DB_USERNAME}/.ssh/authorized_keys"
+  chmod 600 "/home/${DB_USERNAME}/.ssh/id_ed25519"
+  chmod 644 "/home/${DB_USERNAME}/.ssh/id_ed25519.pub"
+
+  # Remove any duplicate entries in authorized_keys
+  sort "/home/${DB_USERNAME}/.ssh/authorized_keys" | uniq > "/home/${DB_USERNAME}/.ssh/authorized_keys.tmp"
+  mv "/home/${DB_USERNAME}/.ssh/authorized_keys.tmp" "/home/${DB_USERNAME}/.ssh/authorized_keys"
+  chmod 600 "/home/${DB_USERNAME}/.ssh/authorized_keys"
+else
+  echo "Skipping SSH key pair generation for ${DB_USERNAME} (GENERATE_SSH_KEYPAIR=false)."
+  chmod 700 "/home/${DB_USERNAME}/.ssh"
 fi
-
-# Add the public key to authorized_keys to enable passwordless SSH access
-# Note: This enables passwordless access - consider if this is necessary for your use case
-echo "Configuring passwordless SSH access..."
-cat "/home/${DB_USERNAME}/.ssh/id_ed25519.pub" >> "/home/${DB_USERNAME}/.ssh/authorized_keys"
-
-# Set appropriate permissions for the .ssh directory and files
-chmod 700 "/home/${DB_USERNAME}/.ssh"
-chmod 600 "/home/${DB_USERNAME}/.ssh/authorized_keys"
-chmod 600 "/home/${DB_USERNAME}/.ssh/id_ed25519"
-chmod 644 "/home/${DB_USERNAME}/.ssh/id_ed25519.pub"
-
-# Remove any duplicate entries in authorized_keys
-sort "/home/${DB_USERNAME}/.ssh/authorized_keys" | uniq > "/home/${DB_USERNAME}/.ssh/authorized_keys.tmp"
-mv "/home/${DB_USERNAME}/.ssh/authorized_keys.tmp" "/home/${DB_USERNAME}/.ssh/authorized_keys"
-chmod 600 "/home/${DB_USERNAME}/.ssh/authorized_keys"
 
 echo "Environment setup and passwordless SSH configuration for ${DB_USERNAME} completed successfully."
 EOF

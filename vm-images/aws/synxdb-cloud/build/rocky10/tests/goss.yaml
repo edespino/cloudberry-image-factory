@@ -74,6 +74,10 @@ user:
 
 # Critical files and directories
 file:
+  # No baked key pair for the OS default user: it would be shared by every
+  # instance of the image (GENERATE_SSH_KEYPAIR=false).
+  /home/rocky/.ssh/id_ed25519:
+    exists: false
   # yq installation
   /usr/local/bin/yq:
     exists: true
