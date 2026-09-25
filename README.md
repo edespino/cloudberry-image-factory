@@ -210,7 +210,9 @@ The harness builds only in the Synx Engineering account `260369602265`. It
 reads the account from the credentials and stops on any other. The account
 has no default VPC: the build instance, the test instance, and the test
 security group use the first available subnet tagged `Purpose=ami-build`, and
-the build stops if there is none. Volumes use the account's default EBS
+the build stops if there is none. `BUILD_AZ=us-west-2b` selects the subnet in
+that Availability Zone instead of the first by zone name, for example when
+`g6.xlarge` has no capacity in us-west-2a. Volumes use the account's default EBS
 encryption. Images stay in this account; they are not shared to others.
 
 Existing-AMI recovery accepts only available images owned by the

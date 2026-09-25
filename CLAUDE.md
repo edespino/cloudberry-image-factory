@@ -98,7 +98,8 @@ never deregistered. All builds are private-only (never publicly shared).
 The harness reads the account from the credentials and runs only in Synx
 Engineering (`260369602265`). The account has no default VPC: builds need an
 available subnet tagged `Purpose=ami-build`, which the harness passes to every
-template as `subnet_id`. Volumes use the account's default EBS encryption.
+template as `subnet_id` (the first by zone name; `BUILD_AZ=us-west-2b` picks
+the subnet in that zone, e.g. when an instance type has no capacity). Volumes use the account's default EBS encryption.
 
 ## Adding a New Family
 
