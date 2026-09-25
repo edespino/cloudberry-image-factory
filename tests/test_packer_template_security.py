@@ -201,19 +201,30 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                         ["true"],
                     )
 
-    def test_os_default_users_get_no_baked_ssh_key(self) -> None:
-        # A baked key pair is shared by every instance of the image; only the
-        # database admin users (still) need one for node-to-node SSH.
+    def test_images_bake_no_ssh_key_pairs(self) -> None:
+        # A key baked into the image is shared by every instance; gpadmin and
+        # cbadmin get per-instance keys at first boot instead.
+        script = (
+            REPOSITORY / "vm-images/common/scripts/dbadmin_configure_environment.sh"
+        ).read_text()
+        self.assertIsNone(re.search(r"(?m)^\s*ssh-keygen\s", script))
         for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
-            for block in provisioner_blocks(template.read_text()):
-                if "dbadmin_configure_environment.sh" not in block:
-                    continue
-                user = re.search(r'"DB_USERNAME=([a-z0-9_-]+)"', block).group(1)
-                with self.subTest(template=template, user=user):
-                    if user in ("gpadmin", "cbadmin"):
-                        self.assertNotIn("GENERATE_SSH_KEYPAIR", block)
-                    else:
-                        self.assertIn('"GENERATE_SSH_KEYPAIR=false"', block)
+            blocks = provisioner_blocks(template.read_text())
+            scripts = [
+                PROVISIONER_SCRIPT.findall(block)[0]
+                for block in blocks
+                if PROVISIONER_SCRIPT.findall(block)
+            ]
+            with self.subTest(template=template):
+                self.assertNotIn("GENERATE_SSH_KEYPAIR", template.read_text())
+                if any(path.endswith("dbadmin_configure_environment.sh") for path in scripts):
+                    self.assertEqual(
+                        scripts[-2:],
+                        [
+                            "../../../../common/scripts/system_add_dbadmin_ssh_keygen.sh",
+                            "../../../../common/scripts/system_prepare_image_capture.sh",
+                        ],
+                    )
 
 if __name__ == "__main__":
     unittest.main()

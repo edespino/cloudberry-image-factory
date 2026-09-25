@@ -29,7 +29,7 @@ When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner o
 7. `system_set_timezone.sh`
 8. `system_config_starship_prompt.sh`
 9. `system_add_swap.sh`
-10. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, rocky (`GENERATE_SSH_KEYPAIR=false`)
+10. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, rocky (no SSH key pair)
 11. `system_add_gh.sh` - GitHub CLI
 11b. `system_add_glow.sh` - glow (terminal markdown viewer, Charm repo)
 12. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
@@ -38,7 +38,8 @@ When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner o
 15. `system_add_motd_manager.sh` - MOTD with `synx` template
 16. `system_add_goss.sh` - Must be near end
 17. `system_add_docker.sh`
-18. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
+18. `system_add_dbadmin_ssh_keygen.sh` - installs the first-boot unit that gives gpadmin/cbadmin per-instance SSH keys
+19. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
 
 ## Shell Aliases (via /etc/profile.d/)
 

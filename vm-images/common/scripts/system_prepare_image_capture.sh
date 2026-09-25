@@ -8,8 +8,8 @@ echo "Executing system_prepare_image_capture.sh..."
 
 # Runs as the last provisioner, just before Packer captures the AMI. Removes
 # state the build instance wrote that would otherwise ship in every image:
-# the SSM agent's logs and instance registration, cloud-init's per-instance
-# data and logs, and the machine ID. Configuration (/etc/amazon/ssm,
+# the SSM agent's logs and instance registration, gpadmin/cbadmin SSH keys,
+# cloud-init's per-instance data and logs, and the machine ID. Configuration (/etc/amazon/ssm,
 # /etc/cloud) is left in place, and the agent stays enabled so it starts on
 # first boot.
 
@@ -32,6 +32,21 @@ for ssm_dir in /var/log/amazon/ssm /var/lib/amazon/ssm; do
     sudo find "${ssm_dir}" -mindepth 1 -delete
   fi
 done
+
+# gpadmin/cbadmin keys that cloudberry-dbadmin-ssh-keygen.service generated
+# on this build instance (an image chained from a base that has the unit),
+# and its marker: removed so every instance generates its own on first boot.
+# authorized_keys is emptied; per the launcher contract it starts empty.
+for user in gpadmin cbadmin; do
+  if id -u "${user}" > /dev/null 2>&1; then
+    home="$(getent passwd "${user}" | cut -d: -f6)"
+    sudo rm -f "${home}/.ssh/id_ed25519" "${home}/.ssh/id_ed25519.pub"
+    if sudo test -f "${home}/.ssh/authorized_keys"; then
+      sudo truncate -s 0 "${home}/.ssh/authorized_keys"
+    fi
+  fi
+done
+sudo rm -f /var/lib/cloudberry/dbadmin-ssh-keys.ready
 
 # cloud-init: instance data, semaphores and logs, so first boot runs as a
 # new instance. The machine ID is reset too, so instances launched from the

@@ -31,6 +31,13 @@ FAKE_SYSTEMCTL = """#!/bin/sh
 [ "$1" = cat ] && [ "${FAKE_SYSTEMD_AGENT:-}" = 1 ] && exit 0
 exit 1
 """
+FAKE_ID = """#!/bin/sh
+[ "$1" = -u ] && case " ${FAKE_USERS:-} " in *" $2 "*) echo 1000; exit 0 ;; esac
+exit 1
+"""
+FAKE_GETENT = """#!/bin/sh
+echo "$2:x:1000:1000::/home/$2:/bin/bash"
+"""
 FAKE_CLOUD_INIT = """#!/bin/sh
 if [ "$1" = clean ] && [ "$2" = --help ]; then
   echo "usage: cloud-init clean [-h] [-l] [--machine-id] [-r]" | {
@@ -53,7 +60,7 @@ class ImageCaptureCleanupTests(unittest.TestCase):
         self._executable("sudo", FAKE_SUDO)
         # python3 runs the fake sudo; sed and cat back the fake cloud-init
         # help. The script itself needs nothing else from PATH.
-        for tool in ("python3", "sed", "cat"):
+        for tool in ("python3", "sed", "cat", "cut"):
             real = shutil.which(tool)
             self.assertIsNotNone(real, f"{tool} is required to run this suite")
             (self.bin / tool).symlink_to(real)
@@ -68,6 +75,8 @@ class ImageCaptureCleanupTests(unittest.TestCase):
             ("snap", FAKE_SNAP),
             ("systemctl", FAKE_SYSTEMCTL),
             ("cloud-init", FAKE_CLOUD_INIT),
+            ("id", FAKE_ID),
+            ("getent", FAKE_GETENT),
         ):
             if name in installed:
                 self._executable(name, content)
@@ -92,10 +101,18 @@ class ImageCaptureCleanupTests(unittest.TestCase):
 
     def test_ubuntu_snap_agent_with_machine_id_support(self) -> None:
         status, calls = self._run(
-            "snap", "systemctl", "cloud-init",
+            "snap", "systemctl", "cloud-init", "id", "getent",
             FAKE_SNAP_AGENT="1", FAKE_SSM_DIRS="1", FAKE_CLOUD_INIT_MACHINE_ID="1",
+            FAKE_USERS="gpadmin cbadmin",
         )
         self.assertEqual(status, 0)
+        dbadmin = []
+        for user in ("gpadmin", "cbadmin"):
+            dbadmin += [
+                ["rm", "-f", f"/home/{user}/.ssh/id_ed25519", f"/home/{user}/.ssh/id_ed25519.pub"],
+                ["test", "-f", f"/home/{user}/.ssh/authorized_keys"],
+                ["truncate", "-s", "0", f"/home/{user}/.ssh/authorized_keys"],
+            ]
         self.assertEqual(
             calls,
             [
@@ -104,6 +121,8 @@ class ImageCaptureCleanupTests(unittest.TestCase):
                 ["find", "/var/log/amazon/ssm", "-mindepth", "1", "-delete"],
                 ["test", "-d", "/var/lib/amazon/ssm"],
                 ["find", "/var/lib/amazon/ssm", "-mindepth", "1", "-delete"],
+                *dbadmin,
+                ["rm", "-f", "/var/lib/cloudberry/dbadmin-ssh-keys.ready"],
                 ["cloud-init", "clean", "--logs", "--machine-id"],
             ],
         )
@@ -130,6 +149,7 @@ class ImageCaptureCleanupTests(unittest.TestCase):
             [
                 ["test", "-d", "/var/log/amazon/ssm"],
                 ["test", "-d", "/var/lib/amazon/ssm"],
+                ["rm", "-f", "/var/lib/cloudberry/dbadmin-ssh-keys.ready"],
                 ["truncate", "-s", "0", "/etc/machine-id"],
             ],
         )

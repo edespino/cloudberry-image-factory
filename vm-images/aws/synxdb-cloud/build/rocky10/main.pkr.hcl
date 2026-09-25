@@ -187,8 +187,7 @@ build {
   provisioner "shell" {
     script = "../../../../common/scripts/dbadmin_configure_environment.sh"
     environment_vars = [
-      "DB_USERNAME=rocky",
-      "GENERATE_SSH_KEYPAIR=false"
+      "DB_USERNAME=rocky"
     ]
   }
 
@@ -344,6 +343,11 @@ build {
 
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_docker.sh"
+  }
+
+  # Per-instance gpadmin/cbadmin SSH keys, generated at first boot.
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_add_dbadmin_ssh_keygen.sh"
   }
 
   # Last provisioner: clear build-instance SSM agent and cloud-init state
