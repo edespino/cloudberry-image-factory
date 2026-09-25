@@ -135,5 +135,18 @@ class PackerTemplateSecurityTests(unittest.TestCase):
             FORBIDDEN_SOURCE_SETTINGS.search('    http_tokens                 = "required"\n')
         )
 
+    def test_image_capture_cleanup_is_the_last_provisioner(self) -> None:
+        # Build-instance SSM agent logs/registration and cloud-init instance
+        # data must not ship in the image.
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            content = template.read_text()
+            with self.subTest(template=template):
+                provisioners = content[: content.index("post-processors {")]
+                last = provisioners[provisioners.rindex('provisioner "'):]
+                self.assertIn(
+                    'script = "../../../../common/scripts/system_prepare_image_capture.sh"',
+                    last,
+                )
+
 if __name__ == "__main__":
     unittest.main()

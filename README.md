@@ -17,7 +17,7 @@ Builds are started locally with `vm-images/scripts/packer-build-and-test.sh` and
 │                         GitHub Repository                              │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────────────┐ │
 │  │  Common Scripts │  │  Family/OS       │  │  GitHub Actions        │ │
-│  │  (58 scripts)   │  │  Build Configs   │  │  validate.yml          │ │
+│  │  (59 scripts)   │  │  Build Configs   │  │  validate.yml          │ │
 │  │                 │  │  (9 targets, 3   │  │  - unit tests          │ │
 │  │                 │  │   families)      │  │  - packer validate     │ │
 │  └─────────────────┘  └──────────────────┘  │  (no AWS access)       │ │
@@ -157,7 +157,7 @@ cloudberry-image-factory/
 ### Script Organization
 
 **Common Scripts** (`vm-images/common/scripts/`)
-- 58 shared provisioning scripts used across multiple targets
+- 59 shared provisioning scripts used across multiple targets
 - Include user setup, development tools, kernel configs, testing frameworks, MOTD management
 
 **OS-Specific Scripts** (in each build directory)
@@ -263,7 +263,9 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
    │     ├─ system_add_kernel_configs.sh                │
    │     ├─ cbadmin_configure_environment.sh            │
    │     ├─ system_add_motd_manager.sh                  │
-   │     └─ system_add_goss.sh (testing framework)      │
+   │     ├─ system_add_goss.sh (testing framework)      │
+   │     └─ system_prepare_image_capture.sh (clears     │
+   │        SSM agent and cloud-init build state)       │
    │  d. Create AMI snapshot from instance              │
    │  e. Terminate build instance                       │
    └────────────────────────────────────────────────────┘
