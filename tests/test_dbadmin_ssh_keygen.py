@@ -191,7 +191,9 @@ class DbadminSshKeygenTests(unittest.TestCase):
             r"<<'UNIT'\n(.*?)\nUNIT\n", INSTALLER.read_text(), re.S
         ).group(1)
         self.assertIn("Type=oneshot", unit)
-        self.assertIn("After=local-fs.target cloud-init.service", unit)
+        self.assertIn(
+            "After=local-fs.target cloud-init.service cloud-init-network.service", unit
+        )
         self.assertIn("Before=ssh.service sshd.service", unit)
         self.assertIn(
             "ConditionPathExists=!/var/lib/cloudberry/dbadmin-ssh-keys.ready", unit

@@ -18,9 +18,11 @@ echo "Executing system_add_dbadmin_ssh_keygen.sh..."
 # - authorized_keys exists (0600) and starts empty.
 # - /var/lib/cloudberry/dbadmin-ssh-keys.ready is written when both users are
 #   done. Users that do not exist are skipped.
-# The unit runs after cloud-init, so an image builder chained from this image
-# (ubuntu26-gpu) can create the marker in user_data and never generate keys
-# on the builder. system_prepare_image_capture.sh also removes the keys and
+# The unit runs after cloud-init's init stage, where bootcmd runs (the unit is
+# cloud-init.service before cloud-init 24.3 and cloud-init-network.service
+# after; both are listed, and an absent one is ignored). An image builder
+# chained from this image (ubuntu26-gpu) creates the marker in user_data
+# bootcmd, so it never generates keys on the builder. system_prepare_image_capture.sh also removes the keys and
 # the marker before capture.
 
 sudo install -d -m 0755 /usr/local/sbin
@@ -81,7 +83,7 @@ sudo chmod 0755 /usr/local/sbin/cloudberry-dbadmin-ssh-keygen
 sudo tee /etc/systemd/system/cloudberry-dbadmin-ssh-keygen.service > /dev/null <<'UNIT'
 [Unit]
 Description=Generate per-instance SSH keys for gpadmin and cbadmin
-After=local-fs.target cloud-init.service
+After=local-fs.target cloud-init.service cloud-init-network.service
 Before=ssh.service sshd.service
 ConditionPathExists=!/var/lib/cloudberry/dbadmin-ssh-keys.ready
 
