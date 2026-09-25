@@ -247,6 +247,7 @@ Before committing, verify:
 2. **User environment configuration:** Must run `dbadmin_configure_environment.sh` for both users
 3. **Test framework near the end:** `system_add_goss.sh` goes after all tools are installed; only `system_prepare_image_capture.sh` runs after it
 4. **Goss tests match reality:** Only test packages/tools that are actually installed by provisioners
+5. **No baked SSH key for the OS default user:** `dbadmin_configure_environment.sh` runs for `ubuntu`/`rocky` with `GENERATE_SSH_KEYPAIR=false` (a policy test and goss enforce it). `gpadmin`/`cbadmin` still get a baked key pair shared by every instance of the image, which the launcher's multi-node clusters rely on; it is replaced by per-instance keys once the launcher exchanges keys between nodes.
 
 ## Build Process Flow
 

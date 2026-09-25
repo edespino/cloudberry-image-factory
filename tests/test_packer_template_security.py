@@ -201,5 +201,19 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                         ["true"],
                     )
 
+    def test_os_default_users_get_no_baked_ssh_key(self) -> None:
+        # A baked key pair is shared by every instance of the image; only the
+        # database admin users (still) need one for node-to-node SSH.
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            for block in provisioner_blocks(template.read_text()):
+                if "dbadmin_configure_environment.sh" not in block:
+                    continue
+                user = re.search(r'"DB_USERNAME=([a-z0-9_-]+)"', block).group(1)
+                with self.subTest(template=template, user=user):
+                    if user in ("gpadmin", "cbadmin"):
+                        self.assertNotIn("GENERATE_SSH_KEYPAIR", block)
+                    else:
+                        self.assertIn('"GENERATE_SSH_KEYPAIR=false"', block)
+
 if __name__ == "__main__":
     unittest.main()
