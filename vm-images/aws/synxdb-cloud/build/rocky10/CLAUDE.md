@@ -29,7 +29,7 @@ When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner o
 7. `system_set_timezone.sh`
 8. `system_config_starship_prompt.sh`
 9. `system_add_swap.sh`
-10. `dbadmin_configure_environment.sh` x2 - gpadmin, cbadmin
+10. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, rocky (`GENERATE_SSH_KEYPAIR=false`)
 11. `system_add_gh.sh` - GitHub CLI
 11b. `system_add_glow.sh` - glow (terminal markdown viewer, Charm repo)
 12. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)

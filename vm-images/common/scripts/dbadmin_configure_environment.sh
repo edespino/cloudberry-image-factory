@@ -205,7 +205,7 @@ else
   chmod 700 "/home/${DB_USERNAME}/.ssh"
 fi
 
-echo "Environment setup and passwordless SSH configuration for ${DB_USERNAME} completed successfully."
+echo "Environment setup for ${DB_USERNAME} completed successfully (SSH key pair: ${GENERATE_SSH_KEYPAIR})."
 EOF
 
 # Footer indicating the script execution is complete
