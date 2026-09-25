@@ -23,6 +23,37 @@ FORBIDDEN_SOURCE_SETTINGS = re.compile(
 WORLD_OPEN_CIDR = re.compile(r'(?<![0-9A-Fa-f:.])(?:0\.0\.0\.0/0|::/0)(?![0-9])')
 
 
+PROVISIONER_HEADER = re.compile(r'\bprovisioner\s+"[^"]+"\s*\{')
+PROVISIONER_SCRIPT = re.compile(r'(?m)^\s*script\s*=\s*"([^"]*)"')
+
+
+def strip_hcl_comments(content: str) -> str:
+    """Drop full-line # and // comments (the templates use no inline ones)."""
+    return "\n".join(
+        "" if line.lstrip().startswith(("#", "//")) else line
+        for line in content.splitlines()
+    )
+
+
+def provisioner_blocks(content: str) -> list[str]:
+    """Top-level provisioner blocks, in order, with comments removed."""
+    content = strip_hcl_comments(content)
+    blocks: list[str] = []
+    for match in PROVISIONER_HEADER.finditer(content):
+        depth = 0
+        for index in range(match.end() - 1, len(content)):
+            if content[index] == "{":
+                depth += 1
+            elif content[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    blocks.append(content[match.start() : index + 1])
+                    break
+        else:
+            raise AssertionError("unterminated provisioner block")
+    return blocks
+
+
 def amazon_ebs_blocks(content: str) -> list[str]:
     blocks: list[str] = []
     for match in SOURCE_HEADER.finditer(content):
@@ -136,17 +167,39 @@ class PackerTemplateSecurityTests(unittest.TestCase):
         )
 
     def test_image_capture_cleanup_is_the_last_provisioner(self) -> None:
-        # Build-instance SSM agent logs/registration and cloud-init instance
-        # data must not ship in the image.
+        # Build-instance SSM agent logs/registration, cloud-init instance data
+        # and the machine ID must not ship in the image.
         for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
-            content = template.read_text()
+            blocks = provisioner_blocks(template.read_text())
             with self.subTest(template=template):
-                provisioners = content[: content.index("post-processors {")]
-                last = provisioners[provisioners.rindex('provisioner "'):]
-                self.assertIn(
-                    'script = "../../../../common/scripts/system_prepare_image_capture.sh"',
-                    last,
+                self.assertTrue(blocks)
+                self.assertEqual(
+                    PROVISIONER_SCRIPT.findall(blocks[-1]),
+                    ["../../../../common/scripts/system_prepare_image_capture.sh"],
                 )
+
+    def test_provisioner_parser_ignores_comments(self) -> None:
+        content = (
+            'build {\n'
+            '  provisioner "shell" {\n'
+            '    # script = "../../../../common/scripts/system_prepare_image_capture.sh"\n'
+            '    script = "other.sh"\n'
+            '  }\n'
+            '  # provisioner "shell" { script = "x.sh" }\n'
+            '}\n'
+        )
+        blocks = provisioner_blocks(content)
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(PROVISIONER_SCRIPT.findall(blocks[-1]), ["other.sh"])
+
+    def test_sources_clear_packer_authorized_keys(self) -> None:
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            with self.subTest(template=template):
+                for block in amazon_ebs_blocks(strip_hcl_comments(template.read_text())):
+                    self.assertEqual(
+                        re.findall(r"(?m)^\s*ssh_clear_authorized_keys\s*=\s*(\S+)", block),
+                        ["true"],
+                    )
 
 if __name__ == "__main__":
     unittest.main()

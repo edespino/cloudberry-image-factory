@@ -65,6 +65,8 @@ source "amazon-ebs" "base-build-image" {
   }
 
   ssh_username         = "ec2-user"
+  # Remove Packer's temporary public key from authorized_keys before capture.
+  ssh_clear_authorized_keys = true
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
   ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
@@ -156,7 +158,7 @@ build {
     ]
   }
 
-  # Install Goss testing framework (must be last)
+  # Install Goss testing framework (near the end; image capture cleanup runs last)
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_goss.sh"
   }

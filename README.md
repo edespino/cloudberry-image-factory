@@ -265,7 +265,7 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
    │     ├─ system_add_motd_manager.sh                  │
    │     ├─ system_add_goss.sh (testing framework)      │
    │     └─ system_prepare_image_capture.sh (clears     │
-   │        SSM agent and cloud-init build state)       │
+   │        SSM agent, cloud-init, machine-id state)    │
    │  d. Create AMI snapshot from instance              │
    │  e. Terminate build instance                       │
    └────────────────────────────────────────────────────┘

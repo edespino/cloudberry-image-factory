@@ -41,6 +41,7 @@ This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provi
 18. Tooling: gitleaks, cloudsmith-cli, autoenv, git-profiles, zellij, hwatch, dysk, zoxide, golang, dolt, bun, ssh-agent-tmux
 19. `system_add_goss.sh` - Must be near end
 20. `system_add_docker.sh`
+21. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
 
 ## Differences from synxdb-cloud/rocky10 (RPM → DEB)
 

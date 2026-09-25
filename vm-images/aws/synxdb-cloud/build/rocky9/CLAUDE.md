@@ -38,6 +38,7 @@ When refactoring, use `synxdb-cloud/al2023` for the cloud-specific provisioner o
 15. `system_add_motd_manager.sh` - MOTD with `synx` template
 16. `system_add_goss.sh` - Must be near end
 17. `system_add_docker.sh`
+18. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
 
 ## Rocky 9 Base AMI Gotchas
 

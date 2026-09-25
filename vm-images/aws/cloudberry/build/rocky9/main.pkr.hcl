@@ -65,6 +65,8 @@ source "amazon-ebs" "base-cbdb-build-image" {
   }
 
   ssh_username         = "rocky"
+  # Remove Packer's temporary public key from authorized_keys before capture.
+  ssh_clear_authorized_keys = true
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
   ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))

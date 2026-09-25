@@ -85,6 +85,8 @@ source "amazon-ebs" "gpu-build-image" {
   }
 
   ssh_username         = "ubuntu"
+  # Remove Packer's temporary public key from authorized_keys before capture.
+  ssh_clear_authorized_keys = true
 
   # Omit ami_description: it would call denied ModifyImageAttribute.
   ami_name = format("%s-packer-%s-%s", var.family, var.os_name, formatdate("YYYYMMDD-HHmmss", timestamp()))
@@ -145,7 +147,8 @@ build {
   }
 
   # goss is already on the base image (the script is a no-op when present);
-  # kept so this template, like every target, ends with the test framework.
+  # kept so this template, like every target, installs the test framework
+  # near the end. Image capture cleanup runs after it.
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_goss.sh"
   }
