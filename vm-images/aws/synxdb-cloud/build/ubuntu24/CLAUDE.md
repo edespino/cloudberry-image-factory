@@ -30,7 +30,7 @@ This platform is the DEB/apt port of `synxdb-cloud/rocky10` — mirror its provi
 8. `system_set_timezone.sh`
 9. `system_config_starship_prompt.sh`
 10. `system_add_swap.sh`
-11. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, ubuntu
+11. `dbadmin_configure_environment.sh` x3 - gpadmin, cbadmin, ubuntu (`GENERATE_SSH_KEYPAIR=false`)
 12. `system_add_gh.sh` - GitHub CLI
 12b. `system_add_glow.sh` - glow (terminal markdown viewer, Charm repo)
 13. `system_add_helm_kubectl.sh` - Helm + kubectl (SHA256 verified, bash completion)
