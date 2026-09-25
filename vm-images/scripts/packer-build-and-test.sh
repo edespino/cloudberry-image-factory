@@ -178,6 +178,14 @@ echo "Using SSH user: ${OS_USER} for OS: ${OS_NAME}"
 
 # Define AWS region and timestamp for unique naming
 REGION="us-west-2"                  # Fixed region where the AMI is tested
+# Optional: BUILD_AZ=us-west-2b picks the Purpose=ami-build subnet in that
+# Availability Zone (e.g. when an instance type has no capacity in the first
+# one). Unset, the first subnet by zone name is used.
+BUILD_AZ="${BUILD_AZ:-}"
+if [ -n "${BUILD_AZ}" ] && [[ ! "${BUILD_AZ}" =~ ^${REGION}[a-z]$ ]]; then
+  echo "Error: BUILD_AZ must be an Availability Zone in ${REGION} (got '${BUILD_AZ}')." >&2
+  exit 2
+fi
 # The only approved build account: Synx Engineering. It has no default VPC,
 # so builds use the Purpose=ami-build subnet; volumes use the account's
 # default EBS encryption.
@@ -335,9 +343,14 @@ resolve_build_account() {
 # subnet and VPC.
 resolve_build_network() {
   local network
+  local -a zone_filter=()
+  if [ -n "${BUILD_AZ}" ]; then
+    zone_filter=("Name=availability-zone,Values=${BUILD_AZ}")
+  fi
   network="$(
     aws ec2 describe-subnets \
       --filters "Name=tag:Purpose,Values=ami-build" "Name=state,Values=available" \
+        ${zone_filter[@]+"${zone_filter[@]}"} \
       --query "sort_by(Subnets, &AvailabilityZone)[0].[SubnetId,VpcId]" \
       --output "text" --region "${REGION}"
   )"
@@ -345,7 +358,7 @@ resolve_build_network() {
   read -r BUILD_SUBNET_ID BUILD_VPC_ID <<< "${network}" || true
   if [[ ! "${BUILD_SUBNET_ID}" =~ ^subnet-[0-9a-f]+$ ]] \
     || [[ ! "${BUILD_VPC_ID:-}" =~ ^vpc-[0-9a-f]+$ ]]; then
-    echo "Error: no available Purpose=ami-build subnet in ${ENGINEERING_ACCOUNT}." >&2
+    echo "Error: no available Purpose=ami-build subnet in ${ENGINEERING_ACCOUNT}${BUILD_AZ:+ in ${BUILD_AZ}}." >&2
     return 1
   fi
   echo "Build subnet: ${BUILD_SUBNET_ID} (VPC ${BUILD_VPC_ID})"

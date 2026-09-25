@@ -1045,6 +1045,34 @@ exec {self._real(command)} "$@"
             "HttpTokens=required,HttpEndpoint=enabled",
         )
 
+    def test_build_az_selects_the_subnet_in_that_zone(self) -> None:
+        result = self._run(extra_env={"BUILD_AZ": "us-west-2b"})
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        describe_subnets = next(
+            call for call in self._aws_calls() if call[:2] == ["ec2", "describe-subnets"]
+        )
+        self.assertIn("Name=availability-zone,Values=us-west-2b", describe_subnets)
+
+    def test_without_build_az_no_zone_filter_is_sent(self) -> None:
+        result = self._run()
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        describe_subnets = next(
+            call for call in self._aws_calls() if call[:2] == ["ec2", "describe-subnets"]
+        )
+        self.assertFalse(
+            any(value.startswith("Name=availability-zone") for value in describe_subnets)
+        )
+
+    def test_invalid_build_az_fails_before_any_aws_call(self) -> None:
+        for value in ("us-east-1a", "us-west-2", "us-west-2b;x", "--help"):
+            self.aws_log.unlink(missing_ok=True)
+            with self.subTest(value=value):
+                result = self._run(extra_env={"BUILD_AZ": value})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self._aws_calls(), [])
+
     def test_missing_or_malformed_subnet_fails_before_key_pair(self) -> None:
         for network in ("None", "subnet-x;y\tvpc-0f1e2d3c4b5a69788", "subnet-0a1b2c3d4e5f60718"):
             self.aws_log.unlink(missing_ok=True)
