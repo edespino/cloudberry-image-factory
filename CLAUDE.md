@@ -142,7 +142,7 @@ vm-images/aws/<family>/build/{osname}/
 13. `system_add_docker.sh`
 14. `system_add_motd_manager.sh`
 15. **`system_add_goss.sh`** ⚠️ **DO NOT FORGET THIS!**
-16. **`system_prepare_image_capture.sh`** — always the last provisioner: clears build-instance SSM agent and cloud-init state (a policy test enforces it)
+16. **`system_prepare_image_capture.sh`** — always the last provisioner: clears build-instance SSM agent, cloud-init and machine-id state (a policy test enforces it); every source also sets `ssh_clear_authorized_keys = true`
 
 **Common Mistake:** Creating Goss tests without including `system_add_goss.sh` provisioner. This causes "goss: command not found" errors during testing.
 

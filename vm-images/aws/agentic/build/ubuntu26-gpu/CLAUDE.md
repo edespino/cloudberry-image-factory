@@ -41,7 +41,9 @@ Agentic Targets" described in `../ubuntu26/CLAUDE.md`:
    `ollama`, systemd unit
 5. `scripts/system_verify_gpu_stack.sh` - build-time GPU smoke test
 6. `system_add_goss.sh` - already present from the base (no-op), kept so the
-   template ends with the test framework like every target
+   template installs the test framework near the end like every target
+7. `system_prepare_image_capture.sh` - last: clears build-instance SSM agent,
+   cloud-init and machine-id state before capture
 
 Scripts live in this target, not `common/scripts/`, because they are
 GPU-specific and DEB-specific. Promote them if a second GPU target appears.

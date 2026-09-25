@@ -76,6 +76,7 @@ enforces this boundary. On this target:
 25. `system_configure_claude.sh` x3 - gpadmin, cbadmin, ubuntu
 26. `system_add_goss.sh` - Must be near end
 27. `system_add_docker.sh`
+28. `system_prepare_image_capture.sh` - Must be last (clears SSM agent, cloud-init and machine-id build state)
 
 ## Ubuntu 26.04 Base AMI Gotchas
 
