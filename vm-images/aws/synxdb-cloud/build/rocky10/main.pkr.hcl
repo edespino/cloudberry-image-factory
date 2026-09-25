@@ -343,6 +343,12 @@ build {
     script = "../../../../common/scripts/system_add_docker.sh"
   }
 
+  # Last provisioner: clear build-instance SSM agent and cloud-init state
+  # before the image is captured.
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_prepare_image_capture.sh"
+  }
+
   post-processors {
     post-processor "manifest" {
       output = "packer-manifest.json"

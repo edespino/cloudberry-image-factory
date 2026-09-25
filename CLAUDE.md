@@ -40,7 +40,7 @@ vm-images/
 │   ├── private-runtime-key.py        # Temporary SSH key handling
 │   └── validate-ami-metadata.py      # Confirms AMI is not-publicly-shared
 ├── common/
-│   ├── scripts/                      # Shared provisioners (58 scripts)
+│   ├── scripts/                      # Shared provisioners (59 scripts)
 │   └── tests/                        # Shared Goss fragments (gossfile includes)
 └── aws/
     ├── cloudberry/build/{rocky9,rocky10}/
@@ -142,6 +142,7 @@ vm-images/aws/<family>/build/{osname}/
 13. `system_add_docker.sh`
 14. `system_add_motd_manager.sh`
 15. **`system_add_goss.sh`** ⚠️ **DO NOT FORGET THIS!**
+16. **`system_prepare_image_capture.sh`** — always the last provisioner: clears build-instance SSM agent and cloud-init state (a policy test enforces it)
 
 **Common Mistake:** Creating Goss tests without including `system_add_goss.sh` provisioner. This causes "goss: command not found" errors during testing.
 
@@ -194,6 +195,7 @@ Update `README.md`:
 
 Before committing, verify:
 - [ ] `system_add_goss.sh` provisioner included in main.pkr.hcl
+- [ ] `system_prepare_image_capture.sh` is the last provisioner
 - [ ] `subnet_id` variable and the `subnet_id`/`associate_public_ip_address` source lines copied from an existing template
 - [ ] `gnupg2`/`gnupg` in dependencies script
 - [ ] AMI filter and owner ID correct
@@ -255,7 +257,7 @@ Packer Build → Provisioners Execute → AMI Created → Test Instance Launched
 
 ## Key Files
 
-- `vm-images/common/scripts/` - Shared provisioners (58 scripts)
+- `vm-images/common/scripts/` - Shared provisioners (59 scripts)
 - `vm-images/scripts/packer-build-and-test.sh` - Main build orchestrator (harness trio)
 - `.github/scripts/compute-build-matrix.sh` - Selects targets for `validate.yml`
 - `.github/workflows/validate.yml` - Offline checks (unit tests, packer validate)
