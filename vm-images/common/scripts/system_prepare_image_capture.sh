@@ -33,10 +33,12 @@ for ssm_dir in /var/log/amazon/ssm /var/lib/amazon/ssm; do
   fi
 done
 
-# gpadmin/cbadmin keys that cloudberry-dbadmin-ssh-keygen.service generated
-# on this build instance (an image chained from a base that has the unit),
-# and its marker: removed so every instance generates its own on first boot.
-# authorized_keys is emptied; per the launcher contract it starts empty.
+# The keygen marker: removed so every instance launched from the image
+# generates its own gpadmin/cbadmin keys on first boot. A builder chained from
+# a base that has the unit creates the marker in user_data bootcmd, so no keys
+# are generated on it; any keys found here are removed only defensively
+# (deleted key bytes could still survive in the snapshot). authorized_keys is
+# emptied; per the launcher contract it starts empty.
 for user in gpadmin cbadmin; do
   if id -u "${user}" > /dev/null 2>&1; then
     home="$(getent passwd "${user}" | cut -d: -f6)"
