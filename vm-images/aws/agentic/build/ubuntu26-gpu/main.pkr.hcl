@@ -85,6 +85,18 @@ source "amazon-ebs" "gpu-build-image" {
   }
 
   ssh_username         = "ubuntu"
+
+  # The base image's cloudberry-dbadmin-ssh-keygen.service runs only while
+  # its marker is absent. Creating the marker at every boot of this builder
+  # (bootcmd runs before the unit) keeps it from generating gpadmin/cbadmin
+  # keys here, where deleted key bytes could survive in the snapshot.
+  # system_prepare_image_capture.sh removes the marker, so instances launched
+  # from this image generate their own keys.
+  user_data = <<-EOT
+    #cloud-config
+    bootcmd:
+      - [sh, -c, "install -d -m 0755 /var/lib/cloudberry && touch /var/lib/cloudberry/dbadmin-ssh-keys.ready"]
+  EOT
   # Remove Packer's temporary public key from authorized_keys before capture.
   ssh_clear_authorized_keys = true
 

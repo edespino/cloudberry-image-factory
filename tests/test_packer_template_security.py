@@ -202,29 +202,59 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                     )
 
     def test_images_bake_no_ssh_key_pairs(self) -> None:
-        # A key baked into the image is shared by every instance; gpadmin and
-        # cbadmin get per-instance keys at first boot instead.
-        script = (
-            REPOSITORY / "vm-images/common/scripts/dbadmin_configure_environment.sh"
-        ).read_text()
-        self.assertIsNone(re.search(r"(?m)^\s*ssh-keygen\s", script))
+        # A key generated at build time is shared by every instance. Only the
+        # first-boot unit installer may call ssh-keygen, and nothing may carry
+        # private-key material.
+        allowed = {"vm-images/common/scripts/system_add_dbadmin_ssh_keygen.sh"}
+        keygen_call = re.compile(r"(?<![\w-])ssh-keygen\s+-")
+        private_key = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
+        sources = [
+            *REPOSITORY.glob("vm-images/common/scripts/*.sh"),
+            *REPOSITORY.glob("vm-images/aws/*/build/*/scripts/*.sh"),
+            *REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"),
+            *REPOSITORY.glob("vm-images/scripts/*"),
+        ]
+        self.assertTrue(sources)
+        for source in sorted(sources):
+            relative = str(source.relative_to(REPOSITORY))
+            content = source.read_text()
+            with self.subTest(source=relative):
+                self.assertIsNone(private_key.search(content))
+                if relative not in allowed:
+                    self.assertIsNone(keygen_call.search(content))
+                self.assertNotIn("GENERATE_SSH_KEYPAIR", content)
+
+    def test_dbadmin_templates_install_first_boot_keys_before_cleanup(self) -> None:
         for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
-            blocks = provisioner_blocks(template.read_text())
             scripts = [
-                PROVISIONER_SCRIPT.findall(block)[0]
-                for block in blocks
-                if PROVISIONER_SCRIPT.findall(block)
+                found[0]
+                for found in (
+                    PROVISIONER_SCRIPT.findall(block)
+                    for block in provisioner_blocks(template.read_text())
+                )
+                if found
             ]
+            if not any(path.endswith("dbadmin_configure_environment.sh") for path in scripts):
+                continue
             with self.subTest(template=template):
-                self.assertNotIn("GENERATE_SSH_KEYPAIR", template.read_text())
-                if any(path.endswith("dbadmin_configure_environment.sh") for path in scripts):
-                    self.assertEqual(
-                        scripts[-2:],
-                        [
-                            "../../../../common/scripts/system_add_dbadmin_ssh_keygen.sh",
-                            "../../../../common/scripts/system_prepare_image_capture.sh",
-                        ],
-                    )
+                self.assertEqual(
+                    scripts[-2:],
+                    [
+                        "../../../../common/scripts/system_add_dbadmin_ssh_keygen.sh",
+                        "../../../../common/scripts/system_prepare_image_capture.sh",
+                    ],
+                )
+
+    def test_os_default_users_are_checked_for_baked_keys(self) -> None:
+        defaults = {"ubuntu": "ubuntu", "rocky": "rocky", "al2023": "ec2-user"}
+        for goss in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/tests/goss.yaml")):
+            os_name = goss.parents[1].name
+            user = next(value for key, value in defaults.items() if os_name.startswith(key))
+            with self.subTest(target=os_name):
+                self.assertIn(
+                    f"  /home/{user}/.ssh/id_ed25519:\n    exists: false\n",
+                    goss.read_text(),
+                )
 
 if __name__ == "__main__":
     unittest.main()
