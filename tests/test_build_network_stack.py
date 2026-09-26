@@ -151,3 +151,230 @@ class BuildNetworkStackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# Runtime tests of the DefaultNetworkControls function, executed against fake
+# EC2 / SSM / cfnresponse modules.
+
+import copy  # noqa: E402
+import json  # noqa: E402
+import sys  # noqa: E402
+import types  # noqa: E402
+
+VPC = "vpc-0123456789abcdef0"
+PRIOR_ACL = [
+    {"RuleNumber": 100, "Protocol": "-1", "RuleAction": "allow", "Egress": False, "CidrBlock": "0.0.0.0/0"},
+    {"RuleNumber": 32767, "Protocol": "-1", "RuleAction": "deny", "Egress": False, "CidrBlock": "0.0.0.0/0"},
+    {"RuleNumber": 100, "Protocol": "-1", "RuleAction": "allow", "Egress": True, "CidrBlock": "0.0.0.0/0"},
+    {"RuleNumber": 32767, "Protocol": "-1", "RuleAction": "deny", "Egress": True, "CidrBlock": "0.0.0.0/0"},
+]
+PRIOR_INGRESS = [{"IpProtocol": "-1", "UserIdGroupPairs": [{"GroupId": "sg-default", "UserId": "260369602265"}],
+                  "IpRanges": [], "Ipv6Ranges": [], "PrefixListIds": []}]
+PRIOR_EGRESS = [{"IpProtocol": "-1", "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+                 "UserIdGroupPairs": [], "Ipv6Ranges": [], "PrefixListIds": []}]
+
+
+def _by_rule(entries):
+    return sorted(entries, key=lambda entry: (entry["Egress"], entry["RuleNumber"]))
+
+
+class _ParameterNotFound(Exception):
+    pass
+
+
+class FakeEc2:
+    def __init__(self, acl=None, ingress=None, egress=None, fail_on=None):
+        self.acl = copy.deepcopy(PRIOR_ACL if acl is None else acl)
+        self.ingress = copy.deepcopy(PRIOR_INGRESS if ingress is None else ingress)
+        self.egress = copy.deepcopy(PRIOR_EGRESS if egress is None else egress)
+        self.fail_on = fail_on
+
+    def _check(self, name):
+        if self.fail_on == name:
+            raise RuntimeError(f"{name} failed")
+
+    def describe_network_acls(self, Filters):
+        self._check("describe_network_acls")
+        return {"NetworkAcls": [{"NetworkAclId": "acl-default", "Entries": copy.deepcopy(self.acl)}]}
+
+    def describe_security_groups(self, Filters):
+        return {"SecurityGroups": [{"GroupId": "sg-default", "IpPermissions": copy.deepcopy(self.ingress),
+                                    "IpPermissionsEgress": copy.deepcopy(self.egress)}]}
+
+    def delete_network_acl_entry(self, NetworkAclId, RuleNumber, Egress):
+        before = len(self.acl)
+        self.acl = [e for e in self.acl if not (e["RuleNumber"] == RuleNumber and e["Egress"] == Egress)]
+        assert len(self.acl) == before - 1, "deleted a missing entry"
+
+    def create_network_acl_entry(self, NetworkAclId, Egress, **entry):
+        self._check("create_network_acl_entry")
+        assert not any(e["RuleNumber"] == entry["RuleNumber"] and e["Egress"] == Egress for e in self.acl)
+        self.acl.append({"Egress": Egress, **entry})
+
+    def revoke_security_group_ingress(self, GroupId, IpPermissions):
+        assert IpPermissions == self.ingress
+        self.ingress = []
+
+    def revoke_security_group_egress(self, GroupId, IpPermissions):
+        assert IpPermissions == self.egress
+        self.egress = []
+
+    def authorize_security_group_ingress(self, GroupId, IpPermissions):
+        self.ingress = copy.deepcopy(IpPermissions)
+
+    def authorize_security_group_egress(self, GroupId, IpPermissions):
+        self.egress = copy.deepcopy(IpPermissions)
+
+    def inbound(self):
+        return sorted(
+            (e["RuleNumber"], e["Protocol"], e.get("PortRange", {}).get("From"), e.get("PortRange", {}).get("To"))
+            for e in self.acl if not e["Egress"] and e["RuleNumber"] < 32767
+        )
+
+
+class FakeSsm:
+    exceptions = types.SimpleNamespace(ParameterNotFound=_ParameterNotFound)
+
+    def __init__(self):
+        self.parameters = {}
+
+    def get_parameter(self, Name):
+        if Name not in self.parameters:
+            raise _ParameterNotFound(Name)
+        return {"Parameter": {"Value": self.parameters[Name]}}
+
+    def put_parameter(self, Name, Value, Type, Overwrite, Tier="Standard"):
+        assert not Overwrite and Name not in self.parameters
+        self.parameters[Name] = Value
+
+    def delete_parameter(self, Name):
+        del self.parameters[Name]
+
+
+class DefaultNetworkControlsFunctionTests(unittest.TestCase):
+    def setUp(self):
+        self.responses = []
+        self.ec2 = FakeEc2()
+        self.ssm = FakeSsm()
+        self.module = self._load()
+
+    def _load(self, ec2=None):
+        clients = {"ec2": ec2 or self.ec2, "ssm": self.ssm}
+        boto3 = types.ModuleType("boto3")
+        boto3.client = lambda name: clients[name]
+        cfnresponse = types.ModuleType("cfnresponse")
+        cfnresponse.SUCCESS, cfnresponse.FAILED = "SUCCESS", "FAILED"
+
+        def send(event, context, status, data, physicalResourceId=None, reason=None):
+            self.responses.append({"status": status, "data": data, "id": physicalResourceId, "reason": reason})
+
+        cfnresponse.send = send
+        code = load_stack()["Resources"]["DefaultNetworkControlsFunction"]["Properties"]["Code"]["ZipFile"]
+        saved = {name: sys.modules.get(name) for name in ("boto3", "cfnresponse")}
+        sys.modules.update({"boto3": boto3, "cfnresponse": cfnresponse})
+        try:
+            namespace: dict = {}
+            exec(compile(code, "default_network_controls", "exec"), namespace)
+        finally:
+            for name, module in saved.items():
+                if module is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = module
+        return namespace
+
+    def _event(self, request, physical_id=None, **properties):
+        event = {"RequestType": request, "ResourceProperties": {"VpcId": VPC, **properties}}
+        if physical_id:
+            event["PhysicalResourceId"] = physical_id
+        self.module["handler"](event, None)
+        return self.responses[-1]
+
+    def _wanted(self):
+        return sorted(lambda_inbound_entries(load_stack()))
+
+    def test_create_applies_rules_and_saves_prior_defaults(self):
+        response = self._event("Create")
+
+        self.assertEqual(response["status"], "SUCCESS", response["reason"])
+        self.assertEqual(response["id"], f"default-network-controls-{VPC}")
+        self.assertEqual(self.ec2.inbound(), self._wanted())
+        self.assertEqual((self.ec2.ingress, self.ec2.egress), ([], []))
+        egress = [e for e in self.ec2.acl if e["Egress"]]
+        self.assertEqual(egress, [e for e in PRIOR_ACL if e["Egress"]])
+        saved = json.loads(self.ssm.parameters[f"/ami-build/default-network-controls/{VPC}"])
+        self.assertEqual(saved["ingress"], PRIOR_INGRESS)
+        self.assertEqual(saved["egress"], PRIOR_EGRESS)
+
+    def test_repeated_updates_are_idempotent(self):
+        self._event("Create")
+        saved = dict(self.ssm.parameters)
+        for nat in ("true", "false", "true"):
+            response = self._event("Update", f"default-network-controls-{VPC}", NatEnabled=nat)
+            self.assertEqual(response["status"], "SUCCESS", response["reason"])
+            self.assertEqual(self.ec2.inbound(), self._wanted())
+            self.assertEqual((self.ec2.ingress, self.ec2.egress), ([], []))
+        self.assertEqual(self.ssm.parameters, saved)
+
+    def test_update_corrects_drift(self):
+        self._event("Create")
+        self.ec2.acl.append({"RuleNumber": 90, "Protocol": "6", "RuleAction": "allow", "Egress": False,
+                             "CidrBlock": "0.0.0.0/0", "PortRange": {"From": 22, "To": 22}})
+        self.ec2.ingress = copy.deepcopy(PRIOR_INGRESS)
+
+        self._event("Update", f"default-network-controls-{VPC}", NatEnabled="false")
+
+        self.assertEqual(self.ec2.inbound(), self._wanted())
+        self.assertEqual(self.ec2.ingress, [])
+
+    def test_delete_restores_the_prior_defaults_exactly(self):
+        prior_acl = copy.deepcopy(self.ec2.acl)
+        self._event("Create")
+
+        response = self._event("Delete", f"default-network-controls-{VPC}")
+
+        self.assertEqual(response["status"], "SUCCESS", response["reason"])
+        self.assertEqual(_by_rule(self.ec2.acl), _by_rule(prior_acl))
+        self.assertEqual(self.ec2.ingress, PRIOR_INGRESS)
+        self.assertEqual(self.ec2.egress, PRIOR_EGRESS)
+        self.assertEqual(self.ssm.parameters, {})
+
+    def test_partial_prior_state_is_restored_too(self):
+        self.ec2 = FakeEc2(ingress=[], acl=PRIOR_ACL + [
+            {"RuleNumber": 90, "Protocol": "6", "RuleAction": "deny", "Egress": False,
+             "CidrBlock": "0.0.0.0/0", "PortRange": {"From": 22, "To": 22}}])
+        self.module = self._load(self.ec2)
+        prior_acl = copy.deepcopy(self.ec2.acl)
+        self._event("Create")
+        self._event("Delete", f"default-network-controls-{VPC}")
+        self.assertEqual(_by_rule(self.ec2.acl), _by_rule(prior_acl))
+        self.assertEqual(self.ec2.ingress, [])
+
+    def test_create_retry_never_overwrites_the_saved_prior_state(self):
+        self._event("Create")
+        saved = dict(self.ssm.parameters)
+        self._event("Create")
+        self.assertEqual(self.ssm.parameters, saved)
+
+    def test_delete_of_a_foreign_physical_id_or_without_saved_state_is_a_no_op(self):
+        before = copy.deepcopy(self.ec2.acl)
+        for physical_id in ("something-else", f"default-network-controls-{VPC}"):
+            response = self._event("Delete", physical_id)
+            self.assertEqual(response["status"], "SUCCESS")
+            self.assertEqual(self.ec2.acl, before)
+
+    def test_failures_are_reported_to_cloudformation(self):
+        self.ec2 = FakeEc2(fail_on="create_network_acl_entry")
+        self.module = self._load(self.ec2)
+        response = self._event("Create")
+        self.assertEqual(response["status"], "FAILED")
+        self.assertIn("create_network_acl_entry failed", response["reason"])
+        # A rollback Delete after the failed Create restores the saved state.
+        self.ec2.fail_on = None
+        self._event("Delete", response["id"])
+        self.assertEqual(_by_rule(self.ec2.acl), _by_rule(PRIOR_ACL))
+
+    def test_toggling_nat_changes_the_custom_resource_properties(self):
+        properties = load_stack()["Resources"]["DefaultNetworkControls"]["Properties"]
+        self.assertEqual(properties["NatEnabled"], {"!Ref": "NatEnabled"})

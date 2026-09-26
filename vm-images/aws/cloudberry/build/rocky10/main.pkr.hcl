@@ -50,6 +50,8 @@ source "amazon-ebs" "base-cbdb-build-image" {
   ssh_interface               = "session_manager"
   iam_instance_profile        = "ami-build-ssm"
   pause_before_ssm            = "30s"
+  # Rocky AMIs lack the SSM agent; this installs and starts it at first boot.
+  user_data_file              = "../../../../common/cloud-init/ssm-agent-rpm.yaml"
   security_group_filter {
     filters = {
       "group-name" = "ami-build-builder"

@@ -85,6 +85,11 @@ package:
 
 # System services verification
 service:
+  # Installed at first boot from cloud-init (common/cloud-init/ssm-agent-rpm.yaml):
+  # builders and instances are reached only through Session Manager.
+  amazon-ssm-agent:
+    enabled: true
+    running: true
   sshd:
     enabled: true
     running: true

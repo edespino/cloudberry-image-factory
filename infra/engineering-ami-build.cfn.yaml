@@ -323,8 +323,11 @@ Resources:
   # ------------------------------------------ default ACL and security group
   # CloudFormation cannot manage the VPC's default ACL or default security
   # group. This custom resource gives the default ACL the same inbound entries
-  # as BuildNetworkAcl and removes every rule from the default security group,
-  # on every create and update, so neither drifts or needs a manual step.
+  # as BuildNetworkAcl and removes every rule from the default security group.
+  # It re-applies them whenever its properties change, which includes every
+  # NatEnabled toggle, so drift is corrected at each build-period update. On
+  # Create it saves the prior defaults in SSM Parameter Store; on Delete
+  # (including a failed update's rollback) it restores them exactly.
   DefaultNetworkControlsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -354,12 +357,20 @@ Resources:
                 Action:
                   - ec2:CreateNetworkAclEntry
                   - ec2:DeleteNetworkAclEntry
+                  - ec2:AuthorizeSecurityGroupIngress
+                  - ec2:AuthorizeSecurityGroupEgress
                   - ec2:RevokeSecurityGroupIngress
                   - ec2:RevokeSecurityGroupEgress
                 Resource: "*"
                 Condition:
                   StringEquals:
                     ec2:Vpc: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${BuildVpc}
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                  - ssm:DeleteParameter
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ami-build/default-network-controls/*
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
@@ -394,10 +405,13 @@ Resources:
         - {Key: Project, Value: cloudberry-image-factory}
       Code:
         ZipFile: |
+          import json
+
           import boto3
           import cfnresponse
 
           ec2 = boto3.client("ec2")
+          ssm = boto3.client("ssm")
 
           # Same inbound entries as BuildNetworkAcl: (rule, protocol, from, to).
           INBOUND = [
@@ -407,58 +421,138 @@ Resources:
               (130, "17", 0, 65535),
               (140, "1", None, None),
           ]
+          SAVED = "/ami-build/default-network-controls/{vpc_id}"
 
 
-          def apply(vpc_id):
+          def defaults(vpc_id):
               acl = ec2.describe_network_acls(Filters=[
                   {"Name": "vpc-id", "Values": [vpc_id]},
                   {"Name": "default", "Values": ["true"]},
               ])["NetworkAcls"][0]
-              acl_id = acl["NetworkAclId"]
-              for entry in acl["Entries"]:
-                  if not entry["Egress"] and entry["RuleNumber"] < 32767:
-                      ec2.delete_network_acl_entry(
-                          NetworkAclId=acl_id, RuleNumber=entry["RuleNumber"], Egress=False)
-              for rule, protocol, low, high in INBOUND:
-                  entry = dict(NetworkAclId=acl_id, RuleNumber=rule, Protocol=protocol,
-                               RuleAction="allow", Egress=False, CidrBlock="0.0.0.0/0")
-                  if protocol == "1":
-                      entry["IcmpTypeCode"] = {"Type": -1, "Code": -1}
-                  else:
-                      entry["PortRange"] = {"From": low, "To": high}
-                  ec2.create_network_acl_entry(**entry)
               group = ec2.describe_security_groups(Filters=[
                   {"Name": "vpc-id", "Values": [vpc_id]},
                   {"Name": "group-name", "Values": ["default"]},
               ])["SecurityGroups"][0]
+              return acl, group
+
+
+          def inbound(acl):
+              """Removable inbound entries (32767 is the fixed deny-all)."""
+              entries = []
+              for entry in acl["Entries"]:
+                  if entry["Egress"] or entry["RuleNumber"] >= 32767:
+                      continue
+                  kept = {key: entry[key] for key in (
+                      "RuleNumber", "Protocol", "RuleAction", "CidrBlock",
+                      "Ipv6CidrBlock", "PortRange", "IcmpTypeCode") if key in entry}
+                  entries.append(kept)
+              return entries
+
+
+          def set_inbound(acl, entries):
+              for entry in inbound(acl):
+                  ec2.delete_network_acl_entry(
+                      NetworkAclId=acl["NetworkAclId"], RuleNumber=entry["RuleNumber"], Egress=False)
+              for entry in entries:
+                  ec2.create_network_acl_entry(
+                      NetworkAclId=acl["NetworkAclId"], Egress=False, **entry)
+
+
+          def set_group(group, ingress, egress):
               if group["IpPermissions"]:
                   ec2.revoke_security_group_ingress(
                       GroupId=group["GroupId"], IpPermissions=group["IpPermissions"])
               if group["IpPermissionsEgress"]:
                   ec2.revoke_security_group_egress(
                       GroupId=group["GroupId"], IpPermissions=group["IpPermissionsEgress"])
-              return acl_id, group["GroupId"]
+              if ingress:
+                  ec2.authorize_security_group_ingress(GroupId=group["GroupId"], IpPermissions=ingress)
+              if egress:
+                  ec2.authorize_security_group_egress(GroupId=group["GroupId"], IpPermissions=egress)
+
+
+          def save_prior(vpc_id):
+              """Record the defaults as found, once; a later save never overwrites."""
+              name = SAVED.format(vpc_id=vpc_id)
+              try:
+                  ssm.get_parameter(Name=name)
+                  return
+              except ssm.exceptions.ParameterNotFound:
+                  pass
+              acl, group = defaults(vpc_id)
+              state = {"acl": inbound(acl), "ingress": group["IpPermissions"],
+                       "egress": group["IpPermissionsEgress"]}
+              ssm.put_parameter(Name=name, Value=json.dumps(state), Type="String",
+                                Tier="Advanced", Overwrite=False)
+
+
+          def apply(vpc_id):
+              acl, group = defaults(vpc_id)
+              wanted = []
+              for rule, protocol, low, high in INBOUND:
+                  entry = {"RuleNumber": rule, "Protocol": protocol,
+                           "RuleAction": "allow", "CidrBlock": "0.0.0.0/0"}
+                  if protocol == "1":
+                      entry["IcmpTypeCode"] = {"Type": -1, "Code": -1}
+                  else:
+                      entry["PortRange"] = {"From": low, "To": high}
+                  wanted.append(entry)
+              set_inbound(acl, wanted)
+              set_group(group, [], [])
+              return acl["NetworkAclId"], group["GroupId"]
+
+
+          def restore(vpc_id):
+              name = SAVED.format(vpc_id=vpc_id)
+              try:
+                  state = json.loads(ssm.get_parameter(Name=name)["Parameter"]["Value"])
+              except ssm.exceptions.ParameterNotFound:
+                  return
+              acl, group = defaults(vpc_id)
+              set_inbound(acl, state["acl"])
+              set_group(group, state["ingress"], state["egress"])
+              ssm.delete_parameter(Name=name)
 
 
           def handler(event, context):
+              vpc_id = event["ResourceProperties"]["VpcId"]
+              physical_id = "default-network-controls-" + vpc_id
               try:
                   data = {}
+                  if event["RequestType"] == "Create":
+                      save_prior(vpc_id)
                   if event["RequestType"] in ("Create", "Update"):
-                      acl_id, group_id = apply(event["ResourceProperties"]["VpcId"])
+                      acl_id, group_id = apply(vpc_id)
                       data = {"DefaultAclId": acl_id, "DefaultSecurityGroupId": group_id}
+                  elif event.get("PhysicalResourceId") == physical_id:
+                      restore(vpc_id)
                   cfnresponse.send(event, context, cfnresponse.SUCCESS, data,
-                                   physicalResourceId="default-network-controls")
+                                   physicalResourceId=physical_id)
               except Exception as error:  # report every failure to CloudFormation
                   cfnresponse.send(event, context, cfnresponse.FAILED, {},
-                                   physicalResourceId="default-network-controls",
+                                   physicalResourceId=event.get("PhysicalResourceId", physical_id),
                                    reason=str(error)[:500])
 
   DefaultNetworkControls:
     Type: Custom::DefaultNetworkControls
+    # Runs after the ordinary network changes, which narrows the window in
+    # which a later failure rolls back this resource.
+    DependsOn:
+      - SubnetAAcl
+      - SubnetBAcl
+      - NatSubnetAcl
+      - SubnetARouteTable
+      - SubnetBRouteTable
+      - NatSubnetRouteTable
+      - S3GatewayEndpoint
+      - BuilderInstanceProfile
+      - BuilderSecurityGroup
     Properties:
       ServiceToken: !GetAtt DefaultNetworkControlsFunction.Arn
       VpcId: !Ref BuildVpc
-      # Bump when the inbound entries change, so the defaults are re-applied.
+      # Any property change sends an Update, which re-applies the defaults:
+      # every NatEnabled toggle, or a RulesVersion bump when INBOUND changes.
+      NatEnabled: !Ref NatEnabled
       RulesVersion: "2026-09-26"
 
   # ------------------------------------------------------------ builders
