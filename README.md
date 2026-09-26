@@ -314,7 +314,7 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
    ├─ Create security group (no inbound rules)
    ├─ Launch t3.medium instance (private subnet, no public IP, ami-build-ssm profile)
    ├─ Wait for Session Manager Online, then SSH over AWS-StartSSHSession
-   └─ Upload SSH key to cbadmin authorized_keys
+   └─ Copy the Goss test files to the instance over the same tunnel
               │
               ▼
 6. Goss Test Execution

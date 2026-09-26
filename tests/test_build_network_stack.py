@@ -149,9 +149,6 @@ class BuildNetworkStackTests(unittest.TestCase):
                         self.assertIn(tag["Value"], ALLOWED_ENVIRONMENTS)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 # ---------------------------------------------------------------------------
 # Runtime tests of the DefaultNetworkControls function, executed against fake
@@ -378,3 +375,7 @@ class DefaultNetworkControlsFunctionTests(unittest.TestCase):
     def test_toggling_nat_changes_the_custom_resource_properties(self):
         properties = load_stack()["Resources"]["DefaultNetworkControls"]["Properties"]
         self.assertEqual(properties["NatEnabled"], {"!Ref": "NatEnabled"})
+
+
+if __name__ == "__main__":
+    unittest.main()

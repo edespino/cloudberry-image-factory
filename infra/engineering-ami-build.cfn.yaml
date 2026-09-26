@@ -326,7 +326,8 @@ Resources:
   # as BuildNetworkAcl and removes every rule from the default security group.
   # It re-applies them whenever its properties change, which includes every
   # NatEnabled toggle, so drift is corrected at each build-period update. On
-  # Create it saves the prior defaults in SSM Parameter Store; on Delete
+  # Create it saves the prior defaults in SSM Parameter Store (Intelligent-
+  # Tiering: free Standard tier at this size); on Delete
   # (including a failed update's rollback) it restores them exactly.
   DefaultNetworkControlsRole:
     Type: AWS::IAM::Role
@@ -483,7 +484,7 @@ Resources:
               state = {"acl": inbound(acl), "ingress": group["IpPermissions"],
                        "egress": group["IpPermissionsEgress"]}
               ssm.put_parameter(Name=name, Value=json.dumps(state), Type="String",
-                                Tier="Advanced", Overwrite=False)
+                                Tier="Intelligent-Tiering", Overwrite=False)
 
 
           def apply(vpc_id):
