@@ -144,6 +144,29 @@ class BuildNetworkStackTests(unittest.TestCase):
         profile = self.stack["Resources"]["BuilderInstanceProfile"]["Properties"]
         self.assertEqual(profile["InstanceProfileName"], "ami-build-ssm")
 
+    def test_every_lambda_has_an_errors_alarm_with_actions(self) -> None:
+        # Drata test 300: each function needs an alarm on AWS/Lambda Errors
+        # whose actions publish to a subscribed SNS topic.
+        functions = resources(self.stack, "AWS::Lambda::Function")
+        self.assertTrue(functions)
+        alarmed = {}
+        for body in resources(self.stack, "AWS::CloudWatch::Alarm").values():
+            alarm = body["Properties"]
+            if (alarm.get("Namespace"), alarm.get("MetricName")) != ("AWS/Lambda", "Errors"):
+                continue
+            for dimension in alarm.get("Dimensions", []):
+                if dimension["Name"] == "FunctionName":
+                    alarmed[dimension["Value"].get("!Ref")] = body
+        for name in functions:
+            with self.subTest(function=name):
+                self.assertIn(name, alarmed, "no AWS/Lambda Errors alarm")
+                self.assertTrue(alarmed[name]["Properties"].get("AlarmActions"), "alarm has no AlarmActions")
+                self.assertIsNone(alarmed[name].get("Condition"), "alarm must always exist")
+        self.assertEqual(
+            self.stack["Parameters"]["AlertTopicArn"]["Default"],
+            "arn:aws:sns:us-west-2:260369602265:synx-engineering-alerts",
+        )
+
     def test_environment_tags_use_allowed_values(self) -> None:
         for name, body in self.stack["Resources"].items():
             tags = body.get("Properties", {}).get("Tags", [])

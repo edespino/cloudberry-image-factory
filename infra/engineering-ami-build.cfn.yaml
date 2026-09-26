@@ -29,6 +29,13 @@ Parameters:
     Type: String
     Description: Value of the Owner tag (SynxTags tag policy, report-only).
     MinLength: 1
+  AlertTopicArn:
+    Type: String
+    Description: >-
+      SNS topic that receives the Lambda error alarm (Drata test 300). Owned by
+      the SynxEngineeringAlerts StackSet, not this stack.
+    Default: arn:aws:sns:us-west-2:260369602265:synx-engineering-alerts
+    AllowedPattern: ^arn:aws:sns:[a-z0-9-]+:\d{12}:[A-Za-z0-9_-]+$
 
 Conditions:
   NatOn: !Equals [!Ref NatEnabled, "true"]
@@ -580,6 +587,32 @@ Resources:
       # every NatEnabled toggle, or a RulesVersion bump when INBOUND changes.
       NatEnabled: !Ref NatEnabled
       RulesVersion: "2026-09-26b"
+
+  # Drata test 300 passes a function only when an alarm on its Errors metric
+  # publishes to an SNS topic that has a subscription.
+  DefaultNetworkControlsErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: ami-build-default-network-controls-errors
+      AlarmDescription: The ami-build-default-network-controls function reported an error.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref DefaultNetworkControlsFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopicArn]
+      OKActions: [!Ref AlertTopicArn]
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
 
   # ------------------------------------------------------------ builders
   # Instance profile for Packer builders and harness test instances: Session
