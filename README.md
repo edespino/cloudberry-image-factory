@@ -223,7 +223,7 @@ through `AWS-StartSSHSession`). Their only internet path is a NAT gateway that
 exists while the stack parameter `NatEnabled=true`; turn it on before building
 and off afterwards (each is a stack update). The harness stops before creating
 anything if the NAT gateway is missing. The network ACL and the VPC's default
-ACL allow no inbound tcp 22 or 3389 (Drata test 227), and the default security
+ACL allow no inbound port 22 or 3389 in tcp or udp (Drata test 227), and the default security
 group has no rules. A custom resource in the stack applies those defaults and
 re-applies them whenever its inputs change, which includes every `NatEnabled`
 toggle; if a stack update rolls back or the stack is deleted, it restores the
