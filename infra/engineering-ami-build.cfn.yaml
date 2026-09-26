@@ -221,8 +221,9 @@ Resources:
         - {Key: Project, Value: cloudberry-image-factory}
 
   # ------------------------------------------------------------ network ACL
-  # Drata test 227 ignores rule order, so no inbound allow from 0.0.0.0/0 may
-  # cover tcp 22 or 3389: the ranges below skip them instead of an allow-all.
+  # Drata test 227 ignores rule order and treats 22 and 3389 as administrative
+  # ports whatever the protocol, so no inbound allow from 0.0.0.0/0 may cover
+  # them in tcp or udp: the ranges below skip them instead of an allow-all.
   # Return traffic for outbound connections arrives on ephemeral ports, which
   # these ranges cover. DefaultNetworkControls applies the same inbound entries
   # to the VPC's default ACL.
@@ -279,7 +280,29 @@ Resources:
       RuleAction: allow
       Egress: false
       CidrBlock: 0.0.0.0/0
-      PortRange: {From: 0, To: 65535}
+      PortRange: {From: 0, To: 21}
+
+  AclInboundUdpBetween:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 131
+      Protocol: 17
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 23, To: 3388}
+
+  AclInboundUdpAboveRdp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 132
+      Protocol: 17
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 3390, To: 65535}
 
   AclInboundIcmp:
     Type: AWS::EC2::NetworkAclEntry
@@ -419,7 +442,9 @@ Resources:
               (100, "6", 0, 21),
               (110, "6", 23, 3388),
               (120, "6", 3390, 65535),
-              (130, "17", 0, 65535),
+              (130, "17", 0, 21),
+              (131, "17", 23, 3388),
+              (132, "17", 3390, 65535),
               (140, "1", None, None),
           ]
           SAVED = "/ami-build/default-network-controls/{vpc_id}"
@@ -554,7 +579,7 @@ Resources:
       # Any property change sends an Update, which re-applies the defaults:
       # every NatEnabled toggle, or a RulesVersion bump when INBOUND changes.
       NatEnabled: !Ref NatEnabled
-      RulesVersion: "2026-09-26"
+      RulesVersion: "2026-09-26b"
 
   # ------------------------------------------------------------ builders
   # Instance profile for Packer builders and harness test instances: Session

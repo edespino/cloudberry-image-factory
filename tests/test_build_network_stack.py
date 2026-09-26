@@ -70,16 +70,20 @@ class BuildNetworkStackTests(unittest.TestCase):
             with self.subTest(rule=entry["RuleNumber"]):
                 self.assertEqual(entry["RuleAction"], "allow")
                 self.assertNotEqual(str(entry["Protocol"]), "-1", "no all-protocol allow")
-                if str(entry["Protocol"]) == "6":
+                # Drata treats 22 and 3389 as administrative in any protocol.
+                if str(entry["Protocol"]) in ("6", "17"):
                     low, high = entry["PortRange"]["From"], entry["PortRange"]["To"]
                     for port in (22, 3389):
                         self.assertFalse(low <= port <= high, f"covers {port}")
-        # The ranges still cover every other TCP port (ephemeral return traffic).
-        covered = set()
-        for entry in entries:
-            if str(entry["Protocol"]) == "6":
-                covered.update(range(entry["PortRange"]["From"], entry["PortRange"]["To"] + 1))
-        self.assertEqual(set(range(0, 65536)) - covered, {22, 3389})
+        # The ranges still cover every other tcp and udp port (ephemeral return
+        # traffic).
+        for protocol in ("6", "17"):
+            covered = set()
+            for entry in entries:
+                if str(entry["Protocol"]) == protocol:
+                    covered.update(range(entry["PortRange"]["From"], entry["PortRange"]["To"] + 1))
+            with self.subTest(protocol=protocol):
+                self.assertEqual(set(range(0, 65536)) - covered, {22, 3389})
 
     def test_default_acl_gets_the_same_inbound_entries(self) -> None:
         stack_entries = sorted(
