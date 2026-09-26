@@ -1,19 +1,37 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   AMI build network for cloudberry-image-factory in Synx Engineering
-  (260369602265, us-west-2): a public VPC with two subnets tagged
-  Purpose=ami-build. Builds run locally with packer-build-and-test.sh under
-  the operator's SSO session; GitHub has no AWS access.
+  (260369602265, us-west-2). Builders and test instances run in two private
+  subnets tagged Purpose=ami-build, reach the internet only through a NAT
+  gateway that exists while NatEnabled=true, and are managed over Session
+  Manager with no inbound access. Builds run locally with
+  packer-build-and-test.sh under the operator's SSO session; GitHub has no AWS
+  access.
 
 Parameters:
   VpcCidr:
     Type: String
-    Description: /24 for the build VPC; split into two /25 subnets. Keep it outside the launcher's 10.0.0.0/16.
+    Description: /24 for the build VPC; split into two /25 private subnets. Keep it outside the launcher's 10.0.0.0/16.
     AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/24$
+  NatCidr:
+    Type: String
+    Description: /28 secondary VPC block for the public subnet that holds the NAT gateway.
+    AllowedPattern: ^(\d{1,3}\.){3}\d{1,3}/28$
+  NatEnabled:
+    Type: String
+    Description: >-
+      true while builds run: creates the NAT gateway, its Elastic IP and the
+      private default route. false removes them (nothing billed); builders then
+      have no internet path and the harness refuses to start a build.
+    AllowedValues: ["true", "false"]
+    Default: "false"
   OwnerTag:
     Type: String
     Description: Value of the Owner tag (SynxTags tag policy, report-only).
     MinLength: 1
+
+Conditions:
+  NatOn: !Equals [!Ref NatEnabled, "true"]
 
 Rules:
   EngineeringUsWest2Only:
@@ -30,13 +48,19 @@ Resources:
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsSupport: true
-      EnableDnsHostnames: true  # harness reaches the test instance by PublicDnsName
+      EnableDnsHostnames: true
       Tags:
         - {Key: Name, Value: ami-build}
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
+
+  NatCidrBlock:
+    Type: AWS::EC2::VPCCidrBlock
+    Properties:
+      VpcId: !Ref BuildVpc
+      CidrBlock: !Ref NatCidr
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -45,7 +69,7 @@ Resources:
         - {Key: Name, Value: ami-build}
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
 
   GatewayAttachment:
@@ -54,27 +78,8 @@ Resources:
       VpcId: !Ref BuildVpc
       InternetGatewayId: !Ref InternetGateway
 
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref BuildVpc
-      Tags:
-        - {Key: Name, Value: ami-build-public}
-        - {Key: Purpose, Value: ami-build}
-        - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
-        - {Key: Project, Value: cloudberry-image-factory}
-
-  DefaultRoute:
-    Type: AWS::EC2::Route
-    DependsOn: GatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  # Packer and the harness request a public IP explicitly, so the subnets
-  # never hand one out on their own.
+  # The two build subnets. Private: no public IPs, and their only way out is
+  # the NAT gateway (while NatEnabled=true) plus the S3 gateway endpoint.
   SubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -86,7 +91,7 @@ Resources:
         - {Key: Name, Value: ami-build-us-west-2a}
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
 
   SubnetB:
@@ -100,8 +105,30 @@ Resources:
         - {Key: Name, Value: ami-build-us-west-2b}
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
+
+  # Route table of the two build subnets. The logical ID predates the move to
+  # private subnets; it is kept so the existing table and its associations are
+  # updated in place rather than replaced.
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BuildVpc
+      Tags:
+        - {Key: Name, Value: ami-build-private}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    Condition: NatOn
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
 
   SubnetARouteTable:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -115,6 +142,371 @@ Resources:
       SubnetId: !Ref SubnetB
       RouteTableId: !Ref PublicRouteTable
 
+  # S3 stays reachable (package mirrors, SSM agent updates) without NAT data
+  # charges. Free; present whether or not NAT is on.
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BuildVpc
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds: [!Ref PublicRouteTable]
+
+  # Public subnet that holds only the NAT gateway.
+  NatSubnet:
+    Type: AWS::EC2::Subnet
+    DependsOn: NatCidrBlock
+    Properties:
+      VpcId: !Ref BuildVpc
+      AvailabilityZone: us-west-2a
+      CidrBlock: !Ref NatCidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - {Key: Name, Value: ami-build-nat-us-west-2a}
+        - {Key: Purpose, Value: ami-build-nat}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  NatRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BuildVpc
+      Tags:
+        - {Key: Name, Value: ami-build-nat}
+        - {Key: Purpose, Value: ami-build-nat}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  NatSubnetDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref NatRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  NatSubnetRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref NatSubnet
+      RouteTableId: !Ref NatRouteTable
+
+  # Released together with the NAT gateway: an unattached Elastic IP is billed.
+  NatElasticIp:
+    Type: AWS::EC2::EIP
+    Condition: NatOn
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - {Key: Name, Value: ami-build-nat}
+        - {Key: Purpose, Value: ami-build-nat}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: NatOn
+    Properties:
+      SubnetId: !Ref NatSubnet
+      AllocationId: !GetAtt NatElasticIp.AllocationId
+      Tags:
+        - {Key: Name, Value: ami-build-nat}
+        - {Key: Purpose, Value: ami-build-nat}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  # ------------------------------------------------------------ network ACL
+  # Drata test 227 ignores rule order, so no inbound allow from 0.0.0.0/0 may
+  # cover tcp 22 or 3389: the ranges below skip them instead of an allow-all.
+  # Return traffic for outbound connections arrives on ephemeral ports, which
+  # these ranges cover. DefaultNetworkControls applies the same inbound entries
+  # to the VPC's default ACL.
+  BuildNetworkAcl:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref BuildVpc
+      Tags:
+        - {Key: Name, Value: ami-build}
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  AclInboundTcpBelowSsh:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 100
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 0, To: 21}
+
+  AclInboundTcpBetween:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 110
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 23, To: 3388}
+
+  AclInboundTcpAboveRdp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 120
+      Protocol: 6
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 3390, To: 65535}
+
+  AclInboundUdp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 130
+      Protocol: 17
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      PortRange: {From: 0, To: 65535}
+
+  AclInboundIcmp:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 140
+      Protocol: 1
+      RuleAction: allow
+      Egress: false
+      CidrBlock: 0.0.0.0/0
+      Icmp: {Type: -1, Code: -1}
+
+  AclOutboundAll:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      NetworkAclId: !Ref BuildNetworkAcl
+      RuleNumber: 100
+      Protocol: -1
+      RuleAction: allow
+      Egress: true
+      CidrBlock: 0.0.0.0/0
+
+  SubnetAAcl:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref SubnetA
+      NetworkAclId: !Ref BuildNetworkAcl
+
+  SubnetBAcl:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref SubnetB
+      NetworkAclId: !Ref BuildNetworkAcl
+
+  NatSubnetAcl:
+    Type: AWS::EC2::SubnetNetworkAclAssociation
+    Properties:
+      SubnetId: !Ref NatSubnet
+      NetworkAclId: !Ref BuildNetworkAcl
+
+  # ------------------------------------------ default ACL and security group
+  # CloudFormation cannot manage the VPC's default ACL or default security
+  # group. This custom resource gives the default ACL the same inbound entries
+  # as BuildNetworkAcl and removes every rule from the default security group,
+  # on every create and update, so neither drifts or needs a manual step.
+  DefaultNetworkControlsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ami-build-default-network-controls
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: default-network-controls
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeNetworkAcls
+                  - ec2:DescribeSecurityGroups
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkAclEntry
+                  - ec2:DeleteNetworkAclEntry
+                  - ec2:RevokeSecurityGroupIngress
+                  - ec2:RevokeSecurityGroupEgress
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    ec2:Vpc: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${BuildVpc}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt DefaultNetworkControlsLogGroup.Arn
+
+  DefaultNetworkControlsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/ami-build-default-network-controls
+      RetentionInDays: 90
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  DefaultNetworkControlsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: DefaultNetworkControlsLogGroup
+    Properties:
+      FunctionName: ami-build-default-network-controls
+      Description: Applies the build ACL's inbound entries to the VPC default ACL and empties the default security group.
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 60
+      Role: !GetAtt DefaultNetworkControlsRole.Arn
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+
+          ec2 = boto3.client("ec2")
+
+          # Same inbound entries as BuildNetworkAcl: (rule, protocol, from, to).
+          INBOUND = [
+              (100, "6", 0, 21),
+              (110, "6", 23, 3388),
+              (120, "6", 3390, 65535),
+              (130, "17", 0, 65535),
+              (140, "1", None, None),
+          ]
+
+
+          def apply(vpc_id):
+              acl = ec2.describe_network_acls(Filters=[
+                  {"Name": "vpc-id", "Values": [vpc_id]},
+                  {"Name": "default", "Values": ["true"]},
+              ])["NetworkAcls"][0]
+              acl_id = acl["NetworkAclId"]
+              for entry in acl["Entries"]:
+                  if not entry["Egress"] and entry["RuleNumber"] < 32767:
+                      ec2.delete_network_acl_entry(
+                          NetworkAclId=acl_id, RuleNumber=entry["RuleNumber"], Egress=False)
+              for rule, protocol, low, high in INBOUND:
+                  entry = dict(NetworkAclId=acl_id, RuleNumber=rule, Protocol=protocol,
+                               RuleAction="allow", Egress=False, CidrBlock="0.0.0.0/0")
+                  if protocol == "1":
+                      entry["IcmpTypeCode"] = {"Type": -1, "Code": -1}
+                  else:
+                      entry["PortRange"] = {"From": low, "To": high}
+                  ec2.create_network_acl_entry(**entry)
+              group = ec2.describe_security_groups(Filters=[
+                  {"Name": "vpc-id", "Values": [vpc_id]},
+                  {"Name": "group-name", "Values": ["default"]},
+              ])["SecurityGroups"][0]
+              if group["IpPermissions"]:
+                  ec2.revoke_security_group_ingress(
+                      GroupId=group["GroupId"], IpPermissions=group["IpPermissions"])
+              if group["IpPermissionsEgress"]:
+                  ec2.revoke_security_group_egress(
+                      GroupId=group["GroupId"], IpPermissions=group["IpPermissionsEgress"])
+              return acl_id, group["GroupId"]
+
+
+          def handler(event, context):
+              try:
+                  data = {}
+                  if event["RequestType"] in ("Create", "Update"):
+                      acl_id, group_id = apply(event["ResourceProperties"]["VpcId"])
+                      data = {"DefaultAclId": acl_id, "DefaultSecurityGroupId": group_id}
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, data,
+                                   physicalResourceId="default-network-controls")
+              except Exception as error:  # report every failure to CloudFormation
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {},
+                                   physicalResourceId="default-network-controls",
+                                   reason=str(error)[:500])
+
+  DefaultNetworkControls:
+    Type: Custom::DefaultNetworkControls
+    Properties:
+      ServiceToken: !GetAtt DefaultNetworkControlsFunction.Arn
+      VpcId: !Ref BuildVpc
+      # Bump when the inbound entries change, so the defaults are re-applied.
+      RulesVersion: "2026-09-26"
+
+  # ------------------------------------------------------------ builders
+  # Instance profile for Packer builders and harness test instances: Session
+  # Manager only.
+  BuilderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ami-build-ssm
+      Tags:
+        - {Key: Purpose, Value: ami-build}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  BuilderInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: ami-build-ssm
+      Roles: [!Ref BuilderRole]
+
+  # Security group for Packer builders: no inbound rules. Session Manager and
+  # package downloads are outbound only.
+  BuilderSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ami-build-builder
+      GroupDescription: AMI builders - no inbound; Session Manager and package downloads are outbound only
+      VpcId: !Ref BuildVpc
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - {Key: Name, Value: ami-build-builder}
+        - {Key: Purpose, Value: ami-build-builder}
+        - {Key: Owner, Value: !Ref OwnerTag}
+        - {Key: Environment, Value: development}
+        - {Key: Project, Value: cloudberry-image-factory}
+
+  # ------------------------------------------------------------ flow logs
   FlowLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -123,7 +515,7 @@ Resources:
       Tags:
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
 
   FlowLogRole:
@@ -133,7 +525,7 @@ Resources:
       Tags:
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -170,14 +562,24 @@ Resources:
       Tags:
         - {Key: Purpose, Value: ami-build}
         - {Key: Owner, Value: !Ref OwnerTag}
-        - {Key: Environment, Value: engineering}
+        - {Key: Environment, Value: development}
         - {Key: Project, Value: cloudberry-image-factory}
 
 Outputs:
   VpcId:
     Value: !Ref BuildVpc
   SubnetIds:
+    Description: Private build subnets (Purpose=ami-build).
     Value: !Join [",", [!Ref SubnetA, !Ref SubnetB]]
+  NatSubnetId:
+    Value: !Ref NatSubnet
+  NatEnabled:
+    Value: !Ref NatEnabled
+  BuilderInstanceProfile:
+    Value: !Ref BuilderInstanceProfile
+  BuilderSecurityGroupId:
+    Value: !Ref BuilderSecurityGroup
+  DefaultNetworkAclId:
+    Value: !GetAtt DefaultNetworkControls.DefaultAclId
   DefaultSecurityGroupId:
-    Description: Strip its rules after deploy (CloudFormation cannot manage the default security group).
-    Value: !GetAtt BuildVpc.DefaultSecurityGroup
+    Value: !GetAtt DefaultNetworkControls.DefaultSecurityGroupId

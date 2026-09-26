@@ -41,9 +41,20 @@ variable "subnet_id" {
 
 source "amazon-ebs" "base-build-image" {
   region        = var.region
-  temporary_security_group_source_public_ip = true
+  # Session Manager access only: the builder gets no public IP and no inbound
+  # rule. It runs in the private Purpose=ami-build subnet with the stack's
+  # ami-build-ssm instance profile and no-inbound ami-build-builder security
+  # group (infra/engineering-ami-build.cfn.yaml).
   subnet_id                   = var.subnet_id
-  associate_public_ip_address = true
+  associate_public_ip_address = false
+  ssh_interface               = "session_manager"
+  iam_instance_profile        = "ami-build-ssm"
+  pause_before_ssm            = "30s"
+  security_group_filter {
+    filters = {
+      "group-name" = "ami-build-builder"
+    }
+  }
 
   # The account's SCP denies RunInstances unless IMDSv2 is required
   # (RequireImdsv2OnLaunch); Packer's default request sends HttpTokens=optional.

@@ -55,7 +55,9 @@ cd vm-images/aws/<family>/build/<os>
 AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
 ```
 
-The build needs the `Purpose=ami-build` subnets from
+The build needs the Session Manager plugin locally and the private
+`Purpose=ami-build` subnets, NAT gateway (`NatEnabled=true`) and
+`ami-build-ssm` instance profile from
 `infra/engineering-ami-build.cfn.yaml`. Old AMIs are retired by hand: a failed
 build's AMI and snapshots are already removed by the harness, and older
 `-PASSED` images are deregistered together with their snapshots.
