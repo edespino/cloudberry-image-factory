@@ -1,0 +1,19 @@
+#cloud-config
+# Rocky Linux AMIs ship without the SSM agent
+# (https://docs.aws.amazon.com/systems-manager/latest/userguide/agent-install-rocky.html),
+# and builders are reached only through Session Manager, so the agent is
+# installed and started at first boot, before Packer connects. The package
+# comes over HTTPS from AWS's regional bucket (through the NAT gateway). The
+# service stays enabled in the captured image, so test and launched instances
+# register too. x86_64 only: every Rocky target here is x86_64.
+runcmd:
+  - - sh
+    - -c
+    - |
+      for attempt in 1 2 3 4 5; do
+        if dnf install -y https://s3.us-west-2.amazonaws.com/amazon-ssm-us-west-2/latest/linux_amd64/amazon-ssm-agent.rpm; then
+          systemctl enable --now amazon-ssm-agent && exit 0
+        fi
+        sleep 10
+      done
+      exit 1

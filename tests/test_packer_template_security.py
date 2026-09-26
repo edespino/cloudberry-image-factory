@@ -266,5 +266,40 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                     goss.read_text(),
                 )
 
+    def test_sources_without_a_preinstalled_ssm_agent_bootstrap_it(self) -> None:
+        # Rocky Linux AMIs (owner 792107900819) ship without the SSM agent;
+        # Session Manager is the only way in, so their user data installs it.
+        # Canonical (snap) and Amazon Linux AMIs include it.
+        agent_included = {"099720109477", "137112412989", "self"}
+        for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):
+            content = strip_hcl_comments(template.read_text())
+            owners = set(re.findall(r'owners\s*=\s*\["([^"]+)"\]', content))
+            with self.subTest(template=template):
+                self.assertTrue(owners)
+                if owners <= agent_included:
+                    continue
+                self.assertEqual(owners, {"792107900819"}, "unknown AMI publisher")
+                self.assertIn(
+                    'user_data_file              = "../../../../common/cloud-init/ssm-agent-rpm.yaml"',
+                    content,
+                )
+                self.assertTrue(
+                    (template.parent / "tests/goss.yaml").read_text().count("amazon-ssm-agent:")
+                )
+
+    def test_ssm_agent_bootstrap_installs_enables_and_starts_it(self) -> None:
+        import yaml
+
+        bootstrap = yaml.safe_load(
+            (REPOSITORY / "vm-images/common/cloud-init/ssm-agent-rpm.yaml").read_text()
+        )
+        script = bootstrap["runcmd"][0][-1]
+        self.assertIn(
+            "https://s3.us-west-2.amazonaws.com/amazon-ssm-us-west-2/latest/linux_amd64/amazon-ssm-agent.rpm",
+            script,
+        )
+        self.assertIn("systemctl enable --now amazon-ssm-agent", script)
+        self.assertIn("exit 1", script)
+
 if __name__ == "__main__":
     unittest.main()

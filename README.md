@@ -224,14 +224,25 @@ exists while the stack parameter `NatEnabled=true`; turn it on before building
 and off afterwards (each is a stack update). The harness stops before creating
 anything if the NAT gateway is missing. The network ACL and the VPC's default
 ACL allow no inbound tcp 22 or 3389 (Drata test 227), and the default security
-group has no rules; a custom resource in the stack keeps the defaults that way.
+group has no rules. A custom resource in the stack applies those defaults and
+re-applies them whenever its inputs change, which includes every `NatEnabled`
+toggle; if a stack update rolls back or the stack is deleted, it restores the
+defaults it found. Rocky Linux AMIs ship without the SSM agent, so their
+builders install it at first boot from `vm-images/common/cloud-init/ssm-agent-rpm.yaml`.
 
 ```bash
-# Before a build period (NAT on), and again with NatEnabled=false afterwards:
+# Start of a build period: NAT on.
 aws cloudformation deploy --stack-name ami-build-network \
   --template-file infra/engineering-ami-build.cfn.yaml \
   --parameter-overrides VpcCidr=10.250.0.0/24 NatCidr=10.250.1.0/28 \
-    OwnerTag=<owner email> NatEnabled=true \
+    OwnerTag=owner@example.com NatEnabled=true \
+  --capabilities CAPABILITY_NAMED_IAM --profile synx-engineering --region us-west-2
+
+# End of a build period: NAT off (NAT gateway and Elastic IP are removed).
+aws cloudformation deploy --stack-name ami-build-network \
+  --template-file infra/engineering-ami-build.cfn.yaml \
+  --parameter-overrides VpcCidr=10.250.0.0/24 NatCidr=10.250.1.0/28 \
+    OwnerTag=owner@example.com NatEnabled=false \
   --capabilities CAPABILITY_NAMED_IAM --profile synx-engineering --region us-west-2
 ```
 
