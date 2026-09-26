@@ -7,9 +7,6 @@ import unittest
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SOURCE_HEADER = re.compile(r'\bsource\s+"amazon-ebs"\s+"[^"]+"\s*\{')
-PUBLIC_IP_SETTING = re.compile(
-    r"(?m)^\s*temporary_security_group_source_public_ip\s*=\s*([^\s#]+)"
-)
 AMI_DESCRIPTION = re.compile(r"(?m)^\s*ami_description\s*=")
 AMI_NAME = re.compile(r"(?m)^\s*ami_name\s*=\s*(.+)$")
 # amazon-ebs settings that would bypass the checked SDK identity or share an
@@ -85,20 +82,34 @@ def amazon_ebs_blocks(content: str) -> list[str]:
 
 
 class PackerTemplateSecurityTests(unittest.TestCase):
-    def test_all_amazon_ebs_sources_restrict_temporary_sg_to_public_ip(self) -> None:
+    def test_all_amazon_ebs_sources_use_session_manager_without_inbound(self) -> None:
+        # Builders are reached only through Session Manager: no public IP, the
+        # stack's instance profile, and the stack's no-inbound security group,
+        # never a Packer temporary security group (which opens port 22).
+        required = (
+            "associate_public_ip_address = false",
+            'ssh_interface               = "session_manager"',
+            'iam_instance_profile        = "ami-build-ssm"',
+            '"group-name" = "ami-build-builder"',
+        )
+        forbidden = (
+            "temporary_security_group_source",
+            "security_group_id ",
+            "security_group_ids",
+            "temporary_iam_instance_profile",
+            "ssh_interface = \"public",
+        )
         templates = sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl"))
         self.assertTrue(templates)
         for template in templates:
-            blocks = amazon_ebs_blocks(template.read_text())
+            blocks = amazon_ebs_blocks(strip_hcl_comments(template.read_text()))
             self.assertTrue(blocks, f"{template} has no amazon-ebs source")
             for position, block in enumerate(blocks):
                 with self.subTest(template=template, source=position):
-                    settings = PUBLIC_IP_SETTING.findall(block)
-                    self.assertEqual(
-                        settings,
-                        ["true"],
-                        "setting must occur exactly once and be literal true",
-                    )
+                    for line in required:
+                        self.assertEqual(block.count(line), 1, line)
+                    for setting in forbidden:
+                        self.assertNotIn(setting, block)
                     self.assertIsNone(
                         WORLD_OPEN_CIDR.search(block),
                         "amazon-ebs source contains a world-open SSH CIDR",
@@ -128,7 +139,6 @@ class PackerTemplateSecurityTests(unittest.TestCase):
         # that do not require IMDSv2.
         expected = (
             "subnet_id                   = var.subnet_id",
-            "associate_public_ip_address = true",
             'http_tokens                 = "required"',
         )
         for template in sorted(REPOSITORY.glob("vm-images/aws/*/build/*/main.pkr.hcl")):

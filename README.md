@@ -196,7 +196,7 @@ cloudberry-image-factory/
 - **AWS SSO profile** for Synx Engineering (`synx-engineering`, PowerUser, `us-west-2`)
 - **Build VPC** from `infra/engineering-ami-build.cfn.yaml` (subnets tagged `Purpose=ami-build`)
 - **Packer** 1.8+ installed locally
-- **Python 3**, `jq`, OpenSSH client, `nc`, `curl`, and GNU `timeout`
+- **Python 3**, `jq`, OpenSSH client, the AWS Session Manager plugin (`session-manager-plugin`), and GNU `timeout`
 
 When this script runs through `access run`, the final command receives a
 private mode-0700 `XDG_RUNTIME_DIR`. When invoked directly, an explicitly set
@@ -214,6 +214,26 @@ the build stops if there is none. `BUILD_AZ=us-west-2b` selects the subnet in
 that Availability Zone instead of the first by zone name, for example when
 `g6.xlarge` has no capacity in us-west-2a. Volumes use the account's default EBS
 encryption. Images stay in this account; they are not shared to others.
+
+**Network and access.** Builders and test instances run in the private
+`Purpose=ami-build` subnets with no public IP and no inbound rule, and are
+reached only through AWS Session Manager (instance profile `ami-build-ssm`;
+Packer uses `ssh_interface = "session_manager"`, the harness tunnels `ssh`/`scp`
+through `AWS-StartSSHSession`). Their only internet path is a NAT gateway that
+exists while the stack parameter `NatEnabled=true`; turn it on before building
+and off afterwards (each is a stack update). The harness stops before creating
+anything if the NAT gateway is missing. The network ACL and the VPC's default
+ACL allow no inbound tcp 22 or 3389 (Drata test 227), and the default security
+group has no rules; a custom resource in the stack keeps the defaults that way.
+
+```bash
+# Before a build period (NAT on), and again with NatEnabled=false afterwards:
+aws cloudformation deploy --stack-name ami-build-network \
+  --template-file infra/engineering-ami-build.cfn.yaml \
+  --parameter-overrides VpcCidr=10.250.0.0/24 NatCidr=10.250.1.0/28 \
+    OwnerTag=<owner email> NatEnabled=true \
+  --capabilities CAPABILITY_NAMED_IAM --profile synx-engineering --region us-west-2
+```
 
 Existing-AMI recovery accepts only available images owned by the
 credentials' account, in the fixed `us-west-2` region, whose name matches the
@@ -240,7 +260,8 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
 └─────────────────────────────────────────────────────────────────────────┘
 
 1. Prerequisites Check
-   ├─ Verify: python3, packer, aws, jq, ssh/scp, nc, curl, timeout
+   ├─ Verify: python3, packer, aws, jq, ssh/scp, session-manager-plugin, timeout
+   ├─ Preflight: build account, Purpose=ami-build subnet, NAT gateway, instance profile
    └─ Generate temporary SSH key pair
               │
               ▼
@@ -279,9 +300,9 @@ AWS_PROFILE=synx-engineering ../../../../scripts/packer-build-and-test.sh
               │
               ▼
 5. Test Instance Launch
-   ├─ Create security group (SSH from current IP only)
-   ├─ Launch t3.medium instance from new AMI
-   ├─ Wait for SSH (30 retries with exponential backoff)
+   ├─ Create security group (no inbound rules)
+   ├─ Launch t3.medium instance (private subnet, no public IP, ami-build-ssm profile)
+   ├─ Wait for Session Manager Online, then SSH over AWS-StartSSHSession
    └─ Upload SSH key to cbadmin authorized_keys
               │
               ▼

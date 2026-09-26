@@ -77,6 +77,14 @@ elif operation == "describe-images":
         print(os.environ.get("FAKE_AMI_METADATA", "synxdb-cloud-packer-rocky9-20260904-000000"))
 elif operation == "get-caller-identity":
     print(os.environ.get("FAKE_ACCOUNT", "260369602265"))
+elif operation == "describe-nat-gateways":
+    print(os.environ.get("FAKE_NAT_GATEWAYS", "1"))
+elif operation == "get-instance-profile":
+    if os.environ.get("FAKE_NO_INSTANCE_PROFILE") == "1":
+        raise SystemExit(254)
+    print("ami-build-ssm")
+elif operation == "describe-instance-information":
+    print(os.environ.get("FAKE_SSM_STATUS", "Online"))
 elif operation == "describe-subnets":
     print(os.environ.get(
         "FAKE_BUILD_NETWORK", "subnet-0a1b2c3d4e5f60718\tvpc-0f1e2d3c4b5a69788"
@@ -183,15 +191,7 @@ if os.environ.get("FAKE_PACKER_INIT_FAILURE") == "1" and sys.argv[1] == "init":
 """,
         )
         self._executable("jq", "#!/bin/sh\nprintf '%s\\n' 'amazon-ebs:ami-fake'\n")
-        self._executable(
-            "curl", "#!/bin/sh\nprintf '%s\\n' \"${FAKE_PUBLIC_IP:-192.0.2.1}\"\n"
-        )
-        self._executable(
-            "nc",
-            "#!/bin/sh\n"
-            "if [ \"${FAKE_SSH_UNREACHABLE:-}\" = 1 ]; then exit 1; fi\n"
-            "printf '%s\\n' 'succeeded'\n",
-        )
+        self._executable("session-manager-plugin", "#!/bin/sh\nexit 0\n")
         for command in ("ssh", "scp"):
             self._executable(
                 command,
@@ -205,6 +205,12 @@ if (
     and any("goss" in value for value in sys.argv[1:])
 ):
     raise SystemExit(1)
+if (
+    "{command}" == "ssh"
+    and os.environ.get("FAKE_SSH_UNREACHABLE") == "1"
+    and sys.argv[-1] == "true"
+):
+    raise SystemExit(255)
 """,
             )
         self._executable(
@@ -276,7 +282,7 @@ exec {self._real(command)} "$@"
     def _path_without_packer(self) -> Path:
         restricted = self.root / "no-packer-bin"
         restricted.mkdir()
-        for command in ("aws", "jq", "curl", "nc", "ssh", "scp", "rm", "rmdir"):
+        for command in ("aws", "jq", "session-manager-plugin", "ssh", "scp", "rm", "rmdir"):
             (restricted / command).symlink_to(self.bin / command)
         for command in ("basename", "cut", "date", "dirname", "grep", "python3"):
             executable = shutil.which(command)
@@ -427,35 +433,46 @@ exec {self._real(command)} "$@"
                     list(self.runtime.glob("cloudberry-packer-*")), []
                 )
 
-    def test_malformed_public_ip_fails_before_security_group_mutation(self) -> None:
-        values = (
-            "192.0.2.1 198.51.100.2",
-            "--help",
-            "192.0.2.1;touch /tmp/not-executed",
-            "192.0.2.1\n198.51.100.2",
-            "999.0.2.1",
-        )
-        for value in values:
-            self.aws_log.unlink(missing_ok=True)
-            with self.subTest(value=value):
-                result = self._run(extra_env={"FAKE_PUBLIC_IP": value})
-                self.assertNotEqual(result.returncode, 0)
-                operations = [call[1] for call in self._aws_calls() if len(call) > 1]
-                self.assertNotIn("create-security-group", operations)
-                self.assertNotIn("authorize-security-group-ingress", operations)
-                self.assertEqual(len(self._delete_calls()), 1)
-
-    def test_valid_public_ip_is_one_exact_cidr_argument(self) -> None:
-        result = self._run(extra_env={"FAKE_PUBLIC_IP": "192.0.2.25"})
+    def test_test_instance_gets_no_inbound_rule_and_no_public_ip(self) -> None:
+        result = self._run()
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        authorize = [
-            call for call in self._aws_calls()
-            if call[:2] == ["ec2", "authorize-security-group-ingress"]
-        ]
-        self.assertEqual(len(authorize), 1)
-        cidr_index = authorize[0].index("--cidr")
-        self.assertEqual(authorize[0][cidr_index + 1], "192.0.2.25/32")
+        operations = self._operations()
+        self.assertIn("create-security-group", operations)
+        self.assertNotIn("authorize-security-group-ingress", operations)
+        run_instance = next(
+            call for call in self._aws_calls() if call[:2] == ["ec2", "run-instances"]
+        )
+        self.assertIn("AssociatePublicIpAddress=false", run_instance[run_instance.index("--network-interfaces") + 1])
+        self.assertEqual(
+            run_instance[run_instance.index("--iam-instance-profile") + 1],
+            "Name=ami-build-ssm",
+        )
+
+    def test_nat_off_or_missing_instance_profile_fails_before_key_pair(self) -> None:
+        for name, environment in (
+            ("nat-off", {"FAKE_NAT_GATEWAYS": "0"}),
+            ("no-instance-profile", {"FAKE_NO_INSTANCE_PROFILE": "1"}),
+        ):
+            self.aws_log.unlink(missing_ok=True)
+            with self.subTest(case=name):
+                result = self._run(extra_env=environment)
+                self.assertNotEqual(result.returncode, 0)
+                operations = self._operations()
+                self.assertNotIn("create-key-pair", operations)
+                self.assertNotIn("run-instances", operations)
+                self.assertFalse(self.packer_log.exists())
+        self.assertIn("NatEnabled=true", self._run(extra_env={"FAKE_NAT_GATEWAYS": "0"}).stderr)
+
+    def test_session_manager_never_online_cleans_up_and_discards(self) -> None:
+        result = self._run(extra_env={"FAKE_SSM_STATUS": "ConnectionLost"})
+
+        self.assertNotEqual(result.returncode, 0)
+        events = self.event_log.read_text().splitlines()
+        self.assertIn("aws:deregister-image", events)
+        for operation in ("aws:terminate-instances", "aws:delete-security-group"):
+            self.assertLess(events.index(operation), events.index("aws:deregister-image"))
+        self.assertFalse(self.ssh_log.exists())
 
     def test_normal_packer_commands_receive_fixed_region_variable(self) -> None:
         result = self._run(extra_env={"AWS_REGION": "us-east-1"})
@@ -481,6 +498,12 @@ exec {self._real(command)} "$@"
             self.assertIn("-i", call)
             key = call[call.index("-i") + 1]
             self.assertTrue(key.startswith(str(self.runtime)))
+            self.assertIn(
+                "ProxyCommand=aws ssm start-session --target %h --document-name "
+                "AWS-StartSSHSession --parameters portNumber=%p --region us-west-2",
+                call,
+            )
+            self.assertTrue(any("@i-fake" in value for value in call))
 
     def test_ssh_exhaustion_cleans_before_bounded_ami_discard(self) -> None:
         result = self._run(extra_env={"FAKE_SSH_UNREACHABLE": "1"})
@@ -698,9 +721,9 @@ exec {self._real(command)} "$@"
         self.assertIn("delete-security-group", operations)
 
     def test_ambiguous_sg_and_instance_creates_are_recovered(self) -> None:
-        for variable, expected in (
-            ("FAKE_SG_LOST_RESPONSE", "sg-ambiguous"),
-            ("FAKE_INSTANCE_LOST_RESPONSE", "i-ambiguous"),
+        for variable, discovery in (
+            ("FAKE_SG_LOST_RESPONSE", "describe-security-groups"),
+            ("FAKE_INSTANCE_LOST_RESPONSE", "describe-instances"),
         ):
             self.aws_log.unlink(missing_ok=True)
             with self.subTest(variable=variable):
@@ -713,8 +736,8 @@ exec {self._real(command)} "$@"
                 self.assertIn("--client-token", run_call)
                 self.assertIn("--tag-specifications", run_call)
                 operations = [call[1] for call in calls if len(call) > 1]
-                self.assertIn("describe-security-groups", operations)
-                self.assertIn("describe-instances", operations)
+                # The lost create is recovered by discovering the resource.
+                self.assertIn(discovery, operations)
 
     def test_run_instance_retries_same_token_before_discovery(self) -> None:
         result = self._run(extra_env={"FAKE_INSTANCE_LOST_RESPONSE": "1"})
@@ -1038,7 +1061,7 @@ exec {self._real(command)} "$@"
         self.assertEqual(
             run_instance[run_instance.index("--network-interfaces") + 1],
             "DeviceIndex=0,SubnetId=subnet-0a1b2c3d4e5f60718,"
-            "Groups=sg-fake,AssociatePublicIpAddress=true",
+            "Groups=sg-fake,AssociatePublicIpAddress=false",
         )
         self.assertEqual(
             run_instance[run_instance.index("--metadata-options") + 1],

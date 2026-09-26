@@ -23,7 +23,7 @@
 #
 # Prerequisites:
 # - AWS CLI configured with appropriate credentials
-# - Python 3, AWS CLI, OpenSSH client, nc, curl, and timeout
+# - Python 3, AWS CLI, the Session Manager plugin, OpenSSH client, and timeout
 # - Packer and jq in normal build mode only
 # - The script assumes the presence of a Packer HCL file (main.pkr.hcl) in
 #   the current directory.
@@ -99,7 +99,7 @@ command_exists() {
 }
 
 # Check for required commands
-REQUIRED_COMMANDS=(aws curl nc python3 scp ssh timeout)
+REQUIRED_COMMANDS=(aws python3 scp session-manager-plugin ssh timeout)
 if [ -z "${EXISTING_AMI}" ]; then
   REQUIRED_COMMANDS+=(jq packer)
 fi
@@ -110,8 +110,7 @@ for cmd in "${REQUIRED_COMMANDS[@]}"; do
         packer) echo "Install with: Download from https://www.packer.io/downloads" ;;
         aws) echo "Install with: pip install awscli" ;;
         jq) echo "Install with: sudo apt-get install jq" ;;
-        nc) echo "Install with: sudo apt-get install netcat" ;;
-        curl) echo "Install with: sudo apt-get install curl" ;;
+        session-manager-plugin) echo "Install with: brew install --cask session-manager-plugin (see the AWS Session Manager plugin docs)" ;;
     esac
     exit 1
   fi
@@ -186,6 +185,10 @@ if [ -n "${BUILD_AZ}" ] && [[ ! "${BUILD_AZ}" =~ ^${REGION}[a-z]$ ]]; then
   echo "Error: BUILD_AZ must be an Availability Zone in ${REGION} (got '${BUILD_AZ}')." >&2
   exit 2
 fi
+# Builders and test instances are reached only through Session Manager with
+# this instance profile (infra/engineering-ami-build.cfn.yaml); they get no
+# public IP and no inbound rule.
+BUILD_INSTANCE_PROFILE="ami-build-ssm"
 # The only approved build account: Synx Engineering. It has no default VPC,
 # so builds use the Purpose=ami-build subnet; volumes use the account's
 # default EBS encryption.
@@ -223,7 +226,6 @@ INSTANCE_ID=""
 INSTANCE_CREATION_ATTEMPTED=false
 INSTANCE_DISCOVERY_EXHAUSTED=false
 AMI_ID=""
-HOSTNAME=""
 AMI_NAME=""
 AMI_VALIDATED_FOR_TAGGING=false
 AMI_CREATED_BY_RUN=false
@@ -362,6 +364,25 @@ resolve_build_network() {
     return 1
   fi
   echo "Build subnet: ${BUILD_SUBNET_ID} (VPC ${BUILD_VPC_ID})"
+  # The build subnets are private: without the NAT gateway (stack parameter
+  # NatEnabled=false) builders cannot download packages or reach Session
+  # Manager, so stop before creating anything.
+  local nat_gateways
+  nat_gateways="$(
+    aws ec2 describe-nat-gateways \
+      --filter "Name=vpc-id,Values=${BUILD_VPC_ID}" "Name=state,Values=available" \
+      --query "length(NatGateways)" --output "text" --region "${REGION}"
+  )"
+  if [ "${nat_gateways}" = "0" ]; then
+    echo "Error: the build VPC has no NAT gateway; update the ami-build-network stack with NatEnabled=true before building." >&2
+    return 1
+  fi
+  if ! aws iam get-instance-profile --instance-profile-name "${BUILD_INSTANCE_PROFILE}" \
+    --query "InstanceProfile.InstanceProfileName" --output "text" > /dev/null; then
+    echo "Error: instance profile ${BUILD_INSTANCE_PROFILE} not found; deploy the ami-build-network stack." >&2
+    return 1
+  fi
+  echo "NAT gateway available; instance profile ${BUILD_INSTANCE_PROFILE} present."
 }
 
 cleanup() {
@@ -685,29 +706,7 @@ else
 fi
 echo "AMI architecture: ${AMI_ARCHITECTURE}; test instance type: ${TEST_INSTANCE_TYPE}"
 
-# Step 7: Retrieve local IP address to restrict SSH access to the current machine
-if ! PUBLIC_IP="$(
-  curl --fail --silent --show-error \
-    --connect-timeout 5 --max-time 10 \
-    "https://checkip.amazonaws.com"
-)"; then
-  echo "Unable to determine the public IPv4 address." >&2
-  error_handler
-fi
-if [[ ! "${PUBLIC_IP}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  echo "Public IP response is not exactly one plain IPv4 address." >&2
-  error_handler
-fi
-IFS='.' read -r -a PUBLIC_IP_OCTETS <<< "${PUBLIC_IP}"
-for octet in "${PUBLIC_IP_OCTETS[@]}"; do
-  if (( 10#${octet} > 255 )); then
-    echo "Public IP response contains an invalid IPv4 octet." >&2
-    error_handler
-  fi
-done
-LOCAL_CIDR="${PUBLIC_IP}/32"
-
-# Step 8: Create a new security group to allow SSH access
+# Step 8: Create a temporary security group with no inbound rules
 echo "Creating new security group..."
 SECURITY_GROUP_CREATION_ATTEMPTED=true
 if ! SECURITY_GROUP_ID="$(
@@ -728,10 +727,7 @@ if [[ ! "${SECURITY_GROUP_ID}" =~ ^sg-[0-9A-Za-z-]+$ ]]; then
   echo "Unable to identify the temporary security group." >&2
   error_handler
 fi
-aws ec2 authorize-security-group-ingress \
-  --group-id "${SECURITY_GROUP_ID}" \
-  --protocol "tcp" --port "22" --cidr "${LOCAL_CIDR}" --region "${REGION}"
-echo "Created security group ${SECURITY_GROUP_ID} with SSH access for CIDR ${LOCAL_CIDR}"
+echo "Created security group ${SECURITY_GROUP_ID} (no inbound rules; SSH runs over Session Manager)"
 
 # Step 9: Start a new EC2 instance using the created AMI
 echo "Starting a new EC2 instance..."
@@ -741,8 +737,9 @@ run_test_instance() {
     --image-id "${AMI_ID}" \
     --instance-type "${TEST_INSTANCE_TYPE}" \
     --key-name "${PKR_VAR_KEY_NAME}" \
+    --iam-instance-profile "Name=${BUILD_INSTANCE_PROFILE}" \
     --network-interfaces \
-      "DeviceIndex=0,SubnetId=${BUILD_SUBNET_ID},Groups=${SECURITY_GROUP_ID},AssociatePublicIpAddress=true" \
+      "DeviceIndex=0,SubnetId=${BUILD_SUBNET_ID},Groups=${SECURITY_GROUP_ID},AssociatePublicIpAddress=false" \
     --metadata-options "HttpTokens=required,HttpEndpoint=enabled" \
     --client-token "${CLIENT_TOKEN}" \
     --tag-specifications \
@@ -771,30 +768,52 @@ fi
 echo "Waiting for the instance to be in running state..."
 aws ec2 wait instance-running --instance-ids "${INSTANCE_ID}" --region "${REGION}"
 
-# Step 11: Retrieve the public DNS name of the instance
-HOSTNAME="$(
-  aws ec2 describe-instances \
-    --instance-ids "${INSTANCE_ID}" \
-    --query "Reservations[*].Instances[*].PublicDnsName" \
-    --output "text" \
-    --region "${REGION}"
-)"
-
-# Step 12: Loop until SSH access is available on the instance
-echo "Waiting for SSH to become available on ${HOSTNAME}..."
-for ((i=1; i<=30; i++)); do
-  if nc -zv "${HOSTNAME}" "22" 2>&1 | grep -q 'succeeded'; then
-    echo "SSH is available on ${HOSTNAME}"
+# Step 11: Wait until the instance is registered with Session Manager
+echo "Waiting for ${INSTANCE_ID} to come Online in Session Manager..."
+for ((i=1; i<=40; i++)); do
+  ping_status="$(
+    aws ssm describe-instance-information \
+      --filters "Key=InstanceIds,Values=${INSTANCE_ID}" \
+      --query "InstanceInformationList[0].PingStatus" \
+      --output "text" --region "${REGION}" 2>/dev/null
+  )" || ping_status=""
+  if [ "${ping_status}" = "Online" ]; then
+    echo "${INSTANCE_ID} is Online in Session Manager"
     break
-  else
-    echo "SSH is not available yet. Retry $i/30..."
-    sleep $((i*2))
   fi
-
-  if [ $i -eq 30 ]; then
-    echo "SSH is still not available after 30 attempts. Exiting."
+  if [ "$i" -eq 40 ]; then
+    echo "${INSTANCE_ID} did not come Online in Session Manager. Exiting."
     error_handler
   fi
+  echo "Not Online yet (${ping_status:-unregistered}). Retry $i/40..."
+  sleep 15
+done
+
+# SSH and SCP reach the instance by ID through an AWS-StartSSHSession proxy;
+# the key pair still authenticates the login.
+SSH_OPTIONS=(
+  -i "${PKR_VAR_PRIVATE_KEY_FILE}"
+  -o "StrictHostKeyChecking=no"
+  -o "UserKnownHostsFile=/dev/null"
+  -o "LogLevel=ERROR"
+  -o "ConnectTimeout=30"
+  -o "ProxyCommand=aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters portNumber=%p --region ${REGION}"
+)
+SSH_TARGET="${OS_USER}@${INSTANCE_ID}"
+
+# Step 12: Loop until SSH answers through Session Manager
+echo "Waiting for SSH over Session Manager on ${INSTANCE_ID}..."
+for ((i=1; i<=20; i++)); do
+  if ssh "${SSH_OPTIONS[@]}" -o "BatchMode=yes" "${SSH_TARGET}" "true"; then
+    echo "SSH is available on ${INSTANCE_ID}"
+    break
+  fi
+  if [ "$i" -eq 20 ]; then
+    echo "SSH is still not available after 20 attempts. Exiting."
+    error_handler
+  fi
+  echo "SSH is not available yet. Retry $i/20..."
+  sleep $((i*2))
 done
 
 # Step 13: Run Goss tests on the instance
@@ -804,48 +823,33 @@ echo "Running Goss tests on instance ${INSTANCE_ID}..."
 echo "Copying Goss test configuration to instance..."
 
 # Create directory structure on the instance to match source layout
-ssh -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
-    -o "StrictHostKeyChecking=no" \
-    -o "UserKnownHostsFile=/dev/null" \
-    -o "LogLevel=ERROR" \
-    "${OS_USER}@${HOSTNAME}" \
+ssh "${SSH_OPTIONS[@]}" \
+    "${SSH_TARGET}" \
     "mkdir -p ~/${OS_NAME}/tests ~/common/tests"
 
 # Copy common test files
 if [ -d "${SCRIPT_DIR}/../common/tests" ]; then
     echo "Copying common test files..."
-    scp -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
-        -o "StrictHostKeyChecking=no" \
-        -o "UserKnownHostsFile=/dev/null" \
-        -o "LogLevel=ERROR" \
+    scp "${SSH_OPTIONS[@]}" \
         "${SCRIPT_DIR}/../common/tests/"*.yaml \
-        "${OS_USER}@${HOSTNAME}:~/common/tests/"
+        "${SSH_TARGET}:~/common/tests/"
 fi
 
 # Copy platform-specific Goss test file
-scp -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
-    -o "StrictHostKeyChecking=no" \
-    -o "UserKnownHostsFile=/dev/null" \
-    -o "LogLevel=ERROR" \
+scp "${SSH_OPTIONS[@]}" \
     "${CURRENT_DIR}/tests/goss.yaml" \
-    "${OS_USER}@${HOSTNAME}:~/${OS_NAME}/tests/goss.yaml"
+    "${SSH_TARGET}:~/${OS_NAME}/tests/goss.yaml"
 
 # Run Goss tests
 echo "Executing Goss validation tests..."
-ssh -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
-    -o "StrictHostKeyChecking=no" \
-    -o "UserKnownHostsFile=/dev/null" \
-    -o "LogLevel=ERROR" \
-    "${OS_USER}@${HOSTNAME}" \
+ssh "${SSH_OPTIONS[@]}" \
+    "${SSH_TARGET}" \
     "sudo /usr/local/bin/goss --gossfile ~/${OS_NAME}/tests/goss.yaml validate --format junit > ~/goss-results.xml 2>/dev/null; echo '=== GOSS TEST RESULTS ==='; sudo /usr/local/bin/goss --gossfile ~/${OS_NAME}/tests/goss.yaml validate --format rspecish"
 
 # Copy test results back
 echo "Retrieving Goss test results..."
-scp -i "${PKR_VAR_PRIVATE_KEY_FILE}" \
-    -o "StrictHostKeyChecking=no" \
-    -o "UserKnownHostsFile=/dev/null" \
-    -o "LogLevel=ERROR" \
-    "${OS_USER}@${HOSTNAME}:~/goss-results.xml" \
+scp "${SSH_OPTIONS[@]}" \
+    "${SSH_TARGET}:~/goss-results.xml" \
     "${CURRENT_DIR}/goss-test-results-$(date +%Y%m%d-%H%M%S).xml" || true
 
 echo "Goss tests completed successfully!"

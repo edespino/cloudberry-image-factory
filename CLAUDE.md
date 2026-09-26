@@ -101,6 +101,16 @@ available subnet tagged `Purpose=ami-build`, which the harness passes to every
 template as `subnet_id` (the first by zone name; `BUILD_AZ=us-west-2b` picks
 the subnet in that zone, e.g. when an instance type has no capacity). Volumes use the account's default EBS encryption.
 
+Builders and test instances have no public IP and no inbound rule: they run in
+the private `Purpose=ami-build` subnets with the `ami-build-ssm` instance
+profile and are reached only through Session Manager (Packer
+`ssh_interface = "session_manager"`; the harness tunnels `ssh`/`scp` through
+`AWS-StartSSHSession`). The NAT gateway exists only while the stack parameter
+`NatEnabled=true`; the harness refuses to build without it. Templates must keep
+the Session Manager settings and the `ami-build-builder` security group filter
+(a policy test enforces it); never reintroduce a public IP, a temporary
+security group, or an inbound rule.
+
 ## Adding a New Family
 
 A new family needs no workflow edits — `validate.yml` selects targets
@@ -234,6 +244,10 @@ Before committing, verify:
 ### Build failed and the AMI was discarded
 **Cause:** Goss tests failed or couldn't run; the harness deregistered the AMI and deleted its snapshots
 **Solution:** Check the `goss-test-results-*.xml` and the Packer log; verify all tested packages/tools are installed. Rerun with `--keep-failed-ami` if the image itself must be launched for inspection (it is then tagged `-FAILED`)
+
+### "the build VPC has no NAT gateway"
+**Cause:** The `ami-build-network` stack is deployed with `NatEnabled=false` (the default between build periods)
+**Solution:** Update the stack with `NatEnabled=true`, build, then update it back to `false`
 
 ### "no available Purpose=ami-build subnet"
 **Cause:** The build VPC stack (`infra/engineering-ami-build.cfn.yaml`) is not deployed, or the credentials are not for Synx Engineering
