@@ -286,6 +286,9 @@ class PackerTemplateSecurityTests(unittest.TestCase):
                 self.assertTrue(
                     (template.parent / "tests/goss.yaml").read_text().count("amazon-ssm-agent:")
                 )
+                # Packer opens the SSM session once, after pause_before_ssm;
+                # the first-boot install must have registered the agent by then.
+                self.assertIn('pause_before_ssm            = "2m"', content)
 
     def test_ssm_agent_bootstrap_installs_enables_and_starts_it(self) -> None:
         import yaml

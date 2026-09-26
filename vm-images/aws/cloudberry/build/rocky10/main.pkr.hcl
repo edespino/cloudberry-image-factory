@@ -49,8 +49,10 @@ source "amazon-ebs" "base-cbdb-build-image" {
   associate_public_ip_address = false
   ssh_interface               = "session_manager"
   iam_instance_profile        = "ami-build-ssm"
-  pause_before_ssm            = "30s"
-  # Rocky AMIs lack the SSM agent; this installs and starts it at first boot.
+  # Rocky AMIs lack the SSM agent; the user data below installs and starts it
+  # at first boot. Packer does not retry the session, so it waits for that
+  # install (the agent registered ~45 s after launch on Rocky 10 in testing).
+  pause_before_ssm            = "2m"
   user_data_file              = "../../../../common/cloud-init/ssm-agent-rpm.yaml"
   security_group_filter {
     filters = {
