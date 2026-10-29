@@ -60,6 +60,7 @@ package:
   zlib-devel: {installed: true}
   libuv-devel: {installed: true}
   libyaml-devel: {installed: true}
+  liburing-devel: {installed: true}
 
   # Java
   java-11-openjdk: {installed: true}

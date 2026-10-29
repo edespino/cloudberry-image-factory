@@ -107,6 +107,10 @@ sudo dnf install -y -d0 --enablerepo=devel \
      protobuf-devel \
      protobuf-c-devel
 
+# PAX requires liburing on Linux. On Rocky 9 the devel package is in CRB,
+# not the devel repo used above.
+sudo dnf install -y -d0 --enablerepo=crb liburing-devel
+
 sudo dnf install -y -d0 --enablerepo=epel \
      docbook-style-xsl \
      libxslt
