@@ -108,8 +108,13 @@ sudo dnf install -y -d0 --enablerepo=devel \
      protobuf-c-devel
 
 # PAX requires liburing on Linux. On Rocky 9 the devel package is in CRB,
-# not the devel repo used above.
-sudo dnf install -y -d0 --enablerepo=crb liburing-devel
+# not the devel repo used above. Meson and ninja are in CRB too. Meson
+# cannot compile without ninja 1.10 or later: older ninja rejects the
+# build.ninja Meson writes. CRB has meson 0.63.3 and ninja-build 1.10.2.
+sudo dnf install -y -d0 --enablerepo=crb \
+     liburing-devel \
+     meson \
+     ninja-build
 
 sudo dnf install -y -d0 --enablerepo=epel \
      docbook-style-xsl \

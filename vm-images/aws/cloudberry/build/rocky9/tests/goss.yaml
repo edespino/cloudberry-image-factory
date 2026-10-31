@@ -61,6 +61,8 @@ package:
   libuv-devel: {installed: true}
   libyaml-devel: {installed: true}
   liburing-devel: {installed: true}
+  meson: {installed: true}
+  ninja-build: {installed: true}
 
   # Java
   java-11-openjdk: {installed: true}
@@ -183,6 +185,14 @@ command:
   "/usr/local/bin/yq --version":
     exit-status: 0
     stdout: ["yq"]
+    timeout: 5000
+
+  # Meson build tools. ninja-build provides /usr/bin/ninja.
+  "/usr/bin/meson --version":
+    exit-status: 0
+    timeout: 5000
+  "/usr/bin/ninja --version":
+    exit-status: 0
     timeout: 5000
 
   # Starship functionality check
