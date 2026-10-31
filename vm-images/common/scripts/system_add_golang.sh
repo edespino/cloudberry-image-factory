@@ -11,15 +11,15 @@ echo "Executing system_add_golang.sh..."
 
 # Official GO Download page - https://go.dev/dl/
 # Hardcoded Go version and per-architecture SHA256 checksums
-GO_VERSION="go1.26.1"
+GO_VERSION="go1.26.10"
 case "$(uname -m)" in
   x86_64)
     GO_ARCH="amd64"
-    GO_SHA256="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a"
+    GO_SHA256="ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5"
     ;;
   aarch64|arm64)
     GO_ARCH="arm64"
-    GO_SHA256="a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7"
+    GO_SHA256="3f4227ce7b206a513e794f1393adb473a07b46e94d18bd15d1c684bbb7319797"
     ;;
   *)
     echo "ERROR: Unsupported architecture: $(uname -m)"; exit 1

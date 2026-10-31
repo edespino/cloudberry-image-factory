@@ -6,8 +6,8 @@
 # Included by: run `grep -rl common-golang.yaml ../..` for the current list
 #
 # Installation structure (from system_add_golang.sh):
-# - /opt/go1.26.1 (version-specific directory)
-# - /opt/go -> /opt/go1.26.1 (symlink)
+# - /opt/go1.26.10 (version-specific directory)
+# - /opt/go -> /opt/go1.26.10 (symlink)
 # - /opt/go/bin/go (binary)
 
 # Go installation files
@@ -19,7 +19,7 @@ file:
     filetype: file
 
   # Version-specific installation directory
-  /opt/go1.26.1:
+  /opt/go1.26.10:
     exists: true
     filetype: directory
 
@@ -41,5 +41,5 @@ command:
   # Go version check
   "/opt/go/bin/go version":
     exit-status: 0
-    stdout: ["go1.26.1"]
+    stdout: ["go1.26.10"]
     timeout: 5000
