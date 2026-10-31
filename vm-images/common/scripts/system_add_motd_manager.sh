@@ -22,23 +22,11 @@ sudo mkdir -p /usr/local/share/motd-templates
 
 # Install Cloudberry template
 cat <<'EOF' | sudo tee /usr/local/share/motd-templates/cloudberry.txt >/dev/null
-
-                ++++++++++       ++++++
-              ++++++++++++++   +++++++
-             ++++        +++++ ++++
-            ++++          +++++++++
-         =+====         =============+
-       ========       =====+      =====
-      ====  ====     ====           ====
-     ====    ===     ===             ====
-     ====            === ===         ====
-     ====            ===  ==--       ===
-      =====          ===== --       ====
-       =====================     ======
-         ============================
-                           =-----=
-
   Apache Cloudberry (Incubating) – Public VM
+
+  Apache, Apache Cloudberry, and the Apache Cloudberry logo are registered
+  trademarks or trademarks of The Apache Software Foundation in the U.S.
+  and/or other countries.
 EOF
 
 # Install Synx template
