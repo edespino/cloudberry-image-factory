@@ -106,8 +106,17 @@ build {
     script = "scripts/system_add_cbdb_build_rpm_dependencies.sh"
   }
 
+  # Java 21. Do not use system_config_java_home.sh: it requires Java 8.
+  provisioner "shell" {
+    script = "scripts/system_config_java21_home.sh"
+  }
+
   provisioner "shell" {
     script = "../../../../common/scripts/system_add_golang.sh"
+  }
+
+  provisioner "shell" {
+    script = "../../../../common/scripts/system_add_cbdb_xerces_c_build_dependency.sh"
   }
 
   # Create gpadmin user first
