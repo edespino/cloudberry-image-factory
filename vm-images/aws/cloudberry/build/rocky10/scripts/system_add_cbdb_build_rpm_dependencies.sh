@@ -45,6 +45,7 @@ sudo dnf install -y -d0 \
      krb5-devel \
      libevent-devel \
      libffi-devel \
+     libicu-devel \
      libtool \
      libuuid-devel \
      libuv-devel \

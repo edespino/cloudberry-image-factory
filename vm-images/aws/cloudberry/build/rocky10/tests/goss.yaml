@@ -39,6 +39,7 @@ package:
   maven: {installed: true}
   java-21-openjdk: {installed: true}
   java-21-openjdk-devel: {installed: true}
+  libicu-devel: {installed: true}
   liburing-devel: {installed: true}
   meson: {installed: true}
   ninja-build: {installed: true}
