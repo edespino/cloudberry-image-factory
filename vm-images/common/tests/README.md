@@ -85,7 +85,7 @@ This matches the relative path `../../common/tests/` used in the platform test f
 - **MOTD manager executable**: /usr/local/sbin/motd-manager (755 permissions)
 - **MOTD switcher utility**: /usr/local/bin/motd-switch (755 permissions)
 - **Configuration**: /etc/motd.conf with MOTD_TEMPLATE setting
-- **Templates**: cloudberry.txt and synx.txt in /usr/local/share/motd-templates/
+- **Templates**: synx.txt in /usr/local/share/motd-templates/
 - **Profile hook**: /etc/profile.d/10-motd.sh integration
 - **Functionality tests**: motd-manager execution, motd-switch --help
 
