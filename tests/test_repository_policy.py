@@ -184,6 +184,12 @@ class RepositoryPolicyTests(unittest.TestCase):
         ).read_text()
         self.assertNotIn("nodejs:", goss)
         self.assertNotIn("node --version", goss)
+        # The shared Java home script requires Java 8, which Rocky 10 does not ship.
+        self.assertNotIn(
+            "common/scripts/system_config_java_home.sh", pkr
+        )
+        self.assertIn("system_config_java21_home.sh", pkr)
+        self.assertNotIn("system_add_docker.sh", pkr)
 
     def test_synxdb_cloud_templates_require_no_cloudsmith_variables(self) -> None:
         templates = sorted(

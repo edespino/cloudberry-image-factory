@@ -28,6 +28,21 @@ package:
   time: {installed: true}
   tree: {installed: true}
 
+  # Cloudberry build toolchain. Java is 21: Rocky 10 does not ship Java 8 or 11.
+  gcc: {installed: true}
+  gcc-c++: {installed: true}
+  make: {installed: true}
+  cmake: {installed: true}
+  autoconf: {installed: true}
+  bison: {installed: true}
+  flex: {installed: true}
+  maven: {installed: true}
+  java-21-openjdk: {installed: true}
+  java-21-openjdk-devel: {installed: true}
+  liburing-devel: {installed: true}
+  meson: {installed: true}
+  ninja-build: {installed: true}
+
 # System services verification
 service:
   # Installed at first boot from cloud-init (common/cloud-init/ssm-agent-rpm.yaml):
@@ -59,6 +74,15 @@ file:
   # instance of the image.
   /home/rocky/.ssh/id_ed25519:
     exists: false
+  /opt/xerces-c/lib/libxerces-c.so:
+    exists: true
+    filetype: symlink
+  /opt/xerces-c/include/xercesc:
+    exists: true
+    filetype: directory
+  /etc/profile.d/java.sh:
+    exists: true
+    filetype: file
   # yq installation
   /usr/local/bin/yq:
     exists: true
@@ -114,6 +138,17 @@ file:
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
+  "java -version":
+    exit-status: 0
+    stderr: ["openjdk version"]
+    timeout: 5000
+  "/usr/bin/meson --version":
+    exit-status: 0
+    timeout: 5000
+  "/usr/bin/ninja --version":
+    exit-status: 0
+    timeout: 5000
+
   # glow (markdown viewer) functionality check
   "/usr/bin/glow --version":
     exit-status: 0
