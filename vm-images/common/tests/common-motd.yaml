@@ -32,11 +32,6 @@ file:
     contents:
       - "MOTD_TEMPLATE="
 
-  /usr/local/share/motd-templates/cloudberry.txt:
-    exists: true
-    mode: "0644"
-    filetype: file
-
   /usr/local/share/motd-templates/synx.txt:
     exists: true
     mode: "0644"

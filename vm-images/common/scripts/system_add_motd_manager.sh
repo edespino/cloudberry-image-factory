@@ -6,28 +6,17 @@ set -euo pipefail
 # Header indicating the script execution
 echo "Executing system_add_motd_manager.sh..."
 
-# Accept MOTD template as environment variable, default to cloudberry
-MOTD_TEMPLATE="${MOTD_TEMPLATE:-cloudberry}"
-
-# Validate template choice
-if [[ ! "$MOTD_TEMPLATE" =~ ^(cloudberry|synx|asf)$ ]]; then
-  echo "ERROR: Invalid MOTD_TEMPLATE='$MOTD_TEMPLATE'. Valid values: cloudberry, synx, asf"
-  exit 1
+# Login banner is the Synx mark. An unset or other value still selects it.
+MOTD_TEMPLATE="${MOTD_TEMPLATE:-synx}"
+if [[ "$MOTD_TEMPLATE" != "synx" ]]; then
+  echo "MOTD_TEMPLATE='$MOTD_TEMPLATE' is not used. Login banner is synx."
+  MOTD_TEMPLATE=synx
 fi
 
 echo "Using MOTD template: $MOTD_TEMPLATE"
 
 # Create template storage directory
 sudo mkdir -p /usr/local/share/motd-templates
-
-# Install Cloudberry template
-cat <<'EOF' | sudo tee /usr/local/share/motd-templates/cloudberry.txt >/dev/null
-  Apache Cloudberry (Incubating)
-
-  Apache, Apache Cloudberry, and the Apache Cloudberry logo are registered
-  trademarks or trademarks of The Apache Software Foundation in the U.S.
-  and/or other countries.
-EOF
 
 # Install Synx template
 cat <<'EOF' | sudo tee /usr/local/share/motd-templates/synx.txt >/dev/null
@@ -42,46 +31,6 @@ cat <<'EOF' | sudo tee /usr/local/share/motd-templates/synx.txt >/dev/null
               █           █           █               █   █              █░
   ███████████▒            █           █               █   █               █
 
-  Synx Data Labs - Public VM
-  Powered by Apache Cloudberry (Incubating)
-EOF
-
-# Install ASF template
-cat <<'EOF' | sudo tee /usr/local/share/motd-templates/asf.txt >/dev/null
-
-                         =====
-                        =======
-               =====   ========
-              ++==============
-              +++=============
-    ++++++    +++++=== ==========
-   **+++++++++ ++++++ =============
-   ****+++++++++++++ +++++++++++++
-   *****+++++++++++ +++++++++++++
-    ******+++++++++ ++++++++++
-     *******++++++ ++++++++++
-      ********+++ +++++++++++++
-  **    ******** ++++++++++++++++++
- ##************  *****+++++++++++++++
-  ###********** *********************
-   ###******** ********************
-     ####****  *****************
-       ####** ***********
-   ######### ##************
-  #########  ##############
-  ######### ##############
-   #######  ######
-     ##### ###########
-       ##  ###########
-        #   #######
-       #
-       #
-      #
-      #
-     #
-     #
-
-  Apache Software Foundation
 EOF
 
 sudo chmod 644 /usr/local/share/motd-templates/*.txt
@@ -89,7 +38,6 @@ sudo chmod 644 /usr/local/share/motd-templates/*.txt
 # Create configuration file with selected template
 cat <<EOF | sudo tee /etc/motd.conf >/dev/null
 # MOTD Manager Configuration
-# Valid values: cloudberry, synx, asf
 MOTD_TEMPLATE=${MOTD_TEMPLATE}
 EOF
 
@@ -103,7 +51,7 @@ cat <<'EOF' | sudo tee /usr/local/sbin/motd-manager >/dev/null
 set -euo pipefail
 
 # Load configuration
-MOTD_TEMPLATE="cloudberry"
+MOTD_TEMPLATE="synx"
 if [[ -f /etc/motd.conf ]]; then
   source /etc/motd.conf
 fi
@@ -160,22 +108,7 @@ echo "  SELinux:     $SESTATE"
 echo "  $PKGTYPE:        $PKGCOUNT"
 hr
 
-# Template-specific footer
-case "$MOTD_TEMPLATE" in
-  cloudberry)
-    echo "  Docs: https://cloudberry.apache.org  |  User: ${USER}"
-    ;;
-  synx)
-    echo "  Docs: https://www.synxdata.com/  |  User: ${USER}"
-    ;;
-  asf)
-    echo "  Docs: https://www.apache.org  |  User: ${USER}"
-    ;;
-  *)
-    echo "  User: ${USER}"
-    ;;
-esac
-
+echo "  Docs: https://www.synxdata.com/  |  User: ${USER}"
 hr1
 EOF
 
@@ -201,8 +134,7 @@ Available templates:
 $(ls -1 "$TEMPLATE_DIR"/*.txt 2>/dev/null | xargs -n1 basename | sed 's/.txt$/  - /')
 
 Examples:
-  motd-switch cloudberry    Switch to Cloudberry MOTD
-  motd-switch synx          Switch to Synx MOTD
+  motd-switch synx          Switch to the Synx MOTD
   motd-switch --help        Show this help message
 
 Current template:
@@ -249,6 +181,6 @@ sudo chmod 644 /etc/profile.d/10-motd.sh
 
 # Footer indicating the script execution is complete
 echo "system_add_motd_manager.sh execution completed."
-echo "  - Templates available: cloudberry, synx, asf"
+echo "  - Templates available: synx"
 echo "  - Selected template: ${MOTD_TEMPLATE}"
-echo "  - Switch command: motd-switch [cloudberry|synx|asf]"
+echo "  - Switch command: motd-switch synx"
