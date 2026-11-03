@@ -41,6 +41,7 @@ package:
   java-21-openjdk-devel: {installed: true}
   libicu-devel: {installed: true}
   liburing-devel: {installed: true}
+  lsof: {installed: true}
   meson: {installed: true}
   ninja-build: {installed: true}
 
@@ -147,6 +148,9 @@ command:
     exit-status: 0
     timeout: 5000
   "/usr/bin/ninja --version":
+    exit-status: 0
+    timeout: 5000
+  "/usr/bin/lsof -v":
     exit-status: 0
     timeout: 5000
 

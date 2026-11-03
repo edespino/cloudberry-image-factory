@@ -51,6 +51,7 @@ sudo dnf install -y -d0 \
      libuv-devel \
      libxml2-devel \
      libzstd-devel \
+     lsof \
      lz4-devel \
      m4 \
      make \
