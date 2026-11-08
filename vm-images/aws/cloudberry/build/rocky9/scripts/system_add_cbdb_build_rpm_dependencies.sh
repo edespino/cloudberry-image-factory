@@ -120,6 +120,18 @@ sudo dnf install -y -d0 --enablerepo=epel \
      docbook-style-xsl \
      libxslt
 
+# Distro maven is 3.6.3. Keep the package so the package test stays true,
+# and put the current Apache Maven release first on PATH.
+MAVEN_VERSION="3.10.0"
+MAVEN_SHA512="908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa"
+MAVEN_TARBALL="apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+wget -nv -O "/tmp/${MAVEN_TARBALL}" "https://downloads.apache.org/maven/maven-3/${MAVEN_VERSION}/binaries/${MAVEN_TARBALL}"
+echo "${MAVEN_SHA512}  /tmp/${MAVEN_TARBALL}" | sha512sum -c -
+sudo rm -rf "/opt/apache-maven-${MAVEN_VERSION}"
+sudo tar -xzf "/tmp/${MAVEN_TARBALL}" -C /opt
+sudo ln -sfn "/opt/apache-maven-${MAVEN_VERSION}/bin/mvn" /usr/local/bin/mvn
+rm -f "/tmp/${MAVEN_TARBALL}"
+
 #Cleanup
 sudo dnf clean all
 

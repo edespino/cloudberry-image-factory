@@ -195,6 +195,12 @@ command:
     exit-status: 0
     timeout: 5000
 
+  # Apache Maven release, ahead of the distro package on PATH.
+  "/usr/local/bin/mvn --version":
+    exit-status: 0
+    stdout: ["Apache Maven 3.10.0"]
+    timeout: 10000
+
   # Starship functionality check
   "/usr/local/bin/starship --version":
     exit-status: 0
