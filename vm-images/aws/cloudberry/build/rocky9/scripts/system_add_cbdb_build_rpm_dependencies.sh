@@ -11,7 +11,7 @@ sudo dnf makecache
 
 # Install EPEL repository and import GPG keys for EPEL and Rocky Linux
 sudo dnf install -y -d0 epel-release
-sudo rpm --import http://download.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-8
+sudo rpm --import https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-9
 sudo rpm --import https://dl.rockylinux.org/pub/sig/8/cloud/x86_64/cloud-kernel/RPM-GPG-KEY-Rocky-SIG-Cloud
 
 # Update the package cache again to include the new repository
