@@ -67,6 +67,8 @@ package:
   # Java
   java-11-openjdk: {installed: true}
   java-11-openjdk-devel: {installed: true}
+  java-21-openjdk: {installed: true}
+  java-21-openjdk-devel: {installed: true}
 
   # Python
   python3-devel: {installed: true}
@@ -169,6 +171,11 @@ file:
 
 # Command execution tests (using full paths to avoid PATH issues)
 command:
+  "/usr/lib/jvm/java-21-openjdk/bin/java -version":
+    exit-status: 0
+    stderr: ["openjdk version"]
+    timeout: 5000
+
   # Java version check
   "java -version":
     exit-status: 0

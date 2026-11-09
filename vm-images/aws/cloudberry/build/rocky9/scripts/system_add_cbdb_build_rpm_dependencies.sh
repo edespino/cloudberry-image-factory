@@ -50,6 +50,8 @@ sudo dnf install -y -d0 \
      java-1.8.0-openjdk-devel \
      java-11-openjdk \
      java-11-openjdk-devel \
+     java-21-openjdk \
+     java-21-openjdk-devel \
      krb5-devel \
      less \
      libcurl-devel \
